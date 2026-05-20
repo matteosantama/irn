@@ -17,3 +17,6 @@ wheels/
 
 # LaTeX paper sources and build artifacts
 paper/
+
+# Lean build artifacts
+.lake/
