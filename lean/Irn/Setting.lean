@@ -19,6 +19,7 @@ Paper references:
 import Mathlib.Analysis.InnerProductSpace.Basic
 import Mathlib.Analysis.Calculus.ContDiff.Defs
 import Mathlib.Topology.Algebra.Module.FiniteDimension
+import Irn.Barriers
 
 namespace Irn
 
@@ -43,7 +44,6 @@ structure IrnSetup (H : Type*)
   C : Set H
   /-- The relaxed monotonicity domain `Cplus = ℝⁿ × ℝᵐ × ℝ₊₊`. -/
   Cplus : Set H
-  Cplus_open : IsOpen Cplus
   C_subset_Cplus : C ⊆ Cplus
   /-- Cone barrier parameter. -/
   ν : ℕ
@@ -53,32 +53,31 @@ structure IrnSetup (H : Type*)
   /-- The barrier-gradient map (zero on `x`, `∇f*(y)` on `y`,
   `∇g*(τ) = -1/τ` on `τ`). -/
   φ : H → H
-  /-- `Q` is continuously differentiable on `Cplus`. -/
-  Q_contDiff : ContDiffOn ℝ 3 Q Cplus
   /-- **Proposition 1.** `Q` is monotone on `Cplus`. -/
   Q_monotone : ∀ u ∈ Cplus, ∀ v ∈ Cplus,
     0 ≤ inner ℝ (u - v) (Q u - Q v)
   /-- Euler-type identity used in the proof of Proposition 3 (sphericity):
   `⟨u, Q(u)⟩ = 0`. -/
   inner_u_Q : ∀ u ∈ Cplus, inner ℝ u (Q u) = (0 : ℝ)
-  /-- Euler-type identity for `φ` (Proposition 3 proof):
-  `⟨u, φ(u)⟩ = -(ν+1)`. -/
-  inner_u_phi : ∀ u ∈ C, inner ℝ u (φ u) = -((ν : ℝ) + 1)
-  /-- `φ` is continuously differentiable on `C`. -/
-  phi_contDiff : ContDiffOn ℝ 3 φ C
-  /-- The barrier-gradient map `φ` is monotone on `C`. This is a
-  direct consequence of `F* = f* + g*` being convex (the gradient of
-  a convex function is monotone) — strict convexity is built into the
-  LHSCB definition. We record it as an `IrnSetup` hypothesis since the
-  `LHSCB` interface in this first pass does not yet expose `F*` as a
-  potential. -/
-  phi_monotone : ∀ u ∈ C, ∀ v ∈ C,
-    0 ≤ inner ℝ (u - v) (φ u - φ v)
+  /-- The combined `(ν+1)`-LHSCB `F = f + g`, where `f` is the
+  user-supplied `ν`-LHSCB on `K*` and `g(τ) = -log τ` is the standard
+  `1`-LHSCB on `ℝ_++`. The paper's `φ = ∇F*` factors through this
+  bundle via `phi_eq_grad`; the three φ-consequences used downstream
+  (Euler, monotonicity, dual-norm bound) are derived as theorems below
+  rather than carried as separate `IrnSetup` fields. -/
+  F_lhscb : LHSCB H (ν + 1)
+  /-- The IRN setup's φ is the LHSCB gradient on `C`. -/
+  phi_eq_grad : ∀ u ∈ C, φ u = F_lhscb.grad u
+  /-- The barrier is finite on `C`. -/
+  C_subset_domain : C ⊆ F_lhscb.domain
   /-- The `W(u)⁻¹`-weighted norm `‖·‖_{W(u)⁻¹}`, where
   `W(u) = I + ∇²F*(u)`. Carried as a field to sidestep the
   linear-operator-inverse machinery; its required algebraic and
   bound properties are recorded below. -/
   normWinv : H → H → ℝ
+  /-- `normWinv` agrees with the LHSCB dual norm, so the LHSCB
+  gradient bound transports to `‖φ(u)‖_{W(u)⁻¹} ≤ √(ν+1)`. -/
+  normWinv_eq_dualNorm : ∀ u v, normWinv u v = F_lhscb.dualNorm u v
   /-- `normWinv` is nonnegative. -/
   normWinv_nonneg : ∀ u v, 0 ≤ normWinv u v
   /-- `W(u) ⪰ I` implies `W(u)⁻¹ ⪯ I`, so the dual norm is bounded
@@ -88,10 +87,6 @@ structure IrnSetup (H : Type*)
   normWinv_triangle : ∀ u v w, normWinv u (v + w) ≤ normWinv u v + normWinv u w
   /-- Absolute homogeneity. -/
   normWinv_smul : ∀ u (r : ℝ) v, normWinv u (r • v) = |r| * normWinv u v
-  /-- LHSCB gradient identity: `‖φ(u)‖²_{W(u)⁻¹} ≤ ν + 1`, hence
-  `‖φ(u)‖_{W(u)⁻¹} ≤ √(ν+1)`. The bound is `√ν + 1 = √(ν+1)` because
-  the τ-block contributes at most `1`. -/
-  normWinv_phi_bound : ∀ u ∈ C, normWinv u (φ u) ≤ Real.sqrt ((ν : ℝ) + 1)
   -- Theorem 8 ingredients: explicit embedding structure.
   -- The KKT operator splits as `Q u = M u - q(u) • e_τ` where `M` is
   -- the linear (skew-off-diagonal) part of the embedding matrix, `e_τ`
@@ -105,8 +100,6 @@ structure IrnSetup (H : Type*)
   q : H → ℝ
   /-- The τ-component projection. -/
   tau_proj : H → ℝ
-  /-- KKT decomposition: `Q u = M u - q(u) • e_τ` on `Cplus`. -/
-  Q_decomposition : ∀ u ∈ Cplus, Q u = M u - q u • e_τ
   /-- `tau_proj u > 0` on `Cplus`. -/
   tau_proj_pos : ∀ u ∈ Cplus, 0 < tau_proj u
   -- The Riemannian Josephy–Newton corrector.
@@ -128,8 +121,6 @@ structure IrnSetup (H : Type*)
   Px_bilinform : H →L[ℝ] H →L[ℝ] ℝ
   /-- `B_P` is symmetric. -/
   Px_symm : ∀ u v, Px_bilinform u v = Px_bilinform v u
-  /-- The rational correction is `q(u) = B_P(u, u) / tau_proj u`. -/
-  q_eq_bilinform : ∀ u ∈ Cplus, q u = Px_bilinform u u / tau_proj u
   /-- The continuous linear equivalence `H_k + M`. The matrix `H_k + M`
   is invertible because its symmetric part is positive definite. -/
   hessian_plus_M : ℝ → H → (H ≃L[ℝ] H)
@@ -217,6 +208,31 @@ theorem r_sq : 𝓢.r ^ 2 = (𝓢.ν : ℝ) + 1 := by
 theorem r_pos : 0 < 𝓢.r := by
   unfold IrnSetup.r
   exact Real.sqrt_pos.mpr (by positivity)
+
+/-- **Euler-type identity for `φ`** (Proposition 3 proof):
+`⟨u, φ(u)⟩ = -(ν+1)`. Derived from the LHSCB Euler identity for
+`F = f + g` (a `(ν+1)`-LHSCB). -/
+theorem inner_u_phi (u : H) (hu : u ∈ 𝓢.C) :
+    inner ℝ u (𝓢.φ u) = -((𝓢.ν : ℝ) + 1) := by
+  rw [𝓢.phi_eq_grad u hu, 𝓢.F_lhscb.euler u (𝓢.C_subset_domain hu)]
+  push_cast
+  ring
+
+/-- **Monotonicity of `φ`** on `C`. The gradient of a convex function
+is monotone; here `F = f + g` is convex. -/
+theorem phi_monotone (u : H) (hu : u ∈ 𝓢.C) (v : H) (hv : v ∈ 𝓢.C) :
+    0 ≤ inner ℝ (u - v) (𝓢.φ u - 𝓢.φ v) := by
+  rw [𝓢.phi_eq_grad u hu, 𝓢.phi_eq_grad v hv]
+  exact 𝓢.F_lhscb.grad_monotone u (𝓢.C_subset_domain hu) v (𝓢.C_subset_domain hv)
+
+/-- **LHSCB gradient bound** in the IRN dual norm:
+`‖φ(u)‖_{W(u)⁻¹} ≤ √(ν+1)`. -/
+theorem normWinv_phi_bound (u : H) (hu : u ∈ 𝓢.C) :
+    𝓢.normWinv u (𝓢.φ u) ≤ Real.sqrt ((𝓢.ν : ℝ) + 1) := by
+  rw [𝓢.normWinv_eq_dualNorm, 𝓢.phi_eq_grad u hu]
+  have h := 𝓢.F_lhscb.dualNorm_grad_bound u (𝓢.C_subset_domain hu)
+  push_cast at h
+  exact h
 
 end IrnSetup
 
