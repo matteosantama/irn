@@ -42,7 +42,16 @@ def sphere : Set H := {u | ‖u‖ = 𝓢.r}
 `u ∈ Sr ∩ int C`. -/
 theorem tangent_T {μ : ℝ} (hμ : 0 < μ) {u : H}
     (hS : u ∈ sphere 𝓢) (hC : u ∈ 𝓢.C) :
-    inner ℝ u (T 𝓢 μ u) = (0 : ℝ) := sorry
+    inner ℝ u (T 𝓢 μ u) = (0 : ℝ) := by
+  unfold T
+  rw [inner_add_right, inner_add_right, inner_smul_right, inner_smul_right,
+      𝓢.inner_u_Q u (𝓢.C_subset_Cplus hC), 𝓢.inner_u_phi u hC,
+      real_inner_self_eq_norm_sq]
+  have huu : ‖u‖ ^ 2 = (𝓢.ν : ℝ) + 1 := by
+    have hnorm : ‖u‖ = 𝓢.r := hS
+    rw [hnorm, 𝓢.r_sq]
+  rw [huu]
+  ring
 
 /-- **Theorem 7 (A posteriori error bound, ambient form).**
 `‖u - u*(μ)‖ ≤ ‖T_μ(u)‖ / μ` for every `u ∈ int C`. -/

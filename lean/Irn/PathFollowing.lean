@@ -57,7 +57,15 @@ noncomputable def tildeT (μ : ℝ) (u : H) : H := proj u (T 𝓢 μ u)
 `P_u φ(u) = φ(u) + u`. -/
 theorem proj_phi_on_sphere {u : H}
     (hS : u ∈ sphere 𝓢) (hC : u ∈ 𝓢.C) :
-    proj u (𝓢.φ u) = 𝓢.φ u + u := sorry
+    proj u (𝓢.φ u) = 𝓢.φ u + u := by
+  unfold proj
+  rw [𝓢.inner_u_phi u hC]
+  have huu : ‖u‖ ^ 2 = (𝓢.ν : ℝ) + 1 := by
+    have hnorm : ‖u‖ = 𝓢.r := hS
+    rw [hnorm, 𝓢.r_sq]
+  rw [huu]
+  have hpos : (0 : ℝ) < (𝓢.ν : ℝ) + 1 := by positivity
+  rw [neg_div, div_self (ne_of_gt hpos), neg_smul, one_smul, sub_neg_eq_add]
 
 /-- **Eq. (6.3).** Affine-in-`μ` proximity transfer identity for
 `tildeT`. -/
@@ -74,7 +82,17 @@ noncomputable def R (u : H) : ℝ := ‖𝓢.φ u + u‖
 Proposition 12. -/
 theorem mu_R_eq_Q_norm {μ : ℝ} (hμ : 0 < μ) :
     μ * R 𝓢 (centralPathPoint 𝓢 μ hμ) =
-      ‖𝓢.Q (centralPathPoint 𝓢 μ hμ)‖ := sorry
+      ‖𝓢.Q (centralPathPoint 𝓢 μ hμ)‖ := by
+  set u := centralPathPoint 𝓢 μ hμ
+  obtain ⟨_, hT⟩ := centralPathPoint_isCentralPathPoint 𝓢 μ hμ
+  unfold T at hT
+  unfold R
+  have hT' : 𝓢.Q u + (μ • u + μ • 𝓢.φ u) = 0 := by
+    rw [← add_assoc]; exact hT
+  have hQ : 𝓢.Q u = -(μ • (𝓢.φ u + u)) := by
+    have h1 : 𝓢.Q u = -(μ • u + μ • 𝓢.φ u) := add_eq_zero_iff_eq_neg.mp hT'
+    rw [h1, smul_add, add_comm (μ • 𝓢.φ u)]
+  rw [hQ, norm_neg, norm_smul, Real.norm_eq_abs, abs_of_pos hμ]
 
 /-- **Proposition 12 (Failure of Euclidean tolerances).** For any
 inner-loop tolerance function `f`, even a perfectly-centred iterate

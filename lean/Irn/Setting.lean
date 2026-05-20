@@ -76,9 +76,13 @@ variable {H : Type*}
 /-- Sphere radius `r = √(ν+1)`. -/
 noncomputable def r : ℝ := Real.sqrt ((𝓢.ν : ℝ) + 1)
 
-theorem r_sq : 𝓢.r ^ 2 = (𝓢.ν : ℝ) + 1 := sorry
+theorem r_sq : 𝓢.r ^ 2 = (𝓢.ν : ℝ) + 1 := by
+  unfold IrnSetup.r
+  exact Real.sq_sqrt (by positivity)
 
-theorem r_pos : 0 < 𝓢.r := sorry
+theorem r_pos : 0 < 𝓢.r := by
+  unfold IrnSetup.r
+  exact Real.sqrt_pos.mpr (by positivity)
 
 end IrnSetup
 

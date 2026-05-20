@@ -35,7 +35,15 @@ def IsCentralPathPoint (μ : ℝ) (u : H) : Prop :=
 the sphere of radius `r = √(ν+1)`. -/
 theorem centralPath_norm_sq {μ : ℝ} (hμ : 0 < μ) {u : H}
     (h : IsCentralPathPoint 𝓢 μ u) :
-    ‖u‖ ^ 2 = (𝓢.ν : ℝ) + 1 := sorry
+    ‖u‖ ^ 2 = (𝓢.ν : ℝ) + 1 := by
+  obtain ⟨hC, hT⟩ := h
+  have key : inner ℝ u (T 𝓢 μ u) = (0 : ℝ) := by
+    rw [hT]; exact inner_zero_right _
+  unfold T at key
+  rw [inner_add_right, inner_add_right, inner_smul_right, inner_smul_right,
+      𝓢.inner_u_Q u (𝓢.C_subset_Cplus hC), 𝓢.inner_u_phi u hC,
+      real_inner_self_eq_norm_sq] at key
+  nlinarith [key, hμ]
 
 /-- **Theorem 5 (Existence and uniqueness).** For every `μ > 0` there
 is a unique central-path point. -/
@@ -47,7 +55,8 @@ noncomputable def centralPathPoint (μ : ℝ) (hμ : 0 < μ) : H :=
   Classical.choose (exists_unique_centralPath 𝓢 μ hμ).exists
 
 theorem centralPathPoint_isCentralPathPoint (μ : ℝ) (hμ : 0 < μ) :
-    IsCentralPathPoint 𝓢 μ (centralPathPoint 𝓢 μ hμ) := sorry
+    IsCentralPathPoint 𝓢 μ (centralPathPoint 𝓢 μ hμ) :=
+  Classical.choose_spec (exists_unique_centralPath 𝓢 μ hμ).exists
 
 /-- **Theorem 6 (Smoothness).** `μ ↦ u*(μ)` is `Cᵈ` on `ℝ₊₊` for any
 `d ≤ deg(f) - 1`. We state this here only for `d = 2`. -/
