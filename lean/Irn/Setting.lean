@@ -176,6 +176,30 @@ structure IrnSetup (H : Type*)
     ∃ u : H, u ∈ Cplus ∧ ∃ θ : ℝ, 0 < θ ∧
       (hessian_h μ u_k + M) u = hessian_h μ u_k z + θ • e_τ ∧
       θ * tau_proj u = Px_bilinform u u + μ
+  -- Theorem 12 / Lemma 15 ingredients: Newton-Kantorovich contractions.
+  /-- **Lemma 15 (Hessian-norm Newton–Kantorovich).** On `Sr ∩ C`, one
+  corrector step contracts `δ = normWinv(T)/μ` quadratically with basin
+  radius `ρ_star` and rate `K_star`. Stated using the on-sphere identity
+  `δ μ u = normWinv u (Q u + μ • u + μ • φ u) / μ` (the projector drops
+  out by tangentiality). -/
+  rjnStep_delta_contraction : ∃ ρ_star K_star : ℝ,
+    0 < ρ_star ∧ ρ_star < 1 ∧ 1 ≤ K_star ∧
+    ∀ μ : ℝ, 0 < μ → ∀ u : H, ‖u‖ ^ 2 = (ν : ℝ) + 1 → u ∈ C →
+      normWinv u (Q u + μ • u + μ • φ u) / μ ≤ ρ_star →
+      normWinv (rjnStep μ u)
+          (Q (rjnStep μ u) + μ • (rjnStep μ u) + μ • φ (rjnStep μ u)) / μ ≤
+        K_star * (normWinv u (Q u + μ • u + μ • φ u) / μ) ^ 2
+  /-- **Theorem 12 (Euclidean Newton–Kantorovich).** Near each
+  central-path point `u_star`, there is an open `U` containing `u_star`
+  and a constant `K > 0` such that on `U ∩ Sr ∩ C` the corrector both
+  stays in `U` (basin invariance) and contracts the Euclidean error
+  quadratically. -/
+  rjnStep_euclidean_basin : ∀ μ : ℝ, 0 < μ → ∀ u_star : H,
+    u_star ∈ C → Q u_star + μ • u_star + μ • φ u_star = 0 →
+    ∃ U : Set H, IsOpen U ∧ u_star ∈ U ∧ ∃ K : ℝ, 0 < K ∧
+      (∀ u ∈ U, ‖u‖ ^ 2 = (ν : ℝ) + 1 → u ∈ C → rjnStep μ u ∈ U) ∧
+      (∀ u ∈ U, ‖u‖ ^ 2 = (ν : ℝ) + 1 → u ∈ C →
+         ‖rjnStep μ u - u_star‖ ≤ K * ‖u - u_star‖ ^ 2)
 
 namespace IrnSetup
 

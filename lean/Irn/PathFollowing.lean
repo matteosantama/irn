@@ -231,33 +231,41 @@ theorem outer_iteration_count
         rw [← Real.exp_nat_mul]; congr 1; ring
     _ ≤ ε := h_exp_target
 
-/-- The Newton corrector preserves the constraint set. This combines
-the conclusions of Proposition 11 (well-definedness within a basin)
-and Theorem 12 (the iterates stay on `Sr ∩ int C`). Built from the
-two `IrnSetup` fields `rjnStep_norm_sq` and `rjnStep_in_C`. -/
-theorem rjnStep_invariant
-    {μ : ℝ} (hμ : 0 < μ) {u : H} (hS : u ∈ sphere 𝓢) (hC : u ∈ 𝓢.C) :
-    𝓢.rjnStep μ u ∈ sphere 𝓢 ∧ 𝓢.rjnStep μ u ∈ 𝓢.C := by
-  have h_norm : ‖u‖ = 𝓢.r := hS
-  have h_norm_sq : ‖u‖ ^ 2 = (𝓢.ν : ℝ) + 1 := by
-    rw [h_norm, 𝓢.r_sq]
-  have h_step_norm_sq : ‖𝓢.rjnStep μ u‖ ^ 2 = (𝓢.ν : ℝ) + 1 :=
-    𝓢.rjnStep_norm_sq μ u hμ h_norm_sq hC
-  refine ⟨?_, 𝓢.rjnStep_in_C μ u hμ h_norm_sq hC⟩
-  show ‖𝓢.rjnStep μ u‖ = 𝓢.r
-  unfold IrnSetup.r
-  rw [← Real.sqrt_sq (norm_nonneg _), h_step_norm_sq]
-
 /-- The Newton corrector contracts the Hessian-norm proximity `δ`
-quadratically on a basin of constant radius `ρ*`. This is Lemma 15
+quadratically on a basin of constant radius `ρ*`. Lemma 15
 (Newton–Kantorovich for the corrector in the self-concordant
-`W`-metric); recorded here with `sorry` proof but a meaningful
-statement now that `rjnStep` is a field linked to Theorem 8. -/
+`W`-metric), derived from the `rjnStep_delta_contraction` axiom-field
+by converting `δ μ u` to the unprojected form `normWinv u (T μ u)/μ`
+via tangentiality. -/
 theorem rjnStep_quadratic_contraction :
     ∃ ρ_star K_star : ℝ, 0 < ρ_star ∧ ρ_star < 1 ∧ 1 ≤ K_star ∧
       ∀ {μ : ℝ}, 0 < μ → ∀ {u : H}, u ∈ sphere 𝓢 → u ∈ 𝓢.C →
         delta 𝓢 μ u ≤ ρ_star →
-          delta 𝓢 μ (𝓢.rjnStep μ u) ≤ K_star * (delta 𝓢 μ u) ^ 2 := sorry
+          delta 𝓢 μ (𝓢.rjnStep μ u) ≤ K_star * (delta 𝓢 μ u) ^ 2 := by
+  obtain ⟨ρ_star, K_star, hρ_pos, hρ_lt, hK_ge, h_field⟩ :=
+    𝓢.rjnStep_delta_contraction
+  refine ⟨ρ_star, K_star, hρ_pos, hρ_lt, hK_ge, ?_⟩
+  intros μ hμ u hS hC h_δ
+  have h_norm_sq : ‖u‖ ^ 2 = (𝓢.ν : ℝ) + 1 := by
+    have hn : ‖u‖ = 𝓢.r := hS
+    rw [hn, 𝓢.r_sq]
+  have h_inv := rjnStep_invariant 𝓢 hμ hS hC
+  -- Convert δ to the unprojected form using tangent_T.
+  have h_delta_u : delta 𝓢 μ u =
+      𝓢.normWinv u (𝓢.Q u + μ • u + μ • 𝓢.φ u) / μ := by
+    unfold delta tildeT
+    rw [proj_of_orthogonal u _ (tangent_T 𝓢 hμ hS hC)]
+    rfl
+  have h_delta_step : delta 𝓢 μ (𝓢.rjnStep μ u) =
+      𝓢.normWinv (𝓢.rjnStep μ u)
+        (𝓢.Q (𝓢.rjnStep μ u) + μ • (𝓢.rjnStep μ u) +
+            μ • 𝓢.φ (𝓢.rjnStep μ u)) / μ := by
+    unfold delta tildeT
+    rw [proj_of_orthogonal _ _ (tangent_T 𝓢 hμ h_inv.1 h_inv.2)]
+    rfl
+  rw [h_delta_step, h_delta_u]
+  rw [h_delta_u] at h_δ
+  exact h_field μ hμ u h_norm_sq hC h_δ
 
 /-- **Lemma 15 (Hessian-norm quadratic contraction).** There exist
 absolute constants `ρ* ∈ (0,1)` and `K* ≥ 1` such that one Riemannian

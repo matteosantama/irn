@@ -86,18 +86,63 @@ theorem lambda_exists_unique
     exact h_lam_eq
 
 /-- **Theorem 12 (Local quadratic convergence).** There is a
-neighbourhood `U` of `u*(μ)` in `Sr` such that, starting from any
-`u₀ ∈ U ∩ int C`, the Riemannian Josephy–Newton iteration (either
-variant) is well-defined for every `k`, stays on `Sr ∩ int C`, and
-converges quadratically to `u*(μ)`. -/
+neighbourhood `U` of `u*(μ)` such that, starting from any
+`u₀ ∈ U ∩ Sr ∩ int C`, the Riemannian Josephy–Newton iteration is
+well-defined for every `k`, stays on `Sr ∩ int C`, and converges
+quadratically to `u*(μ)` in Euclidean norm.
+
+The original `u₀ ∈ U ∩ int C` hypothesis was inconsistent with the
+conclusion `∀ k, seq k ∈ Sr ∩ int C` (which forces `u₀ ∈ Sr` via
+`seq 0 = u₀`); we strengthen to `u₀ ∈ Sr` explicitly.
+
+Built from `rjnStep_invariant` (sphere ∩ C preservation) and the
+`rjnStep_euclidean_basin` axiom-field (Euclidean Newton–Kantorovich
+near the central-path point). -/
 theorem rjn_quadratic_convergence
     {μ : ℝ} (hμ : 0 < μ) :
     ∃ U : Set H, IsOpen U ∧ centralPathPoint 𝓢 μ hμ ∈ U ∧
-      ∀ u₀ ∈ U ∩ 𝓢.C, ∃ seq : ℕ → H,
-        seq 0 = u₀ ∧
-        (∀ k, seq k ∈ sphere 𝓢 ∩ 𝓢.C) ∧
-        ∃ C : ℝ, 0 < C ∧
-          ∀ k, ‖seq (k+1) - centralPathPoint 𝓢 μ hμ‖ ≤
-                 C * ‖seq k - centralPathPoint 𝓢 μ hμ‖ ^ 2 := sorry
+      ∀ u₀ ∈ U, u₀ ∈ sphere 𝓢 → u₀ ∈ 𝓢.C →
+        ∃ seq : ℕ → H,
+          seq 0 = u₀ ∧
+          (∀ k, seq k ∈ sphere 𝓢 ∩ 𝓢.C) ∧
+          ∃ C : ℝ, 0 < C ∧
+            ∀ k, ‖seq (k+1) - centralPathPoint 𝓢 μ hμ‖ ≤
+                   C * ‖seq k - centralPathPoint 𝓢 μ hμ‖ ^ 2 := by
+  set u_star := centralPathPoint 𝓢 μ hμ
+  obtain ⟨hC_star, hT_star⟩ := centralPathPoint_isCentralPathPoint 𝓢 μ hμ
+  have h_T : 𝓢.Q u_star + μ • u_star + μ • 𝓢.φ u_star = 0 := by
+    have := hT_star; unfold T at this; exact this
+  obtain ⟨U, hU_open, hU_mem, K, hK_pos, h_basin, h_contract⟩ :=
+    𝓢.rjnStep_euclidean_basin μ hμ u_star hC_star h_T
+  refine ⟨U, hU_open, hU_mem, ?_⟩
+  intros u₀ hu₀_U hu₀_sphere hu₀_C
+  -- Iterate the corrector
+  let seq_fn : ℕ → H := fun k => Nat.rec u₀ (fun _ s => 𝓢.rjnStep μ s) k
+  have h_seq_succ : ∀ k, seq_fn (k+1) = 𝓢.rjnStep μ (seq_fn k) := fun _ => rfl
+  -- Strong invariant: seq k stays in U ∩ Sr ∩ C.
+  have h_strong : ∀ k,
+      seq_fn k ∈ U ∧ seq_fn k ∈ sphere 𝓢 ∧ seq_fn k ∈ 𝓢.C := by
+    intro k
+    induction k with
+    | zero => exact ⟨hu₀_U, hu₀_sphere, hu₀_C⟩
+    | succ k ih =>
+      obtain ⟨h_U_k, h_sphere_k, h_C_k⟩ := ih
+      have h_norm_sq : ‖seq_fn k‖ ^ 2 = (𝓢.ν : ℝ) + 1 := by
+        have hn : ‖seq_fn k‖ = 𝓢.r := h_sphere_k
+        rw [hn, 𝓢.r_sq]
+      have h_inv := rjnStep_invariant 𝓢 hμ h_sphere_k h_C_k
+      refine ⟨?_, h_inv.1, h_inv.2⟩
+      rw [h_seq_succ]
+      exact h_basin (seq_fn k) h_U_k h_norm_sq h_C_k
+  refine ⟨seq_fn, rfl, ?_, K, hK_pos, ?_⟩
+  · intro k
+    exact ⟨(h_strong k).2.1, (h_strong k).2.2⟩
+  · intro k
+    obtain ⟨h_U_k, h_sphere_k, h_C_k⟩ := h_strong k
+    have h_norm_sq : ‖seq_fn k‖ ^ 2 = (𝓢.ν : ℝ) + 1 := by
+      have hn : ‖seq_fn k‖ = 𝓢.r := h_sphere_k
+      rw [hn, 𝓢.r_sq]
+    rw [h_seq_succ]
+    exact h_contract (seq_fn k) h_U_k h_norm_sq h_C_k
 
 end Irn
