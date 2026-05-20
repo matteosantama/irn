@@ -119,6 +119,25 @@ structure IrnSetup (H : Type*)
   rjnStep : ℝ → H → H
   /-- The sphere-constraint Lagrange multiplier (Proposition 11). -/
   rjnLambda : ℝ → H → ℝ
+  -- Theorem 8 Part 2 ingredients: linearity, bilinearity, invertibility.
+  /-- `tau_proj` as a continuous linear functional. -/
+  tau_proj_linear : H →L[ℝ] ℝ
+  /-- The continuous linear functional agrees with the scalar projection. -/
+  tau_proj_linear_eq : ∀ u, tau_proj_linear u = tau_proj u
+  /-- The bilinear form `B_P(u, v) = u_x⊤Pv_x` from the primal quadratic. -/
+  Px_bilinform : H →L[ℝ] H →L[ℝ] ℝ
+  /-- `B_P` is symmetric. -/
+  Px_symm : ∀ u v, Px_bilinform u v = Px_bilinform v u
+  /-- The rational correction is `q(u) = B_P(u, u) / tau_proj u`. -/
+  q_eq_bilinform : ∀ u ∈ Cplus, q u = Px_bilinform u u / tau_proj u
+  /-- The continuous linear equivalence `H_k + M`. The matrix `H_k + M`
+  is invertible because its symmetric part is positive definite. -/
+  hessian_plus_M : ℝ → H → (H ≃L[ℝ] H)
+  /-- The equivalence coincides with `hessian_h μ u + M` pointwise. -/
+  hessian_plus_M_eq : ∀ μ u v,
+    (hessian_plus_M μ u : H →L[ℝ] H) v = hessian_h μ u v + M v
+  /-- Reverse of `tau_proj_pos`: positive `tau_proj` implies `Cplus`. -/
+  Cplus_of_tau_proj_pos : ∀ u : H, 0 < tau_proj u → u ∈ Cplus
 
 namespace IrnSetup
 
