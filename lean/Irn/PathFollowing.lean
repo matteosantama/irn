@@ -191,6 +191,46 @@ theorem proximity_transfer
     field_simp
   linarith
 
+/-- The outer-loop arithmetic underlying Theorem 16: with
+`σ = 1 - α / √(ν+1)`, `σ^k ≤ ε` whenever
+`k ≥ √(ν+1) / α · log(1/ε)`. Proof via `1 - x ≤ exp(-x)`. -/
+theorem outer_iteration_count
+    {α : ℝ} (hα_pos : 0 < α) (hα_lt_1 : α < 1)
+    {ε : ℝ} (hε : 0 < ε) (hε' : ε ≤ 1)
+    {k : ℕ}
+    (hk : (k : ℝ) ≥ Real.sqrt ((𝓢.ν : ℝ) + 1) / α * Real.log (1 / ε)) :
+    (1 - α / Real.sqrt ((𝓢.ν : ℝ) + 1)) ^ k ≤ ε := by
+  set s := Real.sqrt ((𝓢.ν : ℝ) + 1) with hs_def
+  have hs_pos : 0 < s := 𝓢.r_pos
+  have hs_ge_1 : 1 ≤ s := by
+    have hν : 1 ≤ (𝓢.ν : ℝ) := by exact_mod_cast 𝓢.ν_pos
+    calc (1 : ℝ) = Real.sqrt 1 := Real.sqrt_one.symm
+      _ ≤ Real.sqrt ((𝓢.ν : ℝ) + 1) := Real.sqrt_le_sqrt (by linarith)
+  have hα_lt_s : α < s := lt_of_lt_of_le hα_lt_1 hs_ge_1
+  have hα_div_pos : 0 < α / s := div_pos hα_pos hs_pos
+  have h_one_sub_nn : 0 ≤ 1 - α / s := by
+    have : α / s < 1 := (div_lt_one hs_pos).mpr hα_lt_s
+    linarith
+  have h_1mx_le_exp : 1 - α / s ≤ Real.exp (-(α / s)) := by
+    have := Real.add_one_le_exp (-(α / s))
+    linarith
+  have h_log_1div_eq : Real.log (1 / ε) = -Real.log ε := by
+    rw [one_div, Real.log_inv]
+  have h_mul : Real.log (1 / ε) ≤ (k : ℝ) * (α / s) := by
+    have heq : Real.log (1 / ε) = (s / α * Real.log (1 / ε)) * (α / s) := by
+      field_simp
+    rw [heq]
+    exact mul_le_mul_of_nonneg_right hk hα_div_pos.le
+  have h_target_ineq : -((k : ℝ) * (α / s)) ≤ Real.log ε := by linarith
+  have h_exp_target : Real.exp (-((k : ℝ) * (α / s))) ≤ ε := by
+    have := Real.exp_le_exp.mpr h_target_ineq
+    rwa [Real.exp_log hε] at this
+  calc (1 - α / s) ^ k
+      ≤ Real.exp (-(α / s)) ^ k := by gcongr
+    _ = Real.exp (-((k : ℝ) * (α / s))) := by
+        rw [← Real.exp_nat_mul]; congr 1; ring
+    _ ≤ ε := h_exp_target
+
 /-- **Lemma 15 (Hessian-norm quadratic contraction).** There exist
 absolute constants `ρ* ∈ (0,1)` and `K* ≥ 1` such that one Riemannian
 Josephy–Newton step contracts the Hessian-norm proximity as
