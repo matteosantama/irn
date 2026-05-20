@@ -119,20 +119,57 @@ variable {H : Type*}
 
 /-- **Existence of a positive root of the scalar quadratic.**
 
-The discriminant analysis from the paper: `γ ≤ -μ < 0` so `θ = 0` is
-never a root, and the quadratic admits exactly one positive root whose
-corresponding `u = w_0 + θ w_1` has `tau_proj u > 0` (i.e., lies in
-`Cplus`).
-
-Left as `sorry` in this first pass — proving it requires:
-(i) `Px_bilinform u u ≥ 0` (PSD of `P`),
-(ii) the discriminant `β² - 4αγ ≥ 0`,
-(iii) the standard quadratic root formula plus a sign analysis. -/
+Built from `resolvent_exists` (the Minty-existence axiom on
+`IrnSetup`). Given `(u, θ)` from the axiom, the unique-inverse property
+of `hessian_plus_M` forces `u = w_0 + θ • w_1`. The scalar relation
+`θ · tau_proj u = B_P(u, u) + μ` then expands via linearity /
+bilinearity into the quadratic `α θ² + β θ + γ = 0`. -/
 theorem exists_pos_root_quad (μ : ℝ) (hμ : 0 < μ) (u_k z : H) :
     ∃ θ : ℝ, 0 < θ ∧
       𝓢.quad_α μ u_k * θ ^ 2 +
         𝓢.quad_β μ u_k z * θ + 𝓢.quad_γ μ u_k z = 0 ∧
-      0 < 𝓢.tau_proj (𝓢.w0 μ u_k z + θ • 𝓢.w1 μ u_k) := sorry
+      0 < 𝓢.tau_proj (𝓢.w0 μ u_k z + θ • 𝓢.w1 μ u_k) := by
+  obtain ⟨u, hu_Cplus, θ, hθ_pos, h_eq, h_scalar⟩ :=
+    𝓢.resolvent_exists μ u_k z hμ
+  -- Step 1: u = w_0 + θ • w_1, from the augmented equation.
+  have h_u_decomp : u = 𝓢.w0 μ u_k z + θ • 𝓢.w1 μ u_k := by
+    -- Convert (H_k + M) u to (hessian_plus_M μ u_k) u via hessian_plus_M_eq.
+    have h_apply : (𝓢.hessian_plus_M μ u_k : H →L[ℝ] H) u =
+                    𝓢.hessian_h μ u_k z + θ • 𝓢.e_τ := by
+      have hsum : 𝓢.hessian_h μ u_k u + 𝓢.M u =
+                  𝓢.hessian_h μ u_k z + θ • 𝓢.e_τ := by
+        have := h_eq
+        simpa [ContinuousLinearMap.add_apply] using this
+      rw [𝓢.hessian_plus_M_eq]
+      exact hsum
+    -- Invert via .symm_apply_apply, then expand by linearity of .symm.
+    have h_u : u = (𝓢.hessian_plus_M μ u_k).symm
+                    (𝓢.hessian_h μ u_k z + θ • 𝓢.e_τ) := by
+      rw [← h_apply]
+      exact ((𝓢.hessian_plus_M μ u_k).symm_apply_apply u).symm
+    rw [h_u, map_add, map_smul]
+    rfl
+  -- Step 2: tau_proj (w_0 + θ • w_1) > 0 from u ∈ Cplus.
+  have h_tau_pos : 0 < 𝓢.tau_proj (𝓢.w0 μ u_k z + θ • 𝓢.w1 μ u_k) := by
+    rw [← h_u_decomp]
+    exact 𝓢.tau_proj_pos u hu_Cplus
+  -- Step 3: Quadratic identity. Substitute u and expand.
+  have h_quad : 𝓢.quad_α μ u_k * θ ^ 2 +
+                𝓢.quad_β μ u_k z * θ + 𝓢.quad_γ μ u_k z = 0 := by
+    have h_scalar' : θ * 𝓢.tau_proj (𝓢.w0 μ u_k z + θ • 𝓢.w1 μ u_k) =
+        𝓢.Px_bilinform (𝓢.w0 μ u_k z + θ • 𝓢.w1 μ u_k)
+          (𝓢.w0 μ u_k z + θ • 𝓢.w1 μ u_k) + μ := by
+      rw [← h_u_decomp]; exact h_scalar
+    rw [𝓢.tau_proj_add, 𝓢.tau_proj_smul,
+        𝓢.Px_bilinform_add_left, 𝓢.Px_bilinform_smul_left,
+        𝓢.Px_bilinform_add_right, 𝓢.Px_bilinform_smul_right,
+        𝓢.Px_bilinform_add_right, 𝓢.Px_bilinform_smul_right] at h_scalar'
+    have h_sym : 𝓢.Px_bilinform (𝓢.w1 μ u_k) (𝓢.w0 μ u_k z) =
+                  𝓢.Px_bilinform (𝓢.w0 μ u_k z) (𝓢.w1 μ u_k) := 𝓢.Px_symm _ _
+    rw [h_sym] at h_scalar'
+    unfold IrnSetup.quad_α IrnSetup.quad_β IrnSetup.quad_γ
+    linarith [h_scalar']
+  exact ⟨θ, hθ_pos, h_quad, h_tau_pos⟩
 
 /-- **Theorem 8 (Closed-form resolvent of `Ψ`).** With `H_k = hessian_h μ u_k`,
 the resolvent value `u = J_Ψ^{H_k}(z)` lies in `Cplus` and is the unique

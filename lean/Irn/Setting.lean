@@ -163,6 +163,19 @@ structure IrnSetup (H : Type*)
   rjnStep_in_C : ∀ μ : ℝ, ∀ u : H, 0 < μ →
     ‖u‖ ^ 2 = (ν : ℝ) + 1 → u ∈ C →
     rjnStep μ u ∈ C
+  /-- **Minty's theorem applied to `H_k + Ψ`.**
+
+  The augmented Newton inclusion has a solution `(u, θ)`: there exists
+  `u ∈ Cplus` and `θ > 0` satisfying both the augmented equation
+  `(H_k + M) u = H_k z + θ • e_τ` and the scalar inclusion form
+  `θ · tau_proj u = B_P(u, u) + μ`. This is Minty's theorem applied
+  to the maximally monotone operator `H_k + Ψ`; recorded as a field
+  because formalising maximally monotone set-valued operators is
+  outside the scope of this pass. -/
+  resolvent_exists : ∀ μ : ℝ, ∀ u_k z : H, 0 < μ →
+    ∃ u : H, u ∈ Cplus ∧ ∃ θ : ℝ, 0 < θ ∧
+      (hessian_h μ u_k + M) u = hessian_h μ u_k z + θ • e_τ ∧
+      θ * tau_proj u = Px_bilinform u u + μ
 
 namespace IrnSetup
 
