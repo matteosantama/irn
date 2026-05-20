@@ -151,6 +151,18 @@ structure IrnSetup (H : Type*)
   the implicit function theorem). -/
   rjnLambda_continuousAt_central : ∀ μ : ℝ, ∀ u : H, 0 < μ → u ∈ C →
     Q u + μ • u + μ • φ u = 0 → ContinuousAt (rjnLambda μ) u
+  -- Variant A invariance of the corrector. These two fields encode the
+  -- sphere + interior-cone preservation enforced by the augmented Newton
+  -- inclusion of eq. (5.3).
+  /-- The corrector preserves the squared-norm constraint `‖u‖² = ν+1`
+  (the sphere `Sr`). -/
+  rjnStep_norm_sq : ∀ μ : ℝ, ∀ u : H, 0 < μ →
+    ‖u‖ ^ 2 = (ν : ℝ) + 1 → u ∈ C →
+    ‖rjnStep μ u‖ ^ 2 = (ν : ℝ) + 1
+  /-- The corrector preserves the interior cone `int C`. -/
+  rjnStep_in_C : ∀ μ : ℝ, ∀ u : H, 0 < μ →
+    ‖u‖ ^ 2 = (ν : ℝ) + 1 → u ∈ C →
+    rjnStep μ u ∈ C
 
 namespace IrnSetup
 

@@ -233,13 +233,20 @@ theorem outer_iteration_count
 
 /-- The Newton corrector preserves the constraint set. This combines
 the conclusions of Proposition 11 (well-definedness within a basin)
-and Theorem 12 (the iterates stay on `Sr ∩ int C`). Recorded as a
-theorem with a `sorry` proof since the analytic content is not yet
-formalised, but the statement is meaningful (the `rjnStep` field is
-now linked to Theorem 8 via `resolvent_closed_form`). -/
+and Theorem 12 (the iterates stay on `Sr ∩ int C`). Built from the
+two `IrnSetup` fields `rjnStep_norm_sq` and `rjnStep_in_C`. -/
 theorem rjnStep_invariant
-    {μ : ℝ} (_hμ : 0 < μ) {u : H} (_hS : u ∈ sphere 𝓢) (_hC : u ∈ 𝓢.C) :
-    𝓢.rjnStep μ u ∈ sphere 𝓢 ∧ 𝓢.rjnStep μ u ∈ 𝓢.C := sorry
+    {μ : ℝ} (hμ : 0 < μ) {u : H} (hS : u ∈ sphere 𝓢) (hC : u ∈ 𝓢.C) :
+    𝓢.rjnStep μ u ∈ sphere 𝓢 ∧ 𝓢.rjnStep μ u ∈ 𝓢.C := by
+  have h_norm : ‖u‖ = 𝓢.r := hS
+  have h_norm_sq : ‖u‖ ^ 2 = (𝓢.ν : ℝ) + 1 := by
+    rw [h_norm, 𝓢.r_sq]
+  have h_step_norm_sq : ‖𝓢.rjnStep μ u‖ ^ 2 = (𝓢.ν : ℝ) + 1 :=
+    𝓢.rjnStep_norm_sq μ u hμ h_norm_sq hC
+  refine ⟨?_, 𝓢.rjnStep_in_C μ u hμ h_norm_sq hC⟩
+  show ‖𝓢.rjnStep μ u‖ = 𝓢.r
+  unfold IrnSetup.r
+  rw [← Real.sqrt_sq (norm_nonneg _), h_step_norm_sq]
 
 /-- The Newton corrector contracts the Hessian-norm proximity `δ`
 quadratically on a basin of constant radius `ρ*`. This is Lemma 15
