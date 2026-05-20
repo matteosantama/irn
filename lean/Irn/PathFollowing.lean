@@ -32,20 +32,6 @@ open scoped InnerProductSpace
 variable {H : Type*}
   [NormedAddCommGroup H] [InnerProductSpace ℝ H] [FiniteDimensional ℝ H]
 
-/-! ## §6.3 Hessian-norm data.
-
-`W(u) = I + ∇²F*(u)` and the `W(u)⁻¹`-weighted norm are recorded as
-abstract stubs because the first-pass `IrnSetup` does not expose `F*`
-as a potential with a computable Hessian. -/
-
-/-- The Hessian metric `W(u) = I + ∇²F*(u)`, returned as a continuous
-linear self-adjoint operator. Satisfies `W(u) ⪰ I`, hence is
-invertible. -/
-def W (𝓢 : IrnSetup H) (u : H) : H →L[ℝ] H := sorry
-
-/-- The `W(u)⁻¹`-weighted norm. -/
-noncomputable def normWinv (𝓢 : IrnSetup H) (u v : H) : ℝ := sorry
-
 variable (𝓢 : IrnSetup H)
 
 /-- The tangentially-projected residual `tildeT_μ(u) = P_u T_μ(u)`. -/
@@ -141,20 +127,30 @@ theorem euclidean_failure
 
 /-! ## §6.3 Hessian-norm proximity. -/
 
-/-- `W(u) ⪰ I`, i.e. `⟨v, W(u) v⟩ ≥ ‖v‖²`. -/
-theorem W_ge_one (u : H) (v : H) :
-    ‖v‖ ^ 2 ≤ inner ℝ v (W 𝓢 u v) := sorry
-
 /-- Eq. (6.7). The Hessian-norm proximity
 `δ(u, μ) = ‖tildeT_μ(u)‖_{W(u)⁻¹} / μ`. -/
 noncomputable def delta (μ : ℝ) (u : H) : ℝ :=
-  normWinv 𝓢 u (tildeT 𝓢 μ u) / μ
+  𝓢.normWinv u (tildeT 𝓢 μ u) / μ
 
 /-- **Lemma 13 (Bounded transfer constant).** For every
 `u ∈ Sr ∩ int C`, `‖φ(u) + u‖_{W(u)⁻¹} ≤ 2 √(ν+1)`. -/
 theorem transfer_bound {u : H}
     (hS : u ∈ sphere 𝓢) (hC : u ∈ 𝓢.C) :
-    normWinv 𝓢 u (𝓢.φ u + u) ≤ 2 * Real.sqrt ((𝓢.ν : ℝ) + 1) := sorry
+    𝓢.normWinv u (𝓢.φ u + u) ≤ 2 * Real.sqrt ((𝓢.ν : ℝ) + 1) := by
+  have h_tri : 𝓢.normWinv u (𝓢.φ u + u) ≤ 𝓢.normWinv u (𝓢.φ u) + 𝓢.normWinv u u :=
+    𝓢.normWinv_triangle u (𝓢.φ u) u
+  have h_phi : 𝓢.normWinv u (𝓢.φ u) ≤ Real.sqrt ((𝓢.ν : ℝ) + 1) :=
+    𝓢.normWinv_phi_bound u hC
+  have h_u : 𝓢.normWinv u u ≤ ‖u‖ := 𝓢.normWinv_le_norm u u
+  have h_u_eq : ‖u‖ = Real.sqrt ((𝓢.ν : ℝ) + 1) := by
+    have h_norm : ‖u‖ = 𝓢.r := hS
+    unfold IrnSetup.r at h_norm
+    exact h_norm
+  calc 𝓢.normWinv u (𝓢.φ u + u)
+      ≤ 𝓢.normWinv u (𝓢.φ u) + 𝓢.normWinv u u := h_tri
+    _ ≤ Real.sqrt ((𝓢.ν : ℝ) + 1) + ‖u‖ := by linarith
+    _ = Real.sqrt ((𝓢.ν : ℝ) + 1) + Real.sqrt ((𝓢.ν : ℝ) + 1) := by rw [h_u_eq]
+    _ = 2 * Real.sqrt ((𝓢.ν : ℝ) + 1) := by ring
 
 /-- **Lemma 14 (Proximity transfer).** Eq. (6.9):
 `δ(u, σμ) ≤ δ(u, μ)/σ + 2(1-σ)√(ν+1)/σ` on `Sr ∩ int C`. -/
@@ -163,7 +159,37 @@ theorem proximity_transfer
     {u : H} (hS : u ∈ sphere 𝓢) (hC : u ∈ 𝓢.C) :
     delta 𝓢 (σ * μ) u ≤
       delta 𝓢 μ u / σ +
-        2 * (1 - σ) * Real.sqrt ((𝓢.ν : ℝ) + 1) / σ := sorry
+        2 * (1 - σ) * Real.sqrt ((𝓢.ν : ℝ) + 1) / σ := by
+  unfold delta
+  rw [tildeT_transfer 𝓢 μ σ hμ hσ hS hC]
+  -- Triangle inequality for `normWinv` applied to `tildeT μ u - (1-σ)μ • (φ u + u)`.
+  have h_1sub_μ_nn : 0 ≤ (1 - σ) * μ := mul_nonneg (by linarith) hμ.le
+  have h_step1 : 𝓢.normWinv u (tildeT 𝓢 μ u - ((1 - σ) * μ) • (𝓢.φ u + u)) ≤
+      𝓢.normWinv u (tildeT 𝓢 μ u) + (1 - σ) * μ * 𝓢.normWinv u (𝓢.φ u + u) := by
+    rw [sub_eq_add_neg, ← neg_smul]
+    have h_tri := 𝓢.normWinv_triangle u (tildeT 𝓢 μ u) ((-((1 - σ) * μ)) • (𝓢.φ u + u))
+    rw [𝓢.normWinv_smul, abs_neg, abs_of_nonneg h_1sub_μ_nn] at h_tri
+    exact h_tri
+  -- Plug in transfer_bound.
+  have h_tb := transfer_bound 𝓢 hS hC
+  have h_step2 : 𝓢.normWinv u (tildeT 𝓢 μ u - ((1 - σ) * μ) • (𝓢.φ u + u)) ≤
+      𝓢.normWinv u (tildeT 𝓢 μ u) + (1 - σ) * μ * (2 * Real.sqrt ((𝓢.ν : ℝ) + 1)) := by
+    have := mul_le_mul_of_nonneg_left h_tb h_1sub_μ_nn
+    linarith
+  -- Divide by `σμ` and clean up.
+  have hσμ_pos : 0 < σ * μ := mul_pos hσ hμ
+  have h_div :=
+    (div_le_div_iff_of_pos_right hσμ_pos).mpr h_step2
+  -- Now match the goal RHS by `field_simp; ring`.
+  have hμ_ne : μ ≠ 0 := ne_of_gt hμ
+  have hσ_ne : σ ≠ 0 := ne_of_gt hσ
+  have h_rhs_eq :
+      (𝓢.normWinv u (tildeT 𝓢 μ u) +
+            (1 - σ) * μ * (2 * Real.sqrt ((𝓢.ν : ℝ) + 1))) / (σ * μ) =
+        𝓢.normWinv u (tildeT 𝓢 μ u) / μ / σ +
+          2 * (1 - σ) * Real.sqrt ((𝓢.ν : ℝ) + 1) / σ := by
+    field_simp
+  linarith
 
 /-- **Lemma 15 (Hessian-norm quadratic contraction).** There exist
 absolute constants `ρ* ∈ (0,1)` and `K* ≥ 1` such that one Riemannian

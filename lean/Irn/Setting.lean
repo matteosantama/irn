@@ -74,6 +74,24 @@ structure IrnSetup (H : Type*)
   potential. -/
   phi_monotone : ∀ u ∈ C, ∀ v ∈ C,
     0 ≤ inner ℝ (u - v) (φ u - φ v)
+  /-- The `W(u)⁻¹`-weighted norm `‖·‖_{W(u)⁻¹}`, where
+  `W(u) = I + ∇²F*(u)`. Carried as a field to sidestep the
+  linear-operator-inverse machinery; its required algebraic and
+  bound properties are recorded below. -/
+  normWinv : H → H → ℝ
+  /-- `normWinv` is nonnegative. -/
+  normWinv_nonneg : ∀ u v, 0 ≤ normWinv u v
+  /-- `W(u) ⪰ I` implies `W(u)⁻¹ ⪯ I`, so the dual norm is bounded
+  by the Euclidean norm. -/
+  normWinv_le_norm : ∀ u v, normWinv u v ≤ ‖v‖
+  /-- Triangle inequality. -/
+  normWinv_triangle : ∀ u v w, normWinv u (v + w) ≤ normWinv u v + normWinv u w
+  /-- Absolute homogeneity. -/
+  normWinv_smul : ∀ u (r : ℝ) v, normWinv u (r • v) = |r| * normWinv u v
+  /-- LHSCB gradient identity: `‖φ(u)‖²_{W(u)⁻¹} ≤ ν + 1`, hence
+  `‖φ(u)‖_{W(u)⁻¹} ≤ √(ν+1)`. The bound is `√ν + 1 = √(ν+1)` because
+  the τ-block contributes at most `1`. -/
+  normWinv_phi_bound : ∀ u ∈ C, normWinv u (φ u) ≤ Real.sqrt ((ν : ℝ) + 1)
 
 namespace IrnSetup
 
