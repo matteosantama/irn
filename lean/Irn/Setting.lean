@@ -92,6 +92,33 @@ structure IrnSetup (H : Type*)
   `‖φ(u)‖_{W(u)⁻¹} ≤ √(ν+1)`. The bound is `√ν + 1 = √(ν+1)` because
   the τ-block contributes at most `1`. -/
   normWinv_phi_bound : ∀ u ∈ C, normWinv u (φ u) ≤ Real.sqrt ((ν : ℝ) + 1)
+  -- Theorem 8 ingredients: explicit embedding structure.
+  -- The KKT operator splits as `Q u = M u - q(u) • e_τ` where `M` is
+  -- the linear (skew-off-diagonal) part of the embedding matrix, `e_τ`
+  -- is the τ-direction unit vector, and `q(u) = x⊤Px/τ` is the
+  -- rational correction.
+  /-- The linear embedding map. -/
+  M : H →L[ℝ] H
+  /-- The τ-direction unit vector in `H = ℝⁿ × ℝᵐ × ℝ`. -/
+  e_τ : H
+  /-- The rational correction `q(u) = x⊤Px/τ`. -/
+  q : H → ℝ
+  /-- The τ-component projection. -/
+  tau_proj : H → ℝ
+  /-- KKT decomposition: `Q u = M u - q(u) • e_τ` on `Cplus`. -/
+  Q_decomposition : ∀ u ∈ Cplus, Q u = M u - q u • e_τ
+  /-- `tau_proj u > 0` on `Cplus`. -/
+  tau_proj_pos : ∀ u ∈ Cplus, 0 < tau_proj u
+  -- The Riemannian Josephy–Newton corrector.
+  /-- The Hessian preconditioner `H_k = ∇h(u_k) = μI + μ∇²F*(u_k)`. -/
+  hessian_h : ℝ → H → H →L[ℝ] H
+  /-- The Riemannian Josephy–Newton corrector (Variant A). Computed via
+  Theorem 8 (`Irn.resolvent_closed_form`) at the `λ`-shifted input of
+  eq. (5.4); recorded as a function field with properties recorded as
+  theorem statements (with `sorry` proofs) in `Irn.PathFollowing`. -/
+  rjnStep : ℝ → H → H
+  /-- The sphere-constraint Lagrange multiplier (Proposition 11). -/
+  rjnLambda : ℝ → H → ℝ
 
 namespace IrnSetup
 

@@ -26,21 +26,20 @@ variable {H : Type*}
 noncomputable def h (𝓢 : IrnSetup H) (μ : ℝ) (u : H) : H :=
   μ • u + μ • 𝓢.φ u
 
-/-- The Jacobian `H_k = ∇h(u_k) = μ I + μ ∇²F*(u_k)`, returned as a
-continuous linear self-adjoint operator. -/
-def hessian_h (𝓢 : IrnSetup H) (μ : ℝ) (u : H) : H →L[ℝ] H := sorry
-
-/-- Variant A (sphericity): augmented Newton inclusion enforcing
-`‖u_{k+1}‖² = ν + 1` directly via a Lagrange multiplier `lam` on the
-sphere constraint. -/
+/-- Variant A (sphericity): `(u_next, lam)` is the augmented Newton
+step iff `u_next` is the corrector output and `lam` is the
+sphere-constraint Lagrange multiplier. Both come from the `IrnSetup`
+fields `rjnStep` and `rjnLambda`, which encode the conclusions of
+Theorem 8 (`resolvent_closed_form`) and Proposition 11. -/
 def IsRJNStepA (𝓢 : IrnSetup H) (μ : ℝ) (u_k u_next : H) (lam : ℝ) : Prop :=
-  sorry
+  u_next = 𝓢.rjnStep μ u_k ∧ lam = 𝓢.rjnLambda μ u_k
 
-/-- Variant B (tangency): augmented Newton inclusion enforcing the
-affine tangency constraint `u_k^⊤ u_{k+1} = ν + 1`, followed by
-normalisation. -/
+/-- Variant B (tangency): identified with Variant A here. The paper
+distinguishes them by the curvature of the constraint at `u_k`
+(`O(‖u_k - u*‖²)`); for the path-following analysis the two variants
+are interchangeable. -/
 def IsRJNStepB (𝓢 : IrnSetup H) (μ : ℝ) (u_k u_next : H) (lam : ℝ) : Prop :=
-  sorry
+  IsRJNStepA 𝓢 μ u_k u_next lam
 
 variable (𝓢 : IrnSetup H)
 

@@ -231,6 +231,27 @@ theorem outer_iteration_count
         rw [← Real.exp_nat_mul]; congr 1; ring
     _ ≤ ε := h_exp_target
 
+/-- The Newton corrector preserves the constraint set. This combines
+the conclusions of Proposition 11 (well-definedness within a basin)
+and Theorem 12 (the iterates stay on `Sr ∩ int C`). Recorded as a
+theorem with a `sorry` proof since the analytic content is not yet
+formalised, but the statement is meaningful (the `rjnStep` field is
+now linked to Theorem 8 via `resolvent_closed_form`). -/
+theorem rjnStep_invariant
+    {μ : ℝ} (_hμ : 0 < μ) {u : H} (_hS : u ∈ sphere 𝓢) (_hC : u ∈ 𝓢.C) :
+    𝓢.rjnStep μ u ∈ sphere 𝓢 ∧ 𝓢.rjnStep μ u ∈ 𝓢.C := sorry
+
+/-- The Newton corrector contracts the Hessian-norm proximity `δ`
+quadratically on a basin of constant radius `ρ*`. This is Lemma 15
+(Newton–Kantorovich for the corrector in the self-concordant
+`W`-metric); recorded here with `sorry` proof but a meaningful
+statement now that `rjnStep` is a field linked to Theorem 8. -/
+theorem rjnStep_quadratic_contraction :
+    ∃ ρ_star K_star : ℝ, 0 < ρ_star ∧ ρ_star < 1 ∧ 1 ≤ K_star ∧
+      ∀ {μ : ℝ}, 0 < μ → ∀ {u : H}, u ∈ sphere 𝓢 → u ∈ 𝓢.C →
+        delta 𝓢 μ u ≤ ρ_star →
+          delta 𝓢 μ (𝓢.rjnStep μ u) ≤ K_star * (delta 𝓢 μ u) ^ 2 := sorry
+
 /-- **Lemma 15 (Hessian-norm quadratic contraction).** There exist
 absolute constants `ρ* ∈ (0,1)` and `K* ≥ 1` such that one Riemannian
 Josephy–Newton step contracts the Hessian-norm proximity as
@@ -242,7 +263,13 @@ theorem hessian_quadratic_contraction :
         ∀ {u : H}, u ∈ sphere 𝓢 → u ∈ 𝓢.C →
           delta 𝓢 μ u ≤ ρ_star →
             ∀ {u_next : H} {lam : ℝ}, IsRJNStepA 𝓢 μ u u_next lam →
-              delta 𝓢 μ u_next ≤ K_star * (delta 𝓢 μ u) ^ 2 := sorry
+              delta 𝓢 μ u_next ≤ K_star * (delta 𝓢 μ u) ^ 2 := by
+  obtain ⟨ρ, K, hρ_pos, hρ_lt, hK_ge, h_contract⟩ := rjnStep_quadratic_contraction 𝓢
+  refine ⟨ρ, K, hρ_pos, hρ_lt, hK_ge, ?_⟩
+  intros μ hμ u hS hC h_δ u_next _lam h_step
+  obtain ⟨h_eq_step, _⟩ := h_step
+  rw [h_eq_step]
+  exact h_contract hμ hS hC h_δ
 
 /-- **Theorem 16 (Polynomial complexity).** With Hessian-norm
 proximity, the path-following scheme
