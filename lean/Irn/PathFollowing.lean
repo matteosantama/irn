@@ -196,7 +196,7 @@ theorem proximity_transfer
 `k ≥ √(ν+1) / α · log(1/ε)`. Proof via `1 - x ≤ exp(-x)`. -/
 theorem outer_iteration_count
     {α : ℝ} (hα_pos : 0 < α) (hα_lt_1 : α < 1)
-    {ε : ℝ} (hε : 0 < ε) (hε' : ε ≤ 1)
+    {ε : ℝ} (hε : 0 < ε)
     {k : ℕ}
     (hk : (k : ℝ) ≥ Real.sqrt ((𝓢.ν : ℝ) + 1) / α * Real.log (1 / ε)) :
     (1 - α / Real.sqrt ((𝓢.ν : ℝ) + 1)) ^ k ≤ ε := by
@@ -277,7 +277,13 @@ proximity, the path-following scheme
 followed by `N` corrector steps, maintains `δ(u_k, μ_k) ≤ β`
 throughout, with `α, β, N` absolute constants. To reach
 `μ_k ≤ ε μ₀` requires at most
-`⌈ √(ν+1) / α · log(1/ε) ⌉` outer iterations. -/
+`⌈ √(ν+1) / α · log(1/ε) ⌉` outer iterations.
+
+The proof picks `α = β = ρ_star / (36 (K_star + 1))` and `N = 1`
+(one corrector step per outer iteration suffices with this small
+proximity budget). Built from `proximity_transfer`,
+`rjnStep_invariant`, `rjnStep_quadratic_contraction`, and
+`outer_iteration_count`. -/
 theorem polynomial_complexity :
     ∃ α : ℝ, ∃ β : ℝ, ∃ N : ℕ,
       0 < α ∧ α < 1 ∧ 0 < β ∧ β < 1 ∧
@@ -291,6 +297,126 @@ theorem polynomial_complexity :
               ∀ ε : ℝ, 0 < ε →
                 ∀ k, k ≥ ⌈Real.sqrt ((𝓢.ν : ℝ) + 1) / α
                           * Real.log (1 / ε)⌉₊ →
-                  σ ^ k * μ₀ ≤ ε * μ₀ := sorry
+                  σ ^ k * μ₀ ≤ ε * μ₀ := by
+  obtain ⟨ρ_star, K_star, h_ρ_pos, h_ρ_lt, h_K_ge, h_contract⟩ :=
+    rjnStep_quadratic_contraction 𝓢
+  set α : ℝ := ρ_star / (36 * (K_star + 1)) with hα_def
+  have h_K_pos : (0 : ℝ) < K_star + 1 := by linarith
+  have h_denom_pos : (0 : ℝ) < 36 * (K_star + 1) := by linarith
+  have hα_pos : 0 < α := by rw [hα_def]; positivity
+  have h_36K1_α : 36 * (K_star + 1) * α = ρ_star := by
+    rw [hα_def]; field_simp
+  have hα_le : α ≤ 1 / 72 := by
+    rw [hα_def, div_le_div_iff₀ h_denom_pos (by norm_num : (0 : ℝ) < 72)]
+    nlinarith [h_ρ_lt, h_K_ge]
+  have hα_lt_1 : α < 1 := by linarith
+  refine ⟨α, α, 1, hα_pos, hα_lt_1, hα_pos, hα_lt_1, ?_⟩
+  set s : ℝ := Real.sqrt ((𝓢.ν : ℝ) + 1) with hs_def
+  have hs_pos : 0 < s := IrnSetup.r_pos 𝓢
+  have hs_ge_1 : 1 ≤ s := by
+    have hν : 1 ≤ (𝓢.ν : ℝ) := by exact_mod_cast 𝓢.ν_pos
+    calc (1 : ℝ) = Real.sqrt 1 := Real.sqrt_one.symm
+      _ ≤ s := Real.sqrt_le_sqrt (by linarith)
+  have hα_div_pos : 0 < α / s := div_pos hα_pos hs_pos
+  have hα_div_le_α : α / s ≤ α := by
+    rw [div_le_iff₀ hs_pos]
+    nlinarith [hα_pos, hs_ge_1]
+  have hα_div_lt_1 : α / s < 1 := lt_of_le_of_lt hα_div_le_α hα_lt_1
+  intros μ₀ hμ₀ u₀ hS hC h_δ_u₀ σ
+  -- σ : ℝ := 1 - α / s, from the theorem's `let` binding
+  have hσ_pos : 0 < σ := by show 0 < 1 - α / s; linarith
+  have hσ_le_1 : σ ≤ 1 := by show 1 - α / s ≤ 1; linarith
+  have hσ_ge_half : 1/2 ≤ σ := by
+    show 1/2 ≤ 1 - α / s
+    have : α / s ≤ 1/72 := le_trans hα_div_le_α hα_le
+    linarith
+  have h_one_sub_σ : 1 - σ = α / s := by show 1 - (1 - α / s) = α / s; ring
+  -- The corrector sequence: seq 0 = u₀, seq (k+1) = rjnStep μ_(k+1) (seq k)
+  let seq_fn : ℕ → H := fun k => Nat.rec (motive := fun _ => H) u₀
+      (fun n seq_n => 𝓢.rjnStep (σ^(n+1) * μ₀) seq_n) k
+  have h_seq_0 : seq_fn 0 = u₀ := rfl
+  have h_seq_succ : ∀ k, seq_fn (k+1) = 𝓢.rjnStep (σ^(k+1) * μ₀) (seq_fn k) :=
+    fun _ => rfl
+  -- Joint induction: seq k stays in sphere ∩ C and δ ≤ α throughout.
+  have h_inv : ∀ k, seq_fn k ∈ sphere 𝓢 ∩ 𝓢.C ∧
+                    delta 𝓢 (σ^k * μ₀) (seq_fn k) ≤ α := by
+    intro k
+    induction k with
+    | zero =>
+      refine ⟨⟨hS, hC⟩, ?_⟩
+      show delta 𝓢 (σ^0 * μ₀) u₀ ≤ α
+      simp
+      exact h_δ_u₀
+    | succ k ih =>
+      obtain ⟨h_sC_k, h_δ_k⟩ := ih
+      have h_S_k : seq_fn k ∈ sphere 𝓢 := h_sC_k.1
+      have h_C_k : seq_fn k ∈ 𝓢.C := h_sC_k.2
+      have hμ_k_pos : 0 < σ^k * μ₀ := by positivity
+      have hμ_succ_pos : 0 < σ^(k+1) * μ₀ := by positivity
+      -- proximity_transfer: δ(σ μ_k, seq k) ≤ δ(μ_k, seq k)/σ + 2(1-σ)s/σ
+      have h_pt := proximity_transfer 𝓢 hμ_k_pos hσ_pos hσ_le_1 h_S_k h_C_k
+      have h_pow_succ_eq : σ * (σ^k * μ₀) = σ^(k+1) * μ₀ := by ring
+      rw [h_pow_succ_eq] at h_pt
+      -- Plug in δ(μ_k, seq k) ≤ α and 2(1-σ)s = 2α (via 1-σ = α/s)
+      have h_pre_contract : delta 𝓢 (σ^(k+1) * μ₀) (seq_fn k) ≤ 6 * α := by
+        have h_step : delta 𝓢 (σ^(k+1) * μ₀) (seq_fn k) ≤ 3 * α / σ := by
+          calc delta 𝓢 (σ^(k+1) * μ₀) (seq_fn k)
+              ≤ delta 𝓢 (σ^k * μ₀) (seq_fn k) / σ + 2 * (1 - σ) * s / σ := h_pt
+            _ ≤ α / σ + 2 * (α / s) * s / σ := by
+                apply add_le_add
+                · exact div_le_div_of_nonneg_right h_δ_k hσ_pos.le
+                · rw [h_one_sub_σ]
+            _ = 3 * α / σ := by field_simp; ring
+        calc delta 𝓢 (σ^(k+1) * μ₀) (seq_fn k) ≤ 3 * α / σ := h_step
+          _ ≤ 6 * α := by
+              have h_2σ_ge_1 : 2 * σ ≥ 1 := by linarith [hσ_ge_half]
+              have h_prod : 3 * α ≤ 6 * α * σ := by nlinarith [hα_pos, h_2σ_ge_1]
+              exact (div_le_iff₀ hσ_pos).mpr h_prod
+      -- 6α ≤ ρ_star (so we're in the basin)
+      have h_6α_le_ρ : 6 * α ≤ ρ_star := by
+        have h_36K1_ge_6 : (36 : ℝ) * (K_star + 1) ≥ 6 := by linarith
+        nlinarith [h_36K1_α, hα_pos, h_K_ge]
+      have h_in_basin : delta 𝓢 (σ^(k+1) * μ₀) (seq_fn k) ≤ ρ_star :=
+        le_trans h_pre_contract h_6α_le_ρ
+      -- rjnStep keeps us in sphere ∩ C
+      have h_invariant := rjnStep_invariant 𝓢 hμ_succ_pos h_S_k h_C_k
+      refine ⟨h_invariant, ?_⟩
+      rw [h_seq_succ]
+      -- Apply quadratic contraction
+      have h_contract' := h_contract hμ_succ_pos h_S_k h_C_k h_in_basin
+      -- δ(seq (k+1)) ≤ K_star * (6α)^2 ≤ α
+      have h_delta_nn : 0 ≤ delta 𝓢 (σ^(k+1) * μ₀) (seq_fn k) := by
+        unfold delta
+        apply div_nonneg
+        · exact 𝓢.normWinv_nonneg _ _
+        · exact hμ_succ_pos.le
+      calc delta 𝓢 (σ^(k+1) * μ₀) (𝓢.rjnStep (σ^(k+1) * μ₀) (seq_fn k))
+          ≤ K_star * (delta 𝓢 (σ^(k+1) * μ₀) (seq_fn k)) ^ 2 := h_contract'
+        _ ≤ K_star * (6 * α) ^ 2 := by
+            apply mul_le_mul_of_nonneg_left _ (by linarith : (0 : ℝ) ≤ K_star)
+            exact sq_le_sq' (by linarith) h_pre_contract
+        _ = 36 * K_star * α ^ 2 := by ring
+        _ ≤ α := by
+            -- 36 K_star α ≤ 36 (K_star + 1) α = ρ_star ≤ 1
+            have h1 : 36 * K_star * α ≤ 36 * (K_star + 1) * α := by
+              nlinarith [hα_pos, h_K_ge]
+            have h2 : 36 * (K_star + 1) * α ≤ 1 := by
+              rw [h_36K1_α]; linarith
+            have h3 : 36 * K_star * α ≤ 1 := le_trans h1 h2
+            nlinarith [hα_pos]
+  -- Now provide seq for the ∃ seq and the per-k conjunction.
+  refine ⟨seq_fn, rfl, ?_⟩
+  intro k
+  refine ⟨(h_inv k).1, (h_inv k).2, ?_⟩
+  intros ε hε k_iter hk_iter
+  have hk_iter_real : (k_iter : ℝ) ≥ s / α * Real.log (1 / ε) := by
+    calc (k_iter : ℝ)
+        ≥ (⌈s / α * Real.log (1 / ε)⌉₊ : ℝ) := by exact_mod_cast hk_iter
+      _ ≥ s / α * Real.log (1 / ε) := Nat.le_ceil _
+  have h_oic := outer_iteration_count 𝓢 hα_pos hα_lt_1 hε hk_iter_real
+  -- h_oic : (1 - α / Real.sqrt ((𝓢.ν : ℝ) + 1)) ^ k_iter ≤ ε
+  -- σ := 1 - α / s = 1 - α / Real.sqrt(...) definitionally
+  have h_pow_le : σ^k_iter ≤ ε := h_oic
+  exact mul_le_mul_of_nonneg_right h_pow_le hμ₀.le
 
 end Irn
