@@ -68,10 +68,17 @@ theorem proj_phi_on_sphere {u : H}
   rw [neg_div, div_self (ne_of_gt hpos), neg_smul, one_smul, sub_neg_eq_add]
 
 /-- **Eq. (6.3).** Affine-in-`μ` proximity transfer identity for
-`tildeT`. -/
+`tildeT`. On the sphere, `tildeT_μ(u) = T_μ(u)` (by tangentiality), so
+this reduces to the vector identity
+`T_{σμ}(u) = T_μ(u) - (1-σ)μ • (φ u + u)`. -/
 theorem tildeT_transfer (μ σ : ℝ) (hμ : 0 < μ) (hσ : 0 < σ) {u : H}
     (hS : u ∈ sphere 𝓢) (hC : u ∈ 𝓢.C) :
-    tildeT 𝓢 (σ * μ) u = tildeT 𝓢 μ u - ((1 - σ) * μ) • (𝓢.φ u + u) := sorry
+    tildeT 𝓢 (σ * μ) u = tildeT 𝓢 μ u - ((1 - σ) * μ) • (𝓢.φ u + u) := by
+  unfold tildeT
+  rw [proj_of_orthogonal u _ (tangent_T 𝓢 (mul_pos hσ hμ) hS hC),
+      proj_of_orthogonal u _ (tangent_T 𝓢 hμ hS hC)]
+  unfold T
+  module
 
 /-! ## §6.2 Failure of Euclidean tolerances. -/
 
@@ -109,7 +116,28 @@ sub-linear schedule conclusion is left as a remark. -/
 theorem euclidean_failure
     {μ : ℝ} (hμ : 0 < μ) {σ : ℝ} (hσ : 0 < σ) (hσ' : σ ≤ 1) :
     ‖tildeT 𝓢 (σ * μ) (centralPathPoint 𝓢 μ hμ)‖ / (σ * μ) =
-      ((1 - σ) / σ) * (‖𝓢.Q (centralPathPoint 𝓢 μ hμ)‖ / μ) := sorry
+      ((1 - σ) / σ) * (‖𝓢.Q (centralPathPoint 𝓢 μ hμ)‖ / μ) := by
+  set u := centralPathPoint 𝓢 μ hμ
+  obtain ⟨hC, hT⟩ := centralPathPoint_isCentralPathPoint 𝓢 μ hμ
+  have hS : u ∈ sphere 𝓢 := by
+    show ‖u‖ = 𝓢.r
+    have h1 : ‖u‖ ^ 2 = (𝓢.ν : ℝ) + 1 := centralPath_norm_sq 𝓢 hμ ⟨hC, hT⟩
+    unfold IrnSetup.r
+    rw [← Real.sqrt_sq (norm_nonneg u), h1]
+  have h_tildeT_μ : tildeT 𝓢 μ u = 0 := by
+    unfold tildeT
+    rw [hT]
+    simp [proj]
+  have h_transfer := tildeT_transfer 𝓢 μ σ hμ hσ hS hC
+  rw [h_tildeT_μ, zero_sub] at h_transfer
+  rw [h_transfer, norm_neg, norm_smul, Real.norm_eq_abs,
+      abs_of_nonneg (by nlinarith : (0 : ℝ) ≤ (1 - σ) * μ)]
+  have hR : μ * R 𝓢 u = ‖𝓢.Q u‖ := mu_R_eq_Q_norm 𝓢 hμ
+  unfold R at hR
+  rw [show (1 - σ) * μ * ‖𝓢.φ u + u‖ = (1 - σ) * (μ * ‖𝓢.φ u + u‖) from by ring, hR]
+  have hμ_ne : μ ≠ 0 := ne_of_gt hμ
+  have hσ_ne : σ ≠ 0 := ne_of_gt hσ
+  field_simp
 
 /-! ## §6.3 Hessian-norm proximity. -/
 

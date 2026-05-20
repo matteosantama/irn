@@ -29,6 +29,12 @@ division by zero is zero in `ℝ`. -/
 noncomputable def proj (u v : H) : H :=
   v - (inner ℝ u v / ‖u‖ ^ 2) • u
 
+/-- If `v ⟂ u` in the Euclidean sense, the projector fixes `v`. -/
+theorem proj_of_orthogonal (u v : H) (h : inner ℝ u v = (0 : ℝ)) :
+    proj u v = v := by
+  unfold proj
+  rw [h, zero_div, zero_smul, sub_zero]
+
 end Projector
 
 variable {H : Type*}
