@@ -66,6 +66,14 @@ structure IrnSetup (H : Type*)
   inner_u_phi : ∀ u ∈ C, inner ℝ u (φ u) = -((ν : ℝ) + 1)
   /-- `φ` is continuously differentiable on `C`. -/
   phi_contDiff : ContDiffOn ℝ 3 φ C
+  /-- The barrier-gradient map `φ` is monotone on `C`. This is a
+  direct consequence of `F* = f* + g*` being convex (the gradient of
+  a convex function is monotone) — strict convexity is built into the
+  LHSCB definition. We record it as an `IrnSetup` hypothesis since the
+  `LHSCB` interface in this first pass does not yet expose `F*` as a
+  potential. -/
+  phi_monotone : ∀ u ∈ C, ∀ v ∈ C,
+    0 ≤ inner ℝ (u - v) (φ u - φ v)
 
 namespace IrnSetup
 
