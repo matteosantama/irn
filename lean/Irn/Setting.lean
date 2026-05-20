@@ -138,6 +138,19 @@ structure IrnSetup (H : Type*)
     (hessian_plus_M μ u : H →L[ℝ] H) v = hessian_h μ u v + M v
   /-- Reverse of `tau_proj_pos`: positive `tau_proj` implies `Cplus`. -/
   Cplus_of_tau_proj_pos : ∀ u : H, 0 < tau_proj u → u ∈ Cplus
+  -- Proposition 11 ingredients: `rjnLambda` vanishes at the central path
+  -- and is continuous there.
+  /-- `rjnLambda μ` evaluates to `0` at central-path points (eq. `λ_k = 0`
+  when `u_k = u*(μ)` from Proposition 11's order bound). The
+  central-path condition `Q u + μ•u + μ•φ u = 0` is the unfolding of
+  `T μ u = 0` in `IrnSetup` primitives. -/
+  rjnLambda_at_central : ∀ μ : ℝ, ∀ u : H, 0 < μ → u ∈ C →
+    Q u + μ • u + μ • φ u = 0 → rjnLambda μ u = 0
+  /-- `rjnLambda μ` is continuous at the central-path point — the
+  remaining content of Proposition 11 (the smooth-branch conclusion of
+  the implicit function theorem). -/
+  rjnLambda_continuousAt_central : ∀ μ : ℝ, ∀ u : H, 0 < μ → u ∈ C →
+    Q u + μ • u + μ • φ u = 0 → ContinuousAt (rjnLambda μ) u
 
 namespace IrnSetup
 
