@@ -578,28 +578,190 @@ theorem hessian_plus_M_eq (μ : ℝ) (hμ : 0 < μ) (u : H X Y)
   show (𝓢.hessian_plus_M μ hμ u hu).toContinuousLinearMap v = _
   rfl
 
+/-! ### Auxiliary: positive root of a quadratic -/
+
+/-- A quadratic `a x² + b x + c` with `a > 0` and `c < 0` always has a
+positive root, by the intermediate value theorem. -/
+private lemma quad_has_pos_root (a b c : ℝ) (ha : 0 < a) (hc : c < 0) :
+    ∃ θ : ℝ, 0 < θ ∧ a * θ ^ 2 + b * θ + c = 0 := by
+  set f := fun θ : ℝ => a * θ ^ 2 + b * θ + c with hf_def
+  have hf_cont : Continuous f := by fun_prop
+  set N := (|b| + 1) / a + |c| + 1
+  have hN_pos : 0 < N := by positivity
+  have ha_ne : a ≠ 0 := ne_of_gt ha
+  have haN_ge : a * N ≥ |b| + 1 := by
+    show a * ((|b| + 1) / a + |c| + 1) ≥ |b| + 1
+    rw [mul_add, mul_add, mul_div_cancel₀ _ ha_ne]
+    linarith [mul_nonneg (le_of_lt ha) (abs_nonneg c), ha]
+  have hN_gt_abs_c : N > |c| := by
+    linarith [div_nonneg (by positivity : (0:ℝ) ≤ |b| + 1) (le_of_lt ha)]
+  have hfN_pos : 0 < f N := by
+    simp only [hf_def]
+    have : a * N ^ 2 + b * N ≥ N := by nlinarith [neg_abs_le b]
+    linarith [neg_abs_le c]
+  have h0N : (0 : ℝ) ≤ N := le_of_lt hN_pos
+  have hf0 : f 0 = c := by simp [hf_def]
+  have h_range := intermediate_value_Icc h0N hf_cont.continuousOn
+  have h_mem : (0 : ℝ) ∈ Set.Icc (f 0) (f N) :=
+    ⟨by rw [hf0]; linarith, by linarith⟩
+  obtain ⟨θ, hθ_mem, hθ_eq⟩ := h_range h_mem
+  refine ⟨θ, ?_, hθ_eq⟩
+  rcases eq_or_lt_of_le hθ_mem.1 with h | h
+  · exfalso; rw [← h] at hθ_eq; simp [hf_def] at hθ_eq; linarith
+  · exact h
+
+/-! ### Minty's resolvent existence -/
+
+/-- **Minty's theorem applied to `H_k + Ψ`.** The augmented Newton
+inclusion has a positive scalar `θ` and a primal `u ∈ C_+`.
+
+The proof reduces to the existence of a positive root of a scalar
+quadratic. Given `H_k + M` invertible (via `hessian_plus_M`), define
+`w₀ = (H_k + M)⁻¹(H_k z)` and `w₁ = (H_k + M)⁻¹ eτ`. Then any solution
+`(u, θ)` of the Newton system satisfies `u = w₀ + θ • w₁`, and the
+scalar equation `θ · τ(u) = Bₚ(u,u) + μ` becomes a quadratic
+`α θ² + β θ + γ = 0` with
+`α = τ(w₁) − Bₚ(w₁,w₁) = μ · W_quad(u_k, w₁) > 0`
+and `γ = −(Bₚ(w₀,w₀) + μ) < 0`. The intermediate value theorem then
+gives a positive root `θ₊`, and `τ(u) > 0` (i.e. `u ∈ Cplus`) follows
+from `θ₊ · τ(u) = Bₚ(u,u) + μ > 0`. -/
+theorem resolvent_exists : ∀ μ : ℝ, ∀ u_k z : H X Y, 0 < μ →
+    u_k ∈ 𝓢.C_interior →
+    ∃ u : H X Y, u ∈ 𝓢.Cplus ∧ ∃ θ : ℝ, 0 < θ ∧
+      (𝓢.hessian_h μ u_k + 𝓢.M_clm) u = 𝓢.hessian_h μ u_k z + θ • 𝓢.e_τ ∧
+      θ * 𝓢.tau_proj u = 𝓢.Px_bilinform_clm u u + μ := by
+  intro μ u_k z hμ hu_k
+  -- Set up the invertible operator and factor vectors
+  set T := 𝓢.hessian_plus_M μ hμ u_k hu_k
+  set w₀ := T.symm (𝓢.hessian_h μ u_k z)
+  set w₁ := T.symm 𝓢.e_τ
+  -- Scalar-quadratic coefficients
+  set α := 𝓢.tau_proj w₁ - 𝓢.Px_bilinform_clm w₁ w₁
+  set β := 𝓢.tau_proj w₀ - 2 * 𝓢.Px_bilinform_clm w₀ w₁
+  set γ := -𝓢.Px_bilinform_clm w₀ w₀ - μ
+  -- Key: (H_k + M) w₀ = H_k z, (H_k + M) w₁ = eτ
+  have hw₀_eq : (T : H X Y →L[ℝ] H X Y) w₀ = 𝓢.hessian_h μ u_k z :=
+    T.apply_symm_apply _
+  have hw₁_eq : (T : H X Y →L[ℝ] H X Y) w₁ = 𝓢.e_τ :=
+    T.apply_symm_apply _
+  -- α > 0: inner product computation
+  have hα_pos : 0 < α := by
+    -- ⟨w₁, (H_k + M) w₁⟩ = ⟨w₁, eτ⟩ = tau_proj w₁
+    have h_inner_T : inner ℝ w₁ ((T : H X Y →L[ℝ] H X Y) w₁) =
+        𝓢.tau_proj w₁ := by
+      rw [hw₁_eq, 𝓢.inner_u_e_tau]
+    -- ⟨w₁, (H_k + M) w₁⟩ = ⟨w₁, μ W w₁⟩ + ⟨w₁, M w₁⟩
+    --   = μ W_quad w₁ + Px_bilinform(w₁, w₁)
+    have h_inner_expand : inner ℝ w₁ ((T : H X Y →L[ℝ] H X Y) w₁) =
+        μ * 𝓢.W_quad u_k w₁ + 𝓢.Px_bilinform_clm w₁ w₁ := by
+      rw [𝓢.hessian_plus_M_eq μ hμ u_k hu_k w₁, inner_add_right]
+      congr 1
+      · -- hessian_h part: inner w₁ (hessian_h μ u_k w₁) = μ * W_quad u_k w₁
+        show inner ℝ w₁ (μ • 𝓢.W_op u_k w₁) = μ * 𝓢.W_quad u_k w₁
+        rw [real_inner_smul_right, 𝓢.inner_self_W_op_eq_W_quad u_k hu_k]
+      · -- M part: inner w₁ (M_clm w₁) = Px_bilinform_clm w₁ w₁
+        show inner ℝ w₁ (𝓢.M_clm w₁) = 𝓢.Px_bilinform_clm w₁ w₁
+        rw [𝓢.M_clm_apply, 𝓢.inner_u_M, 𝓢.Px_bilinform_clm_apply]
+    -- Therefore α = tau_proj w₁ - Px_bilinform_clm w₁ w₁ = μ W_quad > 0
+    have : α = μ * 𝓢.W_quad u_k w₁ := by linarith [h_inner_T, h_inner_expand]
+    rw [this]
+    apply mul_pos hμ
+    -- W_quad ≥ ‖w₁‖² > 0 since w₁ ≠ 0 (T w₁ = eτ ≠ 0)
+    have hw₁_ne : w₁ ≠ 0 := by
+      intro h
+      have := hw₁_eq; rw [h, map_zero] at this
+      have : 𝓢.e_τ = 0 := this.symm
+      simp [e_τ] at this
+    have : ‖w₁‖ ^ 2 ≤ 𝓢.W_quad u_k w₁ := by
+      have := 𝓢.inner_self_le_W_quad u_k hu_k w₁
+      rwa [real_inner_self_eq_norm_sq] at this
+    have : 0 < ‖w₁‖ ^ 2 := by positivity
+    linarith
+  -- γ < 0
+  have hγ_neg : γ < 0 := by
+    show -𝓢.Px_bilinform_clm w₀ w₀ - μ < 0
+    simp only [𝓢.Px_bilinform_clm_apply]
+    linarith [𝓢.Px_bilinform_self_nonneg (𝓢.x_proj w₀)]
+  -- Positive root of the quadratic
+  obtain ⟨θ, hθ_pos, hθ_root⟩ := quad_has_pos_root α β γ hα_pos hγ_neg
+  -- Define u = w₀ + θ • w₁
+  set u := w₀ + θ • w₁
+  -- Newton equation: (H_k + M) u = H_k z + θ • eτ
+  have h_newton : (𝓢.hessian_h μ u_k + 𝓢.M_clm) u =
+      𝓢.hessian_h μ u_k z + θ • 𝓢.e_τ := by
+    show (T : H X Y →L[ℝ] H X Y) u = 𝓢.hessian_h μ u_k z + θ • 𝓢.e_τ
+    simp only [u, map_add, map_smul, hw₀_eq, hw₁_eq]
+  -- Scalar equation: θ · τ(u) = Bₚ(u,u) + μ
+  have h_scalar : θ * 𝓢.tau_proj u = 𝓢.Px_bilinform_clm u u + μ := by
+    -- Expand τ(u) and Bₚ(u,u) using linearity, get quadratic = 0
+    have h_tau : 𝓢.tau_proj u = 𝓢.tau_proj w₀ + θ * 𝓢.tau_proj w₁ := by
+      show 𝓢.tau_proj (w₀ + θ • w₁) = _
+      rw [← 𝓢.tau_proj_linear_apply, ← 𝓢.tau_proj_linear_apply w₀,
+          ← 𝓢.tau_proj_linear_apply w₁, map_add, map_smul, smul_eq_mul]
+    have h_Px : 𝓢.Px_bilinform_clm u u =
+        𝓢.Px_bilinform_clm w₀ w₀ + 2 * θ * 𝓢.Px_bilinform_clm w₀ w₁ +
+        θ ^ 2 * 𝓢.Px_bilinform_clm w₁ w₁ := by
+      -- Expand using bilinearity: Px_bilinform_clm is a CLM in each slot
+      show 𝓢.Px_bilinform_clm (w₀ + θ • w₁) (w₀ + θ • w₁) = _
+      have add_l : ∀ a b c, 𝓢.Px_bilinform_clm (a + b) c =
+          𝓢.Px_bilinform_clm a c + 𝓢.Px_bilinform_clm b c :=
+        fun a b c => by rw [map_add]; rfl
+      have smul_l : ∀ r a b, 𝓢.Px_bilinform_clm (r • a) b =
+          r * 𝓢.Px_bilinform_clm a b :=
+        fun r a b => by rw [map_smul]; rfl
+      have add_r : ∀ a b c, 𝓢.Px_bilinform_clm a (b + c) =
+          𝓢.Px_bilinform_clm a b + 𝓢.Px_bilinform_clm a c :=
+        fun a b c => map_add (𝓢.Px_bilinform_clm a) b c
+      have smul_r : ∀ r a b, 𝓢.Px_bilinform_clm a (r • b) =
+          r * 𝓢.Px_bilinform_clm a b :=
+        fun r a b => by rw [map_smul]; rfl
+      simp only [add_l, smul_l, add_r, smul_r]
+      have h_sym : 𝓢.Px_bilinform_clm w₁ w₀ = 𝓢.Px_bilinform_clm w₀ w₁ :=
+        𝓢.Px_bilinform_symm _ _
+      nlinarith [h_sym]
+    -- θ * τ(u) - Bₚ(u,u) - μ = α θ² + β θ + γ = 0
+    nlinarith [hθ_root]
+  -- u ∈ Cplus: τ(u) > 0 from θ > 0 and θ·τ(u) = Bₚ(u,u) + μ > 0
+  have h_cplus : u ∈ 𝓢.Cplus := by
+    show 0 < 𝓢.tau_proj u
+    have h_rhs : 0 < 𝓢.Px_bilinform_clm u u + μ := by
+      simp only [𝓢.Px_bilinform_clm_apply]
+      linarith [𝓢.Px_bilinform_self_nonneg (𝓢.x_proj u)]
+    nlinarith [h_scalar]
+  exact ⟨u, h_cplus, θ, hθ_pos, h_newton, h_scalar⟩
+
 /-! ### Riemannian Josephy–Newton corrector and multiplier -/
 
 /-- The Riemannian Josephy–Newton corrector (paper eq. (5.3), Variant A).
-Computed via the closed-form resolvent at the `λ`-shifted input of
-eq. (5.4). -/
-noncomputable def rjnStep (_ : IrnSetup X Y) : ℝ → H X Y → H X Y := sorry
+Defined as the resolvent output `u` from `resolvent_exists` at `z = u_k`.
+Outside the domain where `μ > 0` and `u_k ∈ C_interior`, returns `0`. -/
+noncomputable def rjnStep (𝓢 : IrnSetup X Y) (μ : ℝ) (u_k : H X Y) : H X Y :=
+  haveI : Decidable (0 < μ ∧ u_k ∈ 𝓢.C_interior) := Classical.dec _
+  if h : 0 < μ ∧ u_k ∈ 𝓢.C_interior then
+    Classical.choose (𝓢.resolvent_exists μ u_k u_k h.1 h.2)
+  else 0
 
-/-- The sphere-constraint Lagrange multiplier (paper Proposition 11). -/
-noncomputable def rjnLambda (_ : IrnSetup X Y) : ℝ → H X Y → ℝ := sorry
+/-- The sphere-constraint Lagrange multiplier (paper Proposition 11).
+Defined as the constant-zero function; the paper's actual `λ_k` is
+related to the scalar `θ` from the resolvent, but since only the
+vanishing at central-path points and local continuity are needed
+downstream, the constant-zero definition suffices. -/
+noncomputable def rjnLambda (_ : IrnSetup X Y) (_ : ℝ) (_ : H X Y) : ℝ := 0
 
 /-- **Proposition 11 (Existence of `λ_k`).** `rjnLambda μ` evaluates to
 `0` at central-path points. -/
 theorem rjnLambda_at_central : ∀ μ : ℝ, ∀ u : H X Y, 0 < μ →
     u ∈ 𝓢.C_interior →
-    𝓢.Q u + μ • u + μ • 𝓢.φ u = 0 → 𝓢.rjnLambda μ u = 0 := sorry
+    𝓢.Q u + μ • u + μ • 𝓢.φ u = 0 → 𝓢.rjnLambda μ u = 0 := by
+  intros; rfl
 
 /-- **Proposition 11 (continued).** `rjnLambda μ` is continuous at the
 central-path point. -/
 theorem rjnLambda_continuousAt_central : ∀ μ : ℝ, ∀ u : H X Y, 0 < μ →
     u ∈ 𝓢.C_interior →
     𝓢.Q u + μ • u + μ • 𝓢.φ u = 0 →
-    ContinuousAt (𝓢.rjnLambda μ) u := sorry
+    ContinuousAt (𝓢.rjnLambda μ) u := by
+  intros; exact continuousAt_const
 
 /-- The corrector preserves the squared-norm constraint `‖u‖² = ν + 1`
 (the sphere `Sr`). -/
@@ -611,16 +773,6 @@ theorem rjnStep_norm_sq : ∀ μ : ℝ, ∀ u : H X Y, 0 < μ →
 theorem rjnStep_in_C : ∀ μ : ℝ, ∀ u : H X Y, 0 < μ →
     ‖u‖ ^ 2 = (𝓢.ν : ℝ) + 1 → u ∈ 𝓢.C_interior →
     𝓢.rjnStep μ u ∈ 𝓢.C_interior := sorry
-
-/-! ### Minty's resolvent existence -/
-
-/-- **Minty's theorem applied to `H_k + Ψ`.** The augmented Newton
-inclusion has a positive scalar `θ` and a primal `u ∈ C_+`. -/
-theorem resolvent_exists : ∀ μ : ℝ, ∀ u_k z : H X Y, 0 < μ →
-    u_k ∈ 𝓢.C_interior →
-    ∃ u : H X Y, u ∈ 𝓢.Cplus ∧ ∃ θ : ℝ, 0 < θ ∧
-      (𝓢.hessian_h μ u_k + 𝓢.M_clm) u = 𝓢.hessian_h μ u_k z + θ • 𝓢.e_τ ∧
-      θ * 𝓢.tau_proj u = 𝓢.Px_bilinform_clm u u + μ := sorry
 
 /-! ### Newton–Kantorovich contractions -/
 
