@@ -34,6 +34,9 @@ variable {X Y : Type*}
 
 `w_0` and `w_1` are the two `λ`-independent solves against `H_k + M`
 that appear in the closed-form formula `u = w_0 + θ w_1` of Theorem 9.
+`w_2 = (H_k + M)⁻¹ u_k` is the additional Variant C / Variant B
+back-substitution used to expose the `λ`-dependence of `u(λ)` in paper
+§5.4.
 -/
 
 /-- `w_0(μ, u_k, z) = (H_k + M)⁻¹ (H_k z)`. -/
@@ -45,6 +48,14 @@ noncomputable def w0 (μ : ℝ) (hμ : 0 < μ) (u_k : H X Y)
 noncomputable def w1 (μ : ℝ) (hμ : 0 < μ) (u_k : H X Y)
     (hu_k : u_k ∈ 𝓢.C_interior) : H X Y :=
   (𝓢.hessian_plus_M μ hμ u_k hu_k).symm 𝓢.e_τ
+
+/-- `w_2(μ, u_k) = (H_k + M)⁻¹ u_k`. The third back-substitution
+of paper §5.4 eq. `eq:three-vectors`, used by Variant C to capture
+the `λ`-dependence of the parametrised step `u(λ) = w_0^(0) - λ w_2
++ θ(λ) w_1`. -/
+noncomputable def w2 (μ : ℝ) (hμ : 0 < μ) (u_k : H X Y)
+    (hu_k : u_k ∈ 𝓢.C_interior) : H X Y :=
+  (𝓢.hessian_plus_M μ hμ u_k hu_k).symm u_k
 
 /-- `(H_k + M) w_0 = H_k z`. -/
 theorem hessian_plus_M_w0 (μ : ℝ) (hμ : 0 < μ) (u_k : H X Y)
@@ -61,6 +72,14 @@ theorem hessian_plus_M_w1 (μ : ℝ) (hμ : 0 < μ) (u_k : H X Y)
     (𝓢.hessian_plus_M μ hμ u_k hu_k : H X Y →L[ℝ] H X Y)
         (𝓢.w1 μ hμ u_k hu_k) = 𝓢.e_τ := by
   unfold w1
+  exact (𝓢.hessian_plus_M μ hμ u_k hu_k).apply_symm_apply _
+
+/-- `(H_k + M) w_2 = u_k`. -/
+theorem hessian_plus_M_w2 (μ : ℝ) (hμ : 0 < μ) (u_k : H X Y)
+    (hu_k : u_k ∈ 𝓢.C_interior) :
+    (𝓢.hessian_plus_M μ hμ u_k hu_k : H X Y →L[ℝ] H X Y)
+        (𝓢.w2 μ hμ u_k hu_k) = u_k := by
+  unfold w2
   exact (𝓢.hessian_plus_M μ hμ u_k hu_k).apply_symm_apply _
 
 /-! ### Scalar-quadratic coefficients
