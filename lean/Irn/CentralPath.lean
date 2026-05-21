@@ -552,7 +552,16 @@ theorem f_lhscb_grad_contDiffOn :
   -- `f_lhscb.grad u = (toDual).symm (fderiv f_lhscb.f u)`. The Riesz
   -- inverse `(toDual).symm` is a continuous linear equiv, hence `C^∞`,
   -- so composition preserves `C^(d-1)`.
-  sorry
+  show ContDiffOn ℝ (𝓢.d - 1) (fun u =>
+      (InnerProductSpace.toDual ℝ (H X Y)).symm (fderiv ℝ 𝓢.f_lhscb.f u))
+      (interior 𝓢.K_f_lifted)
+  -- View the Riesz inverse as a `ContinuousLinearMap` via its
+  -- `toContinuousLinearEquiv` (the `≃ₗᵢ⋆[ℝ]` collapses to `≃L[ℝ]`
+  -- because `starRingEnd ℝ = RingHom.id ℝ`).
+  have h_clm : ContDiff ℝ (𝓢.d - 1)
+      (InnerProductSpace.toDual ℝ (H X Y)).symm.toContinuousLinearEquiv :=
+    ContinuousLinearEquiv.contDiff _
+  exact h_clm.comp_contDiffOn h_fderiv
 
 theorem f_lhscb_grad_contDiffAt {u₀ : H X Y}
     (hu₀ : u₀ ∈ interior 𝓢.K_f_lifted) :
@@ -581,9 +590,10 @@ theorem phi_contDiffAt {u₀ : H X Y} (hu₀ : u₀ ∈ 𝓢.C_interior) :
     (𝓢.C_interior_subset_f_lhscb_interior hu₀)).add (𝓢.g_grad_contDiffAt hu₀.2)
 
 /-- `Q` is `C^∞` (hence `C^(d-1)`) at any `u₀ ∈ Cplus`.
-**Mechanical via composition of CLMs and the smooth rational term**;
-left sorried due to fiddly typeclass unification on the inner product
-and CLM composition. -/
+**Sketched but currently sorried** — the inner-product piece
+`(fun u => inner ℝ (x_proj u) (P (x_proj u)))` hits a `NormedSpace`
+typeclass elaboration issue when chained with `contDiff_inner`; a
+more careful `(𝕜 := ℝ)` / `(E := X)` annotation should suffice. -/
 theorem Q_contDiffAt {u₀ : H X Y} (hu₀ : u₀ ∈ 𝓢.Cplus) :
     ContDiffAt ℝ (𝓢.d - 1) 𝓢.Q u₀ := sorry
 
