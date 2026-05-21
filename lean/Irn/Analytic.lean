@@ -145,13 +145,101 @@ theorem normWinv_smul (u : H X Y) (r : ℝ) (v : H X Y) :
   rw [iSup_congr h_pt]
   exact (Real.mul_iSup_of_nonneg (sq_nonneg _) _).symm
 
-/-- Placeholder: triangle inequality for `normWinv`. Currently sorried —
-proof requires the parallelogram-style argument using bilinearity of
-inner product and the W-quadratic form. -/
+/-- **Variational Cauchy-Schwarz bound.** `|⟨v, t⟩| ≤ normWinv u v · √(W_quad u t)`.
+This is the contrapositive of the iSup characterization: each ratio
+`⟨v, s⟩² / W_quad u s` is `≤ normWinv_sq u v` (by the variational sup),
+hence after sqrt and rearrangement. -/
+theorem inner_le_normWinv_mul_sqrt_W_quad (u : H X Y) (hu : u ∈ 𝓢.C_interior)
+    (v t : H X Y) :
+    |inner ℝ v t| ≤ 𝓢.normWinv u v * Real.sqrt (𝓢.W_quad u t) := by
+  have hWq_nn : 0 ≤ 𝓢.W_quad u t := by
+    have := 𝓢.inner_self_le_W_quad u hu t
+    linarith [@real_inner_self_nonneg _ _ _ t]
+  have h_bdd : BddAbove (Set.range (fun s : H X Y => (inner ℝ v s) ^ 2 / 𝓢.W_quad u s)) :=
+    ⟨‖v‖ ^ 2, by rintro _ ⟨s, rfl⟩; exact 𝓢.normWinv_ratio_le_norm_sq u hu v s⟩
+  have h_sq_nn : 0 ≤ 𝓢.normWinv_sq u v := by
+    unfold normWinv_sq
+    apply le_ciSup_of_le h_bdd 0
+    rw [inner_zero_right]; simp
+  by_cases hWq_zero : 𝓢.W_quad u t = 0
+  · -- t = 0 since ‖t‖² ≤ W_quad u t = 0.
+    have h_t_norm_sq : ‖t‖ ^ 2 ≤ 0 := by
+      have h := 𝓢.inner_self_le_W_quad u hu t
+      rw [real_inner_self_eq_norm_sq, hWq_zero] at h
+      exact h
+    have h_t_zero : t = 0 := by
+      have h_t_norm : ‖t‖ = 0 := by nlinarith [sq_nonneg ‖t‖]
+      exact norm_eq_zero.mp h_t_norm
+    rw [h_t_zero, inner_zero_right, abs_zero]
+    exact mul_nonneg (𝓢.normWinv_nonneg u v) (Real.sqrt_nonneg _)
+  · have hWq_pos : 0 < 𝓢.W_quad u t := lt_of_le_of_ne hWq_nn (Ne.symm hWq_zero)
+    have h_ratio : (inner ℝ v t) ^ 2 / 𝓢.W_quad u t ≤ 𝓢.normWinv_sq u v :=
+      le_ciSup h_bdd t
+    have h_sq : (inner ℝ v t) ^ 2 ≤ 𝓢.normWinv_sq u v * 𝓢.W_quad u t := by
+      rw [← div_le_iff₀ hWq_pos]; exact h_ratio
+    have h_RHS_sq : (𝓢.normWinv u v * Real.sqrt (𝓢.W_quad u t)) ^ 2 =
+        𝓢.normWinv_sq u v * 𝓢.W_quad u t := by
+      rw [mul_pow]
+      unfold normWinv
+      rw [Real.sq_sqrt h_sq_nn, Real.sq_sqrt hWq_nn]
+    have h_RHS_nn : 0 ≤ 𝓢.normWinv u v * Real.sqrt (𝓢.W_quad u t) :=
+      mul_nonneg (𝓢.normWinv_nonneg u v) (Real.sqrt_nonneg _)
+    have h_abs_sq : |inner ℝ v t| ^ 2 ≤ (𝓢.normWinv u v * Real.sqrt (𝓢.W_quad u t)) ^ 2 := by
+      rw [sq_abs, h_RHS_sq]; exact h_sq
+    exact abs_le_of_sq_le_sq' h_abs_sq h_RHS_nn |>.2
+
+/-- Triangle inequality for `normWinv`. From the variational CS bound
+`|⟨v, t⟩| ≤ normWinv u v · √(W_quad u t)`, the bound transfers to
+`v + w` via the triangle for `|·|`, then sup over `t`. -/
 theorem normWinv_triangle (u : H X Y) (hu : u ∈ 𝓢.C_interior)
     (v w : H X Y) :
     𝓢.normWinv u (v + w) ≤ 𝓢.normWinv u v + 𝓢.normWinv u w := by
-  sorry
+  -- Squared bound: for each t, ⟨v+w, t⟩²/W_quad u t ≤ (normWinv v + normWinv w)².
+  have hN_v_nn : 0 ≤ 𝓢.normWinv u v := 𝓢.normWinv_nonneg u v
+  have hN_w_nn : 0 ≤ 𝓢.normWinv u w := 𝓢.normWinv_nonneg u w
+  have h_pt : ∀ t : H X Y,
+      (inner ℝ (v + w) t) ^ 2 / 𝓢.W_quad u t ≤
+        (𝓢.normWinv u v + 𝓢.normWinv u w) ^ 2 := by
+    intro t
+    have hWq_nn : 0 ≤ 𝓢.W_quad u t := by
+      have := 𝓢.inner_self_le_W_quad u hu t
+      linarith [@real_inner_self_nonneg _ _ _ t]
+    by_cases hWq_zero : 𝓢.W_quad u t = 0
+    · rw [hWq_zero, div_zero]
+      positivity
+    · have hWq_pos : 0 < 𝓢.W_quad u t := lt_of_le_of_ne hWq_nn (Ne.symm hWq_zero)
+      rw [div_le_iff₀ hWq_pos]
+      have h_v := 𝓢.inner_le_normWinv_mul_sqrt_W_quad u hu v t
+      have h_w := 𝓢.inner_le_normWinv_mul_sqrt_W_quad u hu w t
+      have h_tri : |inner ℝ (v + w) t| ≤
+          (𝓢.normWinv u v + 𝓢.normWinv u w) * Real.sqrt (𝓢.W_quad u t) := by
+        rw [inner_add_left]
+        calc |inner ℝ v t + inner ℝ w t|
+            ≤ |inner ℝ v t| + |inner ℝ w t| := abs_add_le _ _
+          _ ≤ 𝓢.normWinv u v * Real.sqrt (𝓢.W_quad u t) +
+              𝓢.normWinv u w * Real.sqrt (𝓢.W_quad u t) := by linarith
+          _ = (𝓢.normWinv u v + 𝓢.normWinv u w) * Real.sqrt (𝓢.W_quad u t) := by ring
+      have h_RHS_nn : 0 ≤ (𝓢.normWinv u v + 𝓢.normWinv u w) * Real.sqrt (𝓢.W_quad u t) :=
+        mul_nonneg (add_nonneg hN_v_nn hN_w_nn) (Real.sqrt_nonneg _)
+      have h_sq_tri : (inner ℝ (v + w) t) ^ 2 ≤
+          ((𝓢.normWinv u v + 𝓢.normWinv u w) * Real.sqrt (𝓢.W_quad u t)) ^ 2 := by
+        rw [← sq_abs (inner _ _ _)]
+        exact pow_le_pow_left₀ (abs_nonneg _) h_tri 2
+      calc (inner ℝ (v + w) t) ^ 2
+          ≤ ((𝓢.normWinv u v + 𝓢.normWinv u w) * Real.sqrt (𝓢.W_quad u t)) ^ 2 := h_sq_tri
+        _ = (𝓢.normWinv u v + 𝓢.normWinv u w) ^ 2 * 𝓢.W_quad u t := by
+            rw [mul_pow, Real.sq_sqrt hWq_nn]
+  have h_sq_bound : 𝓢.normWinv_sq u (v + w) ≤
+      (𝓢.normWinv u v + 𝓢.normWinv u w) ^ 2 := by
+    unfold normWinv_sq
+    exact ciSup_le h_pt
+  have h_sum_nn : 0 ≤ 𝓢.normWinv u v + 𝓢.normWinv u w :=
+    add_nonneg hN_v_nn hN_w_nn
+  calc 𝓢.normWinv u (v + w)
+      = Real.sqrt (𝓢.normWinv_sq u (v + w)) := rfl
+    _ ≤ Real.sqrt ((𝓢.normWinv u v + 𝓢.normWinv u w) ^ 2) :=
+        Real.sqrt_le_sqrt h_sq_bound
+    _ = 𝓢.normWinv u v + 𝓢.normWinv u w := Real.sqrt_sq h_sum_nn
 
 /-- **LHSCB gradient bound** (paper §3.2):
 `‖φ(u)‖²_{W(u)⁻¹} ≤ ν + 1`, hence `‖φ(u)‖_{W(u)⁻¹} ≤ √(ν+1)`. The
