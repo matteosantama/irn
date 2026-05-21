@@ -342,23 +342,41 @@ lemma y_proj_continuous : Continuous 𝓢.y_proj := by
   unfold y_proj
   fun_prop
 
+/-- The τ-projection is continuous (composition of two `WithLp.snd`). -/
+lemma tau_proj_continuous : Continuous 𝓢.tau_proj := by
+  unfold tau_proj
+  fun_prop
+
+/-- `y_proj` is surjective: for any `y ∈ Y`, take `(0, y, 0) ∈ H`. -/
+theorem y_proj_surjective : Function.Surjective 𝓢.y_proj := by
+  intro y
+  refine ⟨WithLp.toLp 2 ((0 : X), WithLp.toLp 2 (y, (0 : ℝ))), ?_⟩
+  rfl
+
+/-- `y_proj` is an open map: it's a surjective continuous linear map
+between finite-dimensional inner-product spaces, so the
+finite-dimensional open mapping theorem applies. -/
+theorem y_proj_isOpenMap : IsOpenMap 𝓢.y_proj := by
+  -- y_proj agrees with the CLM y_proj_linear; the CLM's underlying
+  -- LinearMap is surjective and lands in finite-dim, so it's open.
+  have h_eq : 𝓢.y_proj = ⇑(IrnSetup.y_proj_linear : H X Y →L[ℝ] Y) := by
+    funext u
+    exact (𝓢.y_proj_linear_apply u).symm
+  rw [h_eq]
+  exact (IrnSetup.y_proj_linear : H X Y →L[ℝ] Y).toLinearMap.isOpenMap_of_finiteDimensional
+    (h_eq ▸ 𝓢.y_proj_surjective)
+
 /-- The lifted cone for `f_lhscb` on `H`: `y_proj⁻¹(K)`. Closed since
-`y_proj` is continuous and `K` is closed (as a `ProperCone`). Its
-interior is `y_proj⁻¹(interior K)` because `y_proj` is a surjective
-continuous linear map between finite-dimensional spaces, hence an
-open map (open mapping theorem). -/
+`y_proj` is continuous and `K` is closed (as a `ProperCone`). -/
 def K_f_lifted (𝓢 : IrnSetup X Y) : Set (H X Y) :=
   𝓢.y_proj ⁻¹' (𝓢.K : Set Y)
 
 /-- `interior (K_f_lifted) = y_proj⁻¹(interior K)`. Follows from
-`y_proj` being a surjective continuous linear map on finite-dim
-spaces (hence an open map). -/
+`y_proj` being an open continuous map. -/
 theorem interior_K_f_lifted :
-    interior 𝓢.K_f_lifted = 𝓢.y_proj ⁻¹' (interior (𝓢.K : Set Y)) := by
-  -- y_proj is a surjective continuous linear map; by the open mapping
-  -- theorem for finite-dim spaces, it's an open map. For open
-  -- continuous surjective maps, interior commutes with preimage.
-  sorry
+    interior 𝓢.K_f_lifted = 𝓢.y_proj ⁻¹' (interior (𝓢.K : Set Y)) :=
+  (𝓢.y_proj_isOpenMap.preimage_interior_eq_interior_preimage
+    𝓢.y_proj_continuous (𝓢.K : Set Y)).symm
 
 /-- **Lift of `fBarrier` to `H`.** The user's `ν`-LHSCB `f` on `Y` extends
 to a `ν`-LHSCB `f_lhscb` on `H = X × Y × ℝ` (with respect to the
@@ -546,18 +564,35 @@ theorem Q_monotone (u : H X Y) (hu : u ∈ 𝓢.Cplus)
 
 /-! ### The combined `(ν+1)`-LHSCB `F = f + g` -/
 
+/-- `tau_proj` is surjective: for any `r ∈ ℝ`, take `(0, 0, r) ∈ H`. -/
+theorem tau_proj_surjective : Function.Surjective 𝓢.tau_proj := by
+  intro r
+  refine ⟨WithLp.toLp 2 ((0 : X), WithLp.toLp 2 ((0 : Y), r)), ?_⟩
+  rfl
+
+/-- `tau_proj` is an open map (surjective continuous linear functional
+on finite-dimensional inner-product spaces). -/
+theorem tau_proj_isOpenMap : IsOpenMap 𝓢.tau_proj := by
+  have h_eq : 𝓢.tau_proj = ⇑(IrnSetup.tau_proj_linear : H X Y →L[ℝ] ℝ) := by
+    funext u
+    exact (𝓢.tau_proj_linear_apply u).symm
+  rw [h_eq]
+  exact (IrnSetup.tau_proj_linear : H X Y →L[ℝ] ℝ).toLinearMap.isOpenMap_of_finiteDimensional
+    (h_eq ▸ 𝓢.tau_proj_surjective)
+
 /-- The lifted cone for `g_lhscb`: `tau_proj⁻¹([0, ∞)) = {u | 0 ≤
-tau_proj u}`. Its interior is `Cplus = {u | 0 < tau_proj u}` (via the
-open mapping for `tau_proj_linear`). -/
+tau_proj u}`. -/
 def K_g_lifted (𝓢 : IrnSetup X Y) : Set (H X Y) :=
   {u | 0 ≤ 𝓢.tau_proj u}
 
 theorem interior_K_g_lifted : interior 𝓢.K_g_lifted = 𝓢.Cplus := by
-  -- `K_g_lifted = tau_proj_linear ⁻¹' (Set.Ici 0)`. Its interior is
-  -- `tau_proj_linear ⁻¹' (Set.Ioi 0) = Cplus` because
-  -- `tau_proj_linear` is a surjective continuous linear functional
-  -- (hence an open map), and `interior (Set.Ici 0) = Set.Ioi 0`.
-  sorry
+  -- K_g_lifted = tau_proj ⁻¹' (Set.Ici 0). Interior of preimage =
+  -- preimage of interior (since tau_proj is open continuous), and
+  -- interior (Set.Ici 0) = Set.Ioi 0 in ℝ.
+  show interior (𝓢.tau_proj ⁻¹' Set.Ici 0) = {u | 0 < 𝓢.tau_proj u}
+  rw [← 𝓢.tau_proj_isOpenMap.preimage_interior_eq_interior_preimage
+        𝓢.tau_proj_continuous (Set.Ici 0), interior_Ici]
+  rfl
 
 /-- The concrete `1`-LHSCB `g(τ) = -log τ` lifted to `H` with respect
 to the lifted cone `K_g_lifted = {u | 0 ≤ tau_proj u}`. The gradient
