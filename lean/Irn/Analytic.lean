@@ -468,13 +468,56 @@ theorem normWinv_phi_bound : ∀ u ∈ 𝓢.C_interior,
 
 /-! ### Hessian preconditioner -/
 
-/-- The Hessian preconditioner `H_k = ∇h(u_k) = μI + μ∇²F*(u_k)`
+/-- The Hessian operator `∇²F^*(u) : H →L H` at `u`, viewed as a CLM
+via Riesz representation. On `C_interior`, this satisfies
+`⟨v, hess_op u w⟩ = hessianBilin u v w`. -/
+noncomputable def hess_op (𝓢 : IrnSetup X Y) (u : H X Y) :
+    H X Y →L[ℝ] H X Y :=
+  (InnerProductSpace.toDual ℝ (H X Y)).symm.toContinuousLinearMap.comp
+    (fderiv ℝ (fderiv ℝ 𝓢.F_lhscb.f) u)
+
+/-- The W operator `W(u) = I + ∇²F^*(u)`. -/
+noncomputable def W_op (𝓢 : IrnSetup X Y) (u : H X Y) :
+    H X Y →L[ℝ] H X Y :=
+  ContinuousLinearMap.id ℝ (H X Y) + 𝓢.hess_op u
+
+/-- The Hessian preconditioner `H_k = ∇h(u_k) = μI + μ∇²F^*(u_k) = μ W(u)`
 (paper §5.2). -/
-noncomputable def hessian_h (_ : IrnSetup X Y) :
-    ℝ → H X Y → H X Y →L[ℝ] H X Y := sorry
+noncomputable def hessian_h (𝓢 : IrnSetup X Y) (μ : ℝ) (u : H X Y) :
+    H X Y →L[ℝ] H X Y :=
+  μ • 𝓢.W_op u
+
+/-- **Riesz characterization of `hess_op`.** On `C_interior`,
+`⟨v, hess_op u w⟩ = (fderiv (fderiv F_lhscb.f) u) w v = hessianBilin u w v`. -/
+theorem hess_op_apply_inner (u : H X Y) (hu : u ∈ 𝓢.C_interior) (v w : H X Y) :
+    inner ℝ v (𝓢.hess_op u w) = 𝓢.hessianBilin u w v := by
+  show inner ℝ v
+    ((InnerProductSpace.toDual ℝ (H X Y)).symm
+      ((fderiv ℝ (fderiv ℝ 𝓢.F_lhscb.f) u) w)) = _
+  rw [real_inner_comm, InnerProductSpace.toDual_symm_apply]
+  rw [𝓢.hessianBilin_eq_fderiv u hu w v]
+
+/-- The W-operator's inner product: `⟨v, W_op u w⟩ = ⟨v, w⟩ + hessianBilin u w v`.
+With symmetry, the second term is `hessianBilin u v w`. -/
+theorem W_op_apply_inner (u : H X Y) (hu : u ∈ 𝓢.C_interior) (v w : H X Y) :
+    inner ℝ v (𝓢.W_op u w) = inner ℝ v w + 𝓢.hessianBilin u w v := by
+  show inner ℝ v (w + 𝓢.hess_op u w) = _
+  rw [inner_add_right, 𝓢.hess_op_apply_inner u hu]
+
+/-- The W-quadratic form computed via the operator:
+`⟨v, W_op u v⟩ = W_quad u v`. -/
+theorem inner_self_W_op_eq_W_quad (u : H X Y) (hu : u ∈ 𝓢.C_interior) (v : H X Y) :
+    inner ℝ v (𝓢.W_op u v) = 𝓢.W_quad u v := by
+  rw [𝓢.W_op_apply_inner u hu]
+  show inner ℝ v v + 𝓢.hessianBilin u v v = inner ℝ v v + 𝓢.hessianBilin u v v
+  rfl
 
 /-- The continuous linear equivalence `H_k + M`. Invertible because its
-symmetric part is positive definite. -/
+symmetric part is `μ W(u) ≻ 0` (positive definite for `μ > 0`,
+`u ∈ C_interior`). Currently sorried — needs injectivity argument
+(any `v` in kernel forces `μ ⟨v, W v⟩ + ⟨v, M v⟩ = μ ⟨v, W v⟩ = 0`
+since `⟨v, M v⟩ = 0`; then `⟨v, W v⟩ ≥ ‖v‖² = 0` ⇒ `v = 0`) plus the
+finite-dim `injective ⇒ bijective` step. -/
 noncomputable def hessian_plus_M (_ : IrnSetup X Y) :
     ℝ → H X Y → (H X Y ≃L[ℝ] H X Y) := sorry
 
