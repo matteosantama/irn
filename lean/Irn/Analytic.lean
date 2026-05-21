@@ -147,7 +147,7 @@ theorem hessianBilin_symm (u : H X Y) (hu : u ∈ 𝓢.C_interior) (v w : H X Y)
   have hu' : u ∈ interior (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted) :=
     𝓢.C_interior_subset_F_interior hu
   have hf_C3 : ContDiffOn ℝ 3 𝓢.F_lhscb.f
-      (interior (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted)) := 𝓢.F_lhscb.contDiff
+      (interior (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted)) := 𝓢.F_lhscb.contDiff₃
   have h_ff_diff_eventually : ∀ᶠ y in nhds u,
       HasFDerivAt 𝓢.F_lhscb.f (fderiv ℝ 𝓢.F_lhscb.f y) y := by
     filter_upwards [isOpen_interior.mem_nhds hu'] with y hy

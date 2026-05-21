@@ -75,9 +75,17 @@ structure IrnSetup (X : Type*) (Y : Type*)
   for the central path to exist (else `C_interior = ∅` and the
   optimization is vacuous). -/
   K_interior_nonempty : (interior (K : Set Y)).Nonempty
-  /-- A `ν`-LHSCB for the cone `K`. The barrier is finite on
-  `interior (K : Set Y)`. -/
-  fBarrier : LHSCB Y (K : Set Y) ν
+  /-- Smoothness degree of the user's barrier `fBarrier` on `int K`.
+  Must be at least `3` (for the self-concordance bound to be defined),
+  with higher degrees needed to push smoothness of the central-path
+  map up — `centralPathPoint` is `C^(d-1)`. Choose `d = ⊤` for a
+  `C^∞` barrier. -/
+  d : ℕ∞
+  /-- `d ≥ 3`. -/
+  hd_ge : (3 : ℕ∞) ≤ d
+  /-- A `ν`-LHSCB of smoothness `d` for the cone `K`. The barrier is
+  finite on `interior (K : Set Y)`. -/
+  fBarrier : LHSCB Y (K : Set Y) ν d
 
 namespace IrnSetup
 
@@ -389,7 +397,8 @@ lifted cone `K_f_lifted = y_proj⁻¹(K)`) by acting only on the y-block:
 `f_lift(x, y, τ) := f(y)`, with gradient `(0, ∇f(y), 0)`. The Euler
 identity, gradient monotonicity, and log-homogeneity transport from
 `fBarrier`. -/
-noncomputable def f_lhscb : LHSCB (H X Y) 𝓢.K_f_lifted 𝓢.ν where
+noncomputable def f_lhscb : LHSCB (H X Y) 𝓢.K_f_lifted 𝓢.ν 𝓢.d where
+  hd_ge := 𝓢.hd_ge
   f u := 𝓢.fBarrier.f (𝓢.y_proj u)
   contDiff := by
     -- `f_lhscb.f = fBarrier.f ∘ y_proj_linear`. Smoothness transports
@@ -403,7 +412,7 @@ noncomputable def f_lhscb : LHSCB (H X Y) 𝓢.K_f_lifted 𝓢.ν where
     -- iterated derivatives composed with a CLM.
     have key := LHSCB.self_concordant_comp_right_clm
       (s := interior (𝓢.K : Set Y))
-      isOpen_interior 𝓢.fBarrier.contDiff 𝓢.fBarrier.self_concordant
+      isOpen_interior 𝓢.fBarrier.contDiff₃ 𝓢.fBarrier.self_concordant
       (IrnSetup.y_proj_linear : H X Y →L[ℝ] Y)
     -- `interior K_f_lifted = y_proj_linear ⁻¹' interior K`.
     have hset : 𝓢.K_f_lifted = (IrnSetup.y_proj_linear : H X Y →L[ℝ] Y) ⁻¹' (𝓢.K : Set Y) := rfl
@@ -633,18 +642,19 @@ theorem interior_K_g_lifted : interior 𝓢.K_g_lifted = 𝓢.Cplus := by
 to the lifted cone `K_g_lifted = {u | 0 ≤ tau_proj u}`. The gradient
 is `(-1/tau_proj u) • e_τ`; Euler uses `inner_u_e_tau`; monotonicity
 uses `(τ_u - τ_v)² / (τ_u τ_v) ≥ 0`. -/
-noncomputable def g_lhscb : LHSCB (H X Y) 𝓢.K_g_lifted 1 where
+noncomputable def g_lhscb : LHSCB (H X Y) 𝓢.K_g_lifted 1 𝓢.d where
+  hd_ge := 𝓢.hd_ge
   f := fun u => -Real.log (𝓢.tau_proj u)
   contDiff := by
-    -- `-Real.log ∘ tau_proj_linear` is `C³` on `Cplus = {τ > 0}` since
+    -- `-Real.log ∘ tau_proj_linear` is `C^d` on `Cplus = {τ > 0}` since
     -- `Real.log` is `C^∞` away from 0 and `tau_proj` is a CLM.
     rw [𝓢.interior_K_g_lifted]
     intro u hu
     have hτ : 0 < 𝓢.tau_proj u := hu
-    have h_log : ContDiffAt ℝ 3 Real.log (𝓢.tau_proj u) :=
+    have h_log : ContDiffAt ℝ 𝓢.d Real.log (𝓢.tau_proj u) :=
       Real.contDiffAt_log.mpr (ne_of_gt hτ)
-    have h_tau : ContDiffAt ℝ 3 (fun u : H X Y => 𝓢.tau_proj u) u := by
-      have : ContDiffAt ℝ 3 (IrnSetup.tau_proj_linear : H X Y →L[ℝ] ℝ) u :=
+    have h_tau : ContDiffAt ℝ 𝓢.d (fun u : H X Y => 𝓢.tau_proj u) u := by
+      have : ContDiffAt ℝ 𝓢.d (IrnSetup.tau_proj_linear : H X Y →L[ℝ] ℝ) u :=
         (IrnSetup.tau_proj_linear : H X Y →L[ℝ] ℝ).contDiff.contDiffAt
       simpa using this
     exact ((h_log.comp u h_tau).neg).contDiffWithinAt
@@ -787,9 +797,11 @@ noncomputable def g_lhscb : LHSCB (H X Y) 𝓢.K_g_lifted 1 where
     exact h_log_tendsto.comp h_tau_tendsto
 
 /-- The combined `(ν+1)`-LHSCB `F = f + g` driving the IRN central path.
-Cone: `K_f_lifted ∩ K_g_lifted`, whose interior is `C_interior`. -/
+Cone: `K_f_lifted ∩ K_g_lifted`, whose interior is `C_interior`.
+
+Smoothness degree is `min 𝓢.d 𝓢.d = 𝓢.d` (both summands share `𝓢.d`). -/
 noncomputable def F_lhscb :
-    LHSCB (H X Y) (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted) (𝓢.ν + 1) :=
+    LHSCB (H X Y) (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted) (𝓢.ν + 1) (min 𝓢.d 𝓢.d) :=
   𝓢.f_lhscb.add 𝓢.g_lhscb
 
 /-- `C_interior` equals `interior (K_f_lifted ∩ K_g_lifted)` — the

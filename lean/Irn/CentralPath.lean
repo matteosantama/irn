@@ -95,7 +95,7 @@ theorem f_lhscb_grad_continuousOn :
   have h_fderiv_within_C2 :
       ContDiffOn ℝ 2 (fderivWithin ℝ 𝓢.f_lhscb.f (interior 𝓢.K_f_lifted))
         (interior 𝓢.K_f_lifted) := by
-    have := 𝓢.f_lhscb.contDiff.fderivWithin
+    have := 𝓢.f_lhscb.contDiff₃.fderivWithin
       isOpen_interior.uniqueDiffOn (m := 2) (by norm_num)
     simpa using this
   have h_fderiv_C2 :
@@ -217,7 +217,7 @@ lemma inner_f_lhscb_grad_e_tau (u : H X Y) (hu : u ∈ interior 𝓢.K_f_lifted)
   have hy_int : 𝓢.y_proj u ∈ interior (𝓢.K : Set Y) := by
     rw [𝓢.interior_K_f_lifted] at hu; exact hu
   have h_fb_diffAt : DifferentiableAt ℝ 𝓢.fBarrier.f (𝓢.y_proj u) :=
-    (𝓢.fBarrier.contDiff.differentiableOn (by norm_num)).differentiableAt
+    (𝓢.fBarrier.contDiff₃.differentiableOn (by norm_num)).differentiableAt
       (isOpen_interior.mem_nhds hy_int)
   have h_yp_hd : HasFDerivAt (fun v : H X Y => 𝓢.y_proj v)
       (IrnSetup.y_proj_linear : H X Y →L[ℝ] Y) u :=
@@ -472,12 +472,34 @@ theorem centralPathPoint_isCentralPathPoint (μ : ℝ) (hμ : 0 < μ) :
     𝓢.IsCentralPathPoint μ (𝓢.centralPathPoint μ hμ) :=
   Classical.choose_spec (𝓢.exists_unique_centralPath μ hμ).exists
 
-/-- **Theorem 6 (Smoothness).** `μ ↦ u*(μ)` is `Cᵈ` on `ℝ₊₊` for any
-`d ≤ deg(f) - 1`. We state this here only for `d = 2`. -/
+/-- The central-path map `μ ↦ u*(μ)` extended to all of `ℝ` by `0`
+outside `(0, ∞)`. Convenient for stating smoothness without threading
+the positivity hypothesis through the function argument. -/
+noncomputable def centralPathMap (𝓢 : IrnSetup X Y) : ℝ → H X Y :=
+  fun μ => if h : 0 < μ then 𝓢.centralPathPoint μ h else 0
+
+/-- `centralPathMap` agrees with `centralPathPoint` on `Ioi 0`. -/
+theorem centralPathMap_of_pos {μ : ℝ} (hμ : 0 < μ) :
+    𝓢.centralPathMap μ = 𝓢.centralPathPoint μ hμ := by
+  show (if h : 0 < μ then 𝓢.centralPathPoint μ h else 0) = _
+  rw [dif_pos hμ]
+
+/-- **Theorem 6 (Smoothness).** If the user's barrier `fBarrier` has
+smoothness degree `d ≥ 3` (recorded in `𝓢.d`, with `d = ⊤` denoting
+`C^∞`), then the central-path map `μ ↦ u*(μ)` is `C^(d-1)` on the open
+ray `(0, ∞)`. (When `d = ⊤`, `d - 1 = ⊤` so the conclusion is `C^∞`.)
+
+**Proof sketch (sorried).** Apply the implicit function theorem to
+`T_μ(u) = 0`: the partial derivative `D_u T_μ(u*(μ))` is invertible —
+strict monotonicity of `T_μ` plus positive-definiteness of the Hessian
+of the LHSCB (from `self_concordant`) yield a positive-definite linear
+operator, which on a finite-dimensional space is invertible. Mathlib's
+IFT (`HasStrictFDerivAt.contDiffOn_implicit`) then upgrades the
+solution map `μ ↦ u*(μ)` to `C^(d-1)` (one derivative is lost relative
+to `T`, which is `C^(d-1)` since it carries `μ` linearly and `f` is
+`C^d`). -/
 theorem centralPathPoint_contDiff :
-    ContDiffOn ℝ 2
-      (fun μ : ℝ => 𝓢.centralPathPoint μ (sorry))
-      (Set.Ioi 0) := sorry
+    ContDiffOn ℝ (𝓢.d - 1) 𝓢.centralPathMap (Set.Ioi 0) := sorry
 
 end IrnSetup
 

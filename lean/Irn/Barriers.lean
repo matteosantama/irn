@@ -56,17 +56,25 @@ namespace Irn
 
 open scoped InnerProductSpace
 
-/-- An abstract `ν`-LHSCB on a real inner product space `V` with
-respect to the (convex) cone `K ⊆ V`.
+/-- An abstract `ν`-LHSCB of smoothness degree `d ≥ 3` on a real inner
+product space `V` with respect to the (convex) cone `K ⊆ V`.
+
+`d : ℕ∞` is the `ContDiffOn`-degree of `f` on `int(K)` (with `d = ⊤`
+allowing `C^∞` barriers). The minimum `d = 3` is the smoothness needed
+for the self-concordance bound (which references the third derivative).
 
 The gradient is *not* a field — see `LHSCB.grad`. -/
 structure LHSCB (V : Type*)
     [NormedAddCommGroup V] [InnerProductSpace ℝ V]
-    (K : Set V) (ν : ℕ) where
+    (K : Set V) (ν : ℕ) (d : ℕ∞) where
+  /-- The smoothness degree `d` is at least `3` (required so that the
+  self-concordance bound, which uses third-order derivatives, is well
+  defined). -/
+  hd_ge : (3 : ℕ∞) ≤ d
   /-- The barrier function. -/
   f : V → ℝ
-  /-- `f` is `C³` on `int(K)`. -/
-  contDiff : ContDiffOn ℝ 3 f (interior K)
+  /-- `f` is `C^d` on `int(K)`. -/
+  contDiff : ContDiffOn ℝ d f (interior K)
   /-- **Self-concordance bound** (squared form). On `int(K)`:
   `(D³f(x)[h,h,h])² ≤ 4 · (D²f(x)[h,h])³`. This implies `D²f ≥ 0`
   (since the LHS is nonneg but the RHS is the cube of `D²f[h,h]`),
@@ -91,8 +99,17 @@ variable {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
 /-- The **gradient** `∇f(x)` of an LHSCB, as the Riesz representation
 of `fderiv ℝ f x`. Outside `int(K)` the value is whatever Mathlib's
 `fderiv` returns when `f` is not differentiable (typically `0`). -/
-noncomputable def grad {K : Set V} {ν : ℕ} (f : LHSCB V K ν) : V → V :=
+noncomputable def grad {K : Set V} {ν : ℕ} {d : ℕ∞} (f : LHSCB V K ν d) :
+    V → V :=
   fun x => (InnerProductSpace.toDual ℝ V).symm (fderiv ℝ f.f x)
+
+/-- `f` is `C^3` on `int(K)`: downgrade `f.contDiff` (which gives
+`C^d`) using `f.hd_ge : 3 ≤ d`. -/
+theorem contDiff₃ {K : Set V} {ν : ℕ} {d : ℕ∞} (f : LHSCB V K ν d) :
+    ContDiffOn ℝ 3 f.f (interior K) := by
+  have h : ((3 : ℕ∞) : WithTop ℕ∞) ≤ (d : WithTop ℕ∞) := by
+    exact_mod_cast f.hd_ge
+  exact f.contDiff.of_le h
 
 /-- **Algebraic core of the self-concordance sum.** If `a² ≤ 4p³`,
 `b² ≤ 4q³`, `p ≥ 0`, `q ≥ 0`, then `(a + b)² ≤ 4(p + q)³`. The case
@@ -150,7 +167,8 @@ lemma self_concordant_comp_right_clm
 /-- **Hessian non-negativity from SC bound.** The squared SC bound
 forces `D²f(x)[h,h] ≥ 0` (the cube of a negative is negative, but
 the LHS is a square). -/
-lemma self_concordant_hessian_nonneg {K : Set V} {ν : ℕ} (f : LHSCB V K ν) :
+lemma self_concordant_hessian_nonneg {K : Set V} {ν : ℕ} {d : ℕ∞}
+    (f : LHSCB V K ν d) :
     ∀ x ∈ interior K, ∀ h : V,
       0 ≤ iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => h) := by
   intro x hx h
@@ -164,16 +182,21 @@ lemma self_concordant_hessian_nonneg {K : Set V} {ν : ℕ} (f : LHSCB V K ν) :
   linarith
 
 /-- **Sum of LHSCBs.** A `ν₁`-LHSCB on `K₁` plus a `ν₂`-LHSCB on `K₂`
-is a `(ν₁+ν₂)`-LHSCB on `K₁ ∩ K₂`. -/
-noncomputable def add {K₁ K₂ : Set V} {ν₁ ν₂ : ℕ}
-    (f : LHSCB V K₁ ν₁) (g : LHSCB V K₂ ν₂) :
-    LHSCB V (K₁ ∩ K₂) (ν₁ + ν₂) where
+is a `(ν₁+ν₂)`-LHSCB on `K₁ ∩ K₂` of smoothness `min d₁ d₂`. -/
+noncomputable def add {K₁ K₂ : Set V} {ν₁ ν₂ : ℕ} {d₁ d₂ : ℕ∞}
+    (f : LHSCB V K₁ ν₁ d₁) (g : LHSCB V K₂ ν₂ d₂) :
+    LHSCB V (K₁ ∩ K₂) (ν₁ + ν₂) (min d₁ d₂) where
+  hd_ge := le_min f.hd_ge g.hd_ge
   f := fun v => f.f v + g.f v
   contDiff := by
+    have hmin1 : (min d₁ d₂ : WithTop ℕ∞) ≤ (d₁ : WithTop ℕ∞) := by
+      exact_mod_cast min_le_left d₁ d₂
+    have hmin2 : (min d₁ d₂ : WithTop ℕ∞) ≤ (d₂ : WithTop ℕ∞) := by
+      exact_mod_cast min_le_right d₁ d₂
     rw [interior_inter]
     exact ContDiffOn.add
-      (ContDiffOn.mono f.contDiff Set.inter_subset_left)
-      (ContDiffOn.mono g.contDiff Set.inter_subset_right)
+      ((f.contDiff.of_le hmin1).mono Set.inter_subset_left)
+      ((g.contDiff.of_le hmin2).mono Set.inter_subset_right)
   self_concordant := by
     -- Nesterov's self-concordant sum theorem. The iterated derivatives
     -- of `f.f + g.f` are sums of the individual iterated derivatives
@@ -184,9 +207,9 @@ noncomputable def add {K₁ K₂ : Set V} {ν₁ ν₂ : ℕ}
       rw [interior_inter] at hx; exact hx
     obtain ⟨hx₁, hx₂⟩ := hx'
     have hf_C3_at : ContDiffAt ℝ 3 f.f x :=
-      f.contDiff.contDiffAt (isOpen_interior.mem_nhds hx₁)
+      f.contDiff₃.contDiffAt (isOpen_interior.mem_nhds hx₁)
     have hg_C3_at : ContDiffAt ℝ 3 g.f x :=
-      g.contDiff.contDiffAt (isOpen_interior.mem_nhds hx₂)
+      g.contDiff₃.contDiffAt (isOpen_interior.mem_nhds hx₂)
     -- Identify `iteratedFDerivWithin n (f.f + g.f) (interior (K₁ ∩ K₂))`
     -- with `iteratedFDeriv n f.f + iteratedFDeriv n g.f` via `_of_isOpen`
     -- and `iteratedFDeriv_add_apply` (the `fun v => f v + g v` form).
@@ -250,7 +273,7 @@ noncomputable def add {K₁ K₂ : Set V} {ν₁ ν₂ : ℕ}
       have h_f_cont : Filter.Tendsto f.f
           (nhdsWithin x (interior K₁ ∩ interior K₂)) (nhds (f.f x)) := by
         have h_diff : DifferentiableAt ℝ f.f x :=
-          (f.contDiff.differentiableOn (by norm_num)).differentiableAt
+          (f.contDiff₃.differentiableOn (by norm_num)).differentiableAt
             (isOpen_interior.mem_nhds h₁)
         exact h_diff.continuousAt.mono_left nhdsWithin_le_nhds
       -- g + f → atTop via Tendsto.atTop_add (atTop + finite = atTop).
@@ -268,7 +291,7 @@ noncomputable def add {K₁ K₂ : Set V} {ν₁ ν₂ : ℕ}
         have h_g_cont : Filter.Tendsto g.f
             (nhdsWithin x (interior K₁ ∩ interior K₂)) (nhds (g.f x)) := by
           have h_diff : DifferentiableAt ℝ g.f x :=
-            (g.contDiff.differentiableOn (by norm_num)).differentiableAt
+            (g.contDiff₃.differentiableOn (by norm_num)).differentiableAt
               (isOpen_interior.mem_nhds h₂)
           exact h_diff.continuousAt.mono_left nhdsWithin_le_nhds
         exact h_f.atTop_add h_g_cont
@@ -288,16 +311,16 @@ g.grad x` on `int(K₁ ∩ K₂)`. Follows from `fderiv_fun_add` (Mathlib)
 applied to the differentiable functions `f.f` and `g.f` (each
 differentiable on its respective interior, from `contDiff`), plus
 additivity of `toDual.symm`. -/
-theorem add_grad {K₁ K₂ : Set V} {ν₁ ν₂ : ℕ}
-    (f : LHSCB V K₁ ν₁) (g : LHSCB V K₂ ν₂)
+theorem add_grad {K₁ K₂ : Set V} {ν₁ ν₂ : ℕ} {d₁ d₂ : ℕ∞}
+    (f : LHSCB V K₁ ν₁ d₁) (g : LHSCB V K₂ ν₂ d₂)
     {u : V} (hu : u ∈ interior K₁ ∩ interior K₂) :
     (f.add g).grad u = f.grad u + g.grad u := by
   obtain ⟨hu₁, hu₂⟩ := hu
   have hdiff₁ : DifferentiableAt ℝ f.f u :=
-    (f.contDiff.differentiableOn (by norm_num)).differentiableAt
+    (f.contDiff₃.differentiableOn (by norm_num)).differentiableAt
       (isOpen_interior.mem_nhds hu₁)
   have hdiff₂ : DifferentiableAt ℝ g.f u :=
-    (g.contDiff.differentiableOn (by norm_num)).differentiableAt
+    (g.contDiff₃.differentiableOn (by norm_num)).differentiableAt
       (isOpen_interior.mem_nhds hu₂)
   show (InnerProductSpace.toDual ℝ V).symm
       (fderiv ℝ (fun v => f.f v + g.f v) u) = _
@@ -311,19 +334,19 @@ LHSCB on `Y` extended trivially to `X × Y × ℝ`) are NOT strictly
 convex — they only depend on one block of coordinates. The user's
 `fBarrier` on `K ⊆ Y` is expected to satisfy this on `int K`, but
 its lift to `H` does not. -/
-def IsStrict {K : Set V} {ν : ℕ} (f : LHSCB V K ν) : Prop :=
+def IsStrict {K : Set V} {ν : ℕ} {d : ℕ∞} (f : LHSCB V K ν d) : Prop :=
   ∀ u ∈ interior K, ∀ v ∈ interior K, u ≠ v →
     0 < inner ℝ (u - v) (f.grad u - f.grad v)
 
 /-- **Euler identity** (theorem). `⟨u, ∇f(u)⟩ = -ν` follows from
 `log_homog` by differentiating `f(t · u) = f(u) - ν · log t` at
 `t = 1`. -/
-theorem euler {K : Set V} {ν : ℕ} (f : LHSCB V K ν) :
+theorem euler {K : Set V} {ν : ℕ} {d : ℕ∞} (f : LHSCB V K ν d) :
     ∀ u ∈ interior K, inner ℝ u (f.grad u) = -(ν : ℝ) := by
   intro u hu
   -- `f.f` is differentiable at `u`.
   have h_diff_f : DifferentiableAt ℝ f.f u :=
-    (f.contDiff.differentiableOn (by norm_num)).differentiableAt
+    (f.contDiff₃.differentiableOn (by norm_num)).differentiableAt
       (isOpen_interior.mem_nhds hu)
   -- Chain rule: `g(t) := f.f(t • u)` has derivative `(fderiv f.f u) u` at t = 1.
   let L : ℝ →L[ℝ] V := (1 : ℝ →L[ℝ] ℝ).smulRight u
@@ -378,11 +401,12 @@ theorem euler {K : Set V} {ν : ℕ} (f : LHSCB V K ν) :
 `(fderiv ℝ (fderiv ℝ f.f) x) x = -fderiv ℝ f.f x` (CLM equality).
 Differentiates the Euler-as-fderiv identity `(fderiv f.f y) y = -ν`
 and uses Hessian symmetry. -/
-theorem hessian_fderiv_apply_self {K : Set V} {ν : ℕ} (f : LHSCB V K ν) :
+theorem hessian_fderiv_apply_self {K : Set V} {ν : ℕ} {d : ℕ∞}
+    (f : LHSCB V K ν d) :
     ∀ x ∈ interior K, (fderiv ℝ (fderiv ℝ f.f) x) x = -fderiv ℝ f.f x := by
   intro x hx
   -- f.f is C³ on interior K (open).
-  have hf_C3 : ContDiffOn ℝ 3 f.f (interior K) := f.contDiff
+  have hf_C3 : ContDiffOn ℝ 3 f.f (interior K) := f.contDiff₃
   have h_ff_diff_eventually : ∀ᶠ y in nhds x, HasFDerivAt f.f (fderiv ℝ f.f y) y := by
     filter_upwards [isOpen_interior.mem_nhds hx] with y hy
     exact ((hf_C3.differentiableOn (by norm_num)).differentiableAt
@@ -440,8 +464,8 @@ For all `h ∈ V`, `(fderiv ℝ (fderiv ℝ f.f) x) x h = -inner ℝ h (f.grad x
 on `int K`. This is the `‖∇f‖²_{(∇²f)⁻¹} = ν` setup translated to
 inner products (the actual identity follows by setting `h = -y` and
 applying Euler). -/
-theorem hessian_fderiv_apply_self_inner {K : Set V} {ν : ℕ}
-    (f : LHSCB V K ν) :
+theorem hessian_fderiv_apply_self_inner {K : Set V} {ν : ℕ} {d : ℕ∞}
+    (f : LHSCB V K ν d) :
     ∀ x ∈ interior K, ∀ h : V,
       (fderiv ℝ (fderiv ℝ f.f) x) x h = -inner ℝ h (f.grad x) := by
   intro x hx h
@@ -467,7 +491,7 @@ equals `iteratedFDerivWithin 2 f.f (interior K) (γ t) (fun _ => u-v)`,
 nonneg by `self_concordant_hessian_nonneg`. Then
 `monotoneOn_of_hasDerivWithinAt_nonneg` gives `ψ` monotone on `[0,1]`,
 so `ψ(0) ≤ ψ(1)`. Riesz translates this to the inner-product form. -/
-theorem grad_monotone {K : Set V} {ν : ℕ} (f : LHSCB V K ν)
+theorem grad_monotone {K : Set V} {ν : ℕ} {d : ℕ∞} (f : LHSCB V K ν d)
     (hK_conv : Convex ℝ (interior K)) :
     ∀ u ∈ interior K, ∀ v ∈ interior K,
       0 ≤ inner ℝ (u - v) (f.grad u - f.grad v) := by
@@ -493,7 +517,7 @@ theorem grad_monotone {K : Set V} {ν : ℕ} (f : LHSCB V K ν)
     rw [heq]
     exact hK_conv hv hu (by linarith) h0 (by linarith)
   -- f.f is C³ on interior K, so fderiv f.f is C² there, hence differentiable.
-  have hf_C3 : ContDiffOn ℝ 3 f.f (interior K) := f.contDiff
+  have hf_C3 : ContDiffOn ℝ 3 f.f (interior K) := f.contDiff₃
   have h_fderiv_eqOn : Set.EqOn (fderivWithin ℝ f.f (interior K)) (fderiv ℝ f.f)
       (interior K) := fun y hy => fderivWithin_of_isOpen isOpen_interior hy
   have h_fderiv_C2 : ContDiffOn ℝ 2 (fderiv ℝ f.f) (interior K) := by
@@ -587,7 +611,7 @@ Proof: define `γ(t) = u + t(v - u)` (so `γ 0 = u`, `γ 1 = v`) and
 `φ'(t) = ⟨∇f(γ t) - ∇f u, v-u⟩ ≥ 0` (for `t > 0`, by `grad_monotone`
 applied to `γ(t)` and `u`, dividing out the `t` factor). Hence `φ`
 monotone on `[0, 1]`, so `φ(1) ≥ φ(0) = 0`. -/
-theorem grad_inequality {K : Set V} {ν : ℕ} (f : LHSCB V K ν)
+theorem grad_inequality {K : Set V} {ν : ℕ} {d : ℕ∞} (f : LHSCB V K ν d)
     (hK_conv : Convex ℝ (interior K)) :
     ∀ u ∈ interior K, ∀ v ∈ interior K,
       f.f v ≥ f.f u + inner ℝ (f.grad u) (v - u) := by
@@ -609,7 +633,7 @@ theorem grad_inequality {K : Set V} {ν : ℕ} (f : LHSCB V K ν)
     rw [heq]
     exact hK_conv hu hv (by linarith) h0 (by linarith)
   have hf_diffOn : DifferentiableOn ℝ f.f (interior K) :=
-    f.contDiff.differentiableOn (by norm_num)
+    f.contDiff₃.differentiableOn (by norm_num)
   set c : ℝ := inner ℝ (f.grad u) w with hc_def
   set φ : ℝ → ℝ := fun t => f.f (γ t) - f.f u - t * c with hφ_def
   -- φ continuous on Icc 0 1.
@@ -692,7 +716,8 @@ Proof: fix `u₀ ∈ interior K`. By `grad_inequality` at `u`:
 By Cauchy-Schwarz: `‖∇f(u)‖ · ‖u - u₀‖ ≥ f(u) - f(u₀)`.
 For u near x, `‖u - u₀‖ ≤ 2‖x - u₀‖`, so
 `‖∇f(u)‖ ≥ (f(u) - f(u₀)) / (2‖x - u₀‖) → ∞` as `f(u) → ∞`. -/
-theorem grad_norm_tendsto_atTop {K : Set V} {ν : ℕ} (f : LHSCB V K ν)
+theorem grad_norm_tendsto_atTop {K : Set V} {ν : ℕ} {d : ℕ∞}
+    (f : LHSCB V K ν d)
     (hK_conv : Convex ℝ (interior K))
     (hK_int_nonempty : (interior K).Nonempty) :
     ∀ x ∈ frontier K,
