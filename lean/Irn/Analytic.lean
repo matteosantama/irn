@@ -578,6 +578,53 @@ theorem hessian_plus_M_eq (μ : ℝ) (hμ : 0 < μ) (u : H X Y)
   show (𝓢.hessian_plus_M μ hμ u hu).toContinuousLinearMap v = _
   rfl
 
+/-! ### Inverse of the Hessian preconditioner `H_k = μ W(u_k)` -/
+
+/-- The inner product `⟨v, hessian_h μ u v⟩ ≥ μ ‖v‖²` on `C_interior`.
+Follows from `W(u) ⪰ I`: `⟨v, μ W v⟩ = μ ⟨v, W v⟩ = μ · W_quad(u, v) ≥ μ ‖v‖²`. -/
+lemma inner_self_hessian_h_lower (μ : ℝ) (_hμ : 0 < μ)
+    (u : H X Y) (hu : u ∈ 𝓢.C_interior) (v : H X Y) :
+    μ * ‖v‖ ^ 2 ≤ inner ℝ v (𝓢.hessian_h μ u v) := by
+  show μ * ‖v‖ ^ 2 ≤ inner ℝ v (μ • 𝓢.W_op u v)
+  rw [inner_smul_right, 𝓢.inner_self_W_op_eq_W_quad u hu]
+  have h_W_ge : ‖v‖ ^ 2 ≤ 𝓢.W_quad u v := by
+    have := 𝓢.inner_self_le_W_quad u hu v
+    rwa [real_inner_self_eq_norm_sq] at this
+  nlinarith
+
+/-- `hessian_h μ u` is injective on `C_interior` for `μ > 0`: the
+quadratic form `⟨v, H_k v⟩ ≥ μ ‖v‖² > 0` for `v ≠ 0`. -/
+lemma hessian_h_injective (μ : ℝ) (hμ : 0 < μ)
+    (u : H X Y) (hu : u ∈ 𝓢.C_interior) :
+    Function.Injective (𝓢.hessian_h μ u) := by
+  intro v₁ v₂ hv
+  have h_zero : 𝓢.hessian_h μ u (v₁ - v₂) = 0 := by
+    rw [map_sub, hv, sub_self]
+  by_contra hne
+  have hv_ne : v₁ - v₂ ≠ 0 := sub_ne_zero.mpr hne
+  have h_lower := 𝓢.inner_self_hessian_h_lower μ hμ u hu (v₁ - v₂)
+  rw [h_zero, inner_zero_right] at h_lower
+  have h_norm_pos : 0 < ‖v₁ - v₂‖ ^ 2 := by
+    have : 0 < ‖v₁ - v₂‖ := norm_pos_iff.mpr hv_ne
+    positivity
+  nlinarith
+
+/-- The continuous linear equivalence `H_k = μ I + μ ∇²F*(u_k)`. Positive
+definite (symmetric part ⪰ μ I), hence invertible, on `C_interior` with
+`μ > 0`. -/
+noncomputable def hessian_h_equiv (𝓢 : IrnSetup X Y) (μ : ℝ) (hμ : 0 < μ)
+    (u : H X Y) (hu : u ∈ 𝓢.C_interior) : H X Y ≃L[ℝ] H X Y :=
+  let T := 𝓢.hessian_h μ u
+  have h_inj : Function.Injective ⇑T := 𝓢.hessian_h_injective μ hμ u hu
+  have h_bij : Function.Bijective ⇑T :=
+    ⟨h_inj, LinearMap.injective_iff_surjective.mp h_inj⟩
+  (LinearEquiv.ofBijective T.toLinearMap h_bij).toContinuousLinearEquiv
+
+theorem hessian_h_equiv_eq (μ : ℝ) (hμ : 0 < μ) (u : H X Y)
+    (hu : u ∈ 𝓢.C_interior) (v : H X Y) :
+    (𝓢.hessian_h_equiv μ hμ u hu : H X Y →L[ℝ] H X Y) v =
+      𝓢.hessian_h μ u v := rfl
+
 /-! ### Auxiliary: positive root of a quadratic -/
 
 /-- A quadratic `a x² + b x + c` with `a > 0` and `c < 0` always has a
@@ -732,13 +779,21 @@ theorem resolvent_exists : ∀ μ : ℝ, ∀ u_k z : H X Y, 0 < μ →
 
 /-! ### Riemannian Josephy–Newton corrector and multiplier -/
 
-/-- The Riemannian Josephy–Newton corrector (paper eq. (5.3), Variant A).
-Defined as the resolvent output `u` from `resolvent_exists` at `z = u_k`.
-Outside the domain where `μ > 0` and `u_k ∈ C_interior`, returns `0`. -/
+/-- The Riemannian Josephy–Newton corrector (paper eq. (5.3) with
+`λ_k = 0`, the ambient variable-metric Josephy–Newton step). Defined as
+the variable-metric resolvent of `Ψ = Q + μ ∂G*` at
+`z = u_k - H_k⁻¹ h(u_k)`, where `H_k = μ I + μ ∇²F*(u_k)` is the Hessian
+preconditioner and `h(u) = μ u + μ ∇f*(y_proj u)` is the smooth part of
+the splitting (using **only** the y-block of the barrier gradient — the
+τ-block `(-1/τ) e_τ` goes into `Ψ`). The choice of `z` ensures the
+central-path point `u*(μ)` is a fixed point of `rjnStep μ`. Outside the
+domain where `μ > 0` and `u_k ∈ C_interior`, returns `0`. -/
 noncomputable def rjnStep (𝓢 : IrnSetup X Y) (μ : ℝ) (u_k : H X Y) : H X Y :=
   haveI : Decidable (0 < μ ∧ u_k ∈ 𝓢.C_interior) := Classical.dec _
   if h : 0 < μ ∧ u_k ∈ 𝓢.C_interior then
-    Classical.choose (𝓢.resolvent_exists μ u_k u_k h.1 h.2)
+    let z := u_k - (𝓢.hessian_h_equiv μ h.1 u_k h.2).symm
+      (μ • u_k + μ • 𝓢.f_lhscb.grad u_k)
+    Classical.choose (𝓢.resolvent_exists μ u_k z h.1 h.2)
   else 0
 
 /-- The sphere-constraint Lagrange multiplier (paper Proposition 11).
