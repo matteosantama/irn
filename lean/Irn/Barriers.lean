@@ -687,23 +687,89 @@ theorem grad_inequality {K : Set V} {ν : ℕ} (f : LHSCB V K ν)
 /-- **LHSCB gradient blow-up at the boundary** (Euclidean norm).
 As `u → x` within `int K` for `x ∈ frontier K`, `‖∇f(u)‖ → ∞`.
 
-Proof outline: pick a fixed `u₀ ∈ int K`. Gradient inequality at `u`:
-`f(u₀) ≥ f(u) + ⟨∇f(u), u₀ - u⟩`, so
-`⟨∇f(u), u - u₀⟩ ≥ f(u) - f(u₀)`.
+Proof: fix `u₀ ∈ interior K`. By `grad_inequality` at `u`:
+`f(u₀) ≥ f(u) + ⟨∇f(u), u₀ - u⟩`, hence `⟨∇f(u), u - u₀⟩ ≥ f(u) - f(u₀)`.
 By Cauchy-Schwarz: `‖∇f(u)‖ · ‖u - u₀‖ ≥ f(u) - f(u₀)`.
-As `u → x ∈ frontier K`, `f(u) → ∞` (by `f.barrier`), and
-`‖u - u₀‖ → ‖x - u₀‖` (bounded), so `‖∇f(u)‖ → ∞`.
-
-Currently sorried — depends on `grad_inequality` (also sorried) and
-some boundedness/continuity bookkeeping for the limit. -/
+For u near x, `‖u - u₀‖ ≤ 2‖x - u₀‖`, so
+`‖∇f(u)‖ ≥ (f(u) - f(u₀)) / (2‖x - u₀‖) → ∞` as `f(u) → ∞`. -/
 theorem grad_norm_tendsto_atTop {K : Set V} {ν : ℕ} (f : LHSCB V K ν)
-    (_hK_conv : Convex ℝ (interior K))
-    (_hK_int_nonempty : (interior K).Nonempty) :
+    (hK_conv : Convex ℝ (interior K))
+    (hK_int_nonempty : (interior K).Nonempty) :
     ∀ x ∈ frontier K,
       Filter.Tendsto (fun u => ‖f.grad u‖) (nhdsWithin x (interior K))
         Filter.atTop := by
-  intro x _hx
-  sorry
+  intro x hx
+  obtain ⟨u₀, hu₀⟩ := hK_int_nonempty
+  -- x ≠ u₀ since x ∈ frontier K and u₀ ∈ interior K (disjoint by definition of frontier).
+  have h_xne : x ≠ u₀ := by
+    intro h_eq
+    have : u₀ ∉ interior K := h_eq ▸ hx.2
+    exact this hu₀
+  have h_xu0_pos : 0 < ‖x - u₀‖ := norm_sub_pos_iff.mpr h_xne
+  -- f.f → ∞ on nhdsWithin.
+  have h_barrier : Filter.Tendsto f.f (nhdsWithin x (interior K)) Filter.atTop :=
+    f.barrier x hx
+  -- Constant: 2 ‖x - u₀‖ > 0.
+  set C : ℝ := 2 * ‖x - u₀‖ with hC_def
+  have hC_pos : 0 < C := by positivity
+  -- Eventually ‖u - u₀‖ ≤ C.
+  have h_tendsto_norm : Filter.Tendsto (fun u => ‖u - u₀‖)
+      (nhdsWithin x (interior K)) (nhds ‖x - u₀‖) :=
+    ((continuous_id.sub continuous_const).norm).continuousAt.mono_left
+      nhdsWithin_le_nhds
+  have h_norm_eventually : ∀ᶠ u in nhdsWithin x (interior K), ‖u - u₀‖ ≤ C := by
+    have : ∀ᶠ u in nhdsWithin x (interior K), ‖u - u₀‖ < ‖x - u₀‖ + ‖x - u₀‖ :=
+      h_tendsto_norm (Iio_mem_nhds (by linarith))
+    filter_upwards [this] with u hu
+    show ‖u - u₀‖ ≤ 2 * ‖x - u₀‖
+    linarith
+  -- (f.f u - f.f u₀) / C → ∞ as f.f u → ∞.
+  have h_shifted : Filter.Tendsto (fun u => f.f u - f.f u₀)
+      (nhdsWithin x (interior K)) Filter.atTop := by
+    have h_neg : Filter.Tendsto (fun _ : V => -f.f u₀)
+        (nhdsWithin x (interior K)) (nhds (-f.f u₀)) := tendsto_const_nhds
+    have := h_barrier.atTop_add h_neg
+    refine this.congr fun u => ?_
+    show f.f u + -f.f u₀ = f.f u - f.f u₀
+    ring
+  have h_quot : Filter.Tendsto (fun u => (f.f u - f.f u₀) / C)
+      (nhdsWithin x (interior K)) Filter.atTop :=
+    h_shifted.atTop_div_const hC_pos
+  -- For u with u ∈ interior K and ‖u - u₀‖ ≤ C, ‖∇f u‖ ≥ (f.f u - f.f u₀) / C.
+  have h_bound_eventually : ∀ᶠ u in nhdsWithin x (interior K),
+      (f.f u - f.f u₀) / C ≤ ‖f.grad u‖ := by
+    have h_self : ∀ᶠ u in nhdsWithin x (interior K), u ∈ interior K :=
+      self_mem_nhdsWithin
+    filter_upwards [h_norm_eventually, h_self] with u h_norm_le h_u_int
+    -- grad_inequality at u: f.f u₀ ≥ f.f u + ⟨∇f u, u₀ - u⟩
+    have h_ineq := f.grad_inequality hK_conv u h_u_int u₀ hu₀
+    -- ⟨∇f u, u - u₀⟩ = -⟨∇f u, u₀ - u⟩
+    have h_neg : inner ℝ (f.grad u) (u₀ - u) = -inner ℝ (f.grad u) (u - u₀) := by
+      rw [← inner_neg_right, neg_sub]
+    -- ⟨∇f u, u - u₀⟩ ≥ f.f u - f.f u₀
+    have h_lower : f.f u - f.f u₀ ≤ inner ℝ (f.grad u) (u - u₀) := by
+      have h_combined : f.f u - inner ℝ (f.grad u) (u - u₀) ≤ f.f u₀ := by
+        have := h_ineq
+        rw [h_neg] at this
+        linarith
+      linarith
+    -- CS: ⟨∇f u, u - u₀⟩ ≤ ‖∇f u‖ ‖u - u₀‖
+    have h_cs : inner ℝ (f.grad u) (u - u₀) ≤ ‖f.grad u‖ * ‖u - u₀‖ :=
+      real_inner_le_norm _ _
+    -- So f.f u - f.f u₀ ≤ ‖∇f u‖ * ‖u - u₀‖ ≤ ‖∇f u‖ * C
+    -- (For non-negative f.f u - f.f u₀; otherwise the bound trivially holds.)
+    by_cases h_pos : 0 ≤ f.f u - f.f u₀
+    · have h_norm_grad_nn : 0 ≤ ‖f.grad u‖ := norm_nonneg _
+      have h_prod_bound : ‖f.grad u‖ * ‖u - u₀‖ ≤ ‖f.grad u‖ * C :=
+        mul_le_mul_of_nonneg_left h_norm_le h_norm_grad_nn
+      have h_total : f.f u - f.f u₀ ≤ ‖f.grad u‖ * C := by linarith
+      exact (div_le_iff₀ hC_pos).mpr h_total
+    · push_neg at h_pos
+      have : (f.f u - f.f u₀) / C ≤ 0 := by
+        exact div_nonpos_of_nonpos_of_nonneg h_pos.le hC_pos.le
+      linarith [norm_nonneg (f.grad u)]
+  -- Combine: (f.f u - f.f u₀)/C → ∞ and ‖∇f u‖ ≥ that, hence ‖∇f u‖ → ∞.
+  exact Filter.tendsto_atTop_mono' _ h_bound_eventually h_quot
 
 end LHSCB
 
