@@ -122,6 +122,16 @@ def C (𝓟 : ProblemData X Y) : Set (H X Y) :=
 def Cplus (𝓟 : ProblemData X Y) : Set (H X Y) :=
   {u | 0 < 𝓟.tau_proj u}
 
+/-- The (topological) interior of `C`: `y ∈ int K` and `τ > 0`. This
+is where the IRN analysis lives — the barrier `f` is finite here. -/
+def C_interior (𝓟 : ProblemData X Y) : Set (H X Y) :=
+  {u | 𝓟.y_proj u ∈ interior 𝓟.K ∧ 0 < 𝓟.tau_proj u}
+
+theorem C_interior_subset_C : 𝓟.C_interior ⊆ 𝓟.C := fun _ hu =>
+  ⟨interior_subset hu.1, le_of_lt hu.2⟩
+
+theorem C_interior_subset_Cplus : 𝓟.C_interior ⊆ 𝓟.Cplus := fun _ hu => hu.2
+
 /-- `tau_proj u > 0` on `Cplus` (definitional). -/
 theorem tau_proj_pos {u : H X Y} (hu : u ∈ 𝓟.Cplus) :
     0 < 𝓟.tau_proj u := hu
@@ -272,8 +282,9 @@ lemma inner_u_lifted_y (u : H X Y) (yv : Y) :
 
 /-- The y-projection is continuous (composition of `WithLp.snd` and
 `WithLp.fst`). -/
-lemma y_proj_continuous : Continuous 𝓟.y_proj :=
-  WithLp.continuous_fst.comp WithLp.continuous_snd
+lemma y_proj_continuous : Continuous 𝓟.y_proj := by
+  unfold y_proj
+  fun_prop
 
 /-- **Lift of `fBarrier` to `H`.** The user's `ν`-LHSCB `f` on `Y` extends
 to a `ν`-LHSCB `f_lhscb` on `H = X × Y × ℝ` by acting only on the y-block:
@@ -297,6 +308,34 @@ noncomputable def f_lhscb : LHSCB (H X Y) 𝓟.ν where
     rw [inner_sub_right, 𝓟.inner_u_lifted_y, 𝓟.inner_u_lifted_y,
         ← inner_sub_right, 𝓟.y_proj_sub]
     exact 𝓟.fBarrier.grad_monotone (𝓟.y_proj u) hu (𝓟.y_proj v) hv
+
+/-- **Totalised `Q`.** A version of `Q_apply` extended to all of `H`
+(using Lean's division-by-zero-is-zero convention outside `Cplus`).
+Only meaningful on `Cplus`; provided for compatibility with
+`IrnSetup.Q : H → H` (which is a total function). -/
+noncomputable def Q (𝓟 : ProblemData X Y) (u : H X Y) : H X Y :=
+  𝓟.M_apply u -
+    (𝓟.Px_bilinform (𝓟.x_proj u) (𝓟.x_proj u) / 𝓟.tau_proj u) • 𝓟.e_τ
+
+/-- `Q` agrees with `Q_apply` on `Cplus` (where Q is mathematically
+defined). -/
+theorem Q_eq_Q_apply {u : H X Y} (hu : u ∈ 𝓟.Cplus) :
+    𝓟.Q u = 𝓟.Q_apply u hu := rfl
+
+/-- **Totalised `φ`.** The barrier-gradient `φ = ∇f + ∇g` lifted to
+`H`, where `∇g(u) = (-1/tau_proj u) • e_τ` is the τ-component of the
+log barrier's gradient. Total on all of `H` (Lean's
+division-by-zero-is-zero convention applies outside `Cplus`). -/
+noncomputable def φ (𝓟 : ProblemData X Y) (u : H X Y) : H X Y :=
+  𝓟.f_lhscb.grad u + (-1 / 𝓟.tau_proj u) • 𝓟.e_τ
+
+/-- `C_interior` is in the lifted f-barrier domain: if `y_proj u ∈
+int K` then `u ∈ f_lhscb.domain`. -/
+theorem C_interior_subset_f_lhscb_domain :
+    𝓟.C_interior ⊆ 𝓟.f_lhscb.domain := fun u hu => by
+  show 𝓟.y_proj u ∈ 𝓟.fBarrier.domain
+  rw [𝓟.fBarrier_domain_eq_interior]
+  exact hu.1
 
 end ProblemData
 
