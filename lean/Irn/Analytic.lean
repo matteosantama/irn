@@ -557,18 +557,26 @@ lemma hessian_plus_M_op_injective (μ : ℝ) (hμ : 0 < μ)
 
 /-- The continuous linear equivalence `H_k + M`. Invertible because its
 symmetric part is `μ W(u) ≻ 0` (positive definite for `μ > 0`,
-`u ∈ C_interior`). Currently sorried — `hessian_plus_M_op_injective`
-provides the injectivity; combining with `LinearMap.injective_iff_surjective`
-in finite-dim gives bijectivity, hence a CLE. The wrapping into the
-existing unconditional API (which the downstream `exists_pos_root_quad`
-in `Resolvent.lean` consumes without the `u ∈ C_interior` hypothesis)
-requires API restructuring; deferred. -/
-noncomputable def hessian_plus_M (_ : IrnSetup X Y) :
-    ℝ → H X Y → (H X Y ≃L[ℝ] H X Y) := sorry
+`u ∈ C_interior`). Construction: combine `hessian_plus_M_op_injective`
+with `LinearMap.injective_iff_surjective` (finite-dim) to get a
+bijective linear map, then wrap as CLE via `LinearEquiv.ofBijective`
+and `LinearEquiv.toContinuousLinearEquiv` (the latter uses finite-dim
+to lift to a continuous equivalence). -/
+noncomputable def hessian_plus_M (𝓢 : IrnSetup X Y) (μ : ℝ) (hμ : 0 < μ)
+    (u : H X Y) (hu : u ∈ 𝓢.C_interior) : H X Y ≃L[ℝ] H X Y :=
+  let T := 𝓢.hessian_plus_M_op μ u
+  have h_inj : Function.Injective ⇑T :=
+    𝓢.hessian_plus_M_op_injective μ hμ u hu
+  have h_bij : Function.Bijective ⇑T :=
+    ⟨h_inj, LinearMap.injective_iff_surjective.mp h_inj⟩
+  (LinearEquiv.ofBijective T.toLinearMap h_bij).toContinuousLinearEquiv
 
-theorem hessian_plus_M_eq : ∀ μ u v,
-    (𝓢.hessian_plus_M μ u : H X Y →L[ℝ] H X Y) v =
-      𝓢.hessian_h μ u v + 𝓢.M_clm v := sorry
+theorem hessian_plus_M_eq (μ : ℝ) (hμ : 0 < μ) (u : H X Y)
+    (hu : u ∈ 𝓢.C_interior) (v : H X Y) :
+    (𝓢.hessian_plus_M μ hμ u hu : H X Y →L[ℝ] H X Y) v =
+      𝓢.hessian_h μ u v + 𝓢.M_clm v := by
+  show (𝓢.hessian_plus_M μ hμ u hu).toContinuousLinearMap v = _
+  rfl
 
 /-! ### Riemannian Josephy–Newton corrector and multiplier -/
 
@@ -609,6 +617,7 @@ theorem rjnStep_in_C : ∀ μ : ℝ, ∀ u : H X Y, 0 < μ →
 /-- **Minty's theorem applied to `H_k + Ψ`.** The augmented Newton
 inclusion has a positive scalar `θ` and a primal `u ∈ C_+`. -/
 theorem resolvent_exists : ∀ μ : ℝ, ∀ u_k z : H X Y, 0 < μ →
+    u_k ∈ 𝓢.C_interior →
     ∃ u : H X Y, u ∈ 𝓢.Cplus ∧ ∃ θ : ℝ, 0 < θ ∧
       (𝓢.hessian_h μ u_k + 𝓢.M_clm) u = 𝓢.hessian_h μ u_k z + θ • 𝓢.e_τ ∧
       θ * 𝓢.tau_proj u = 𝓢.Px_bilinform_clm u u + μ := sorry
