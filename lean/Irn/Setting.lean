@@ -18,8 +18,10 @@ KKT operator `Q`, the barrier-gradient map `φ`, and finally a
 `toIrnSetup` constructor that bridges to the existing analysis pipeline.
 
 Paper references:
-* Eq. (1.1)–(1.2) — primal/dual conic QP
-* §2.2, eq. (2.4) — KKT operator `Q`
+* §1   eq. `eq:primal` / `eq:dual` — primal / dual conic QP
+* §1.1 eq. `eq:embedding`           — homogeneous embedding
+* §1.2 eq. `eq:Q`                   — KKT operator `Q`
+* §2.1 eq. `eq:phi-def`             — barrier-gradient map `φ`
 -/
 
 import Mathlib.Analysis.InnerProductSpace.Basic
@@ -275,7 +277,7 @@ theorem Px_bilinform_clm_symm (u v : H X Y) :
   exact 𝓢.Px_bilinform_symm _ _
 
 /-- The block-matrix KKT operator `M : H → H` from the homogeneous
-embedding eq. (2.4):
+embedding (paper `eq:embedding` / `eq:Q`):
 $$ M(x, y, \tau) = \big(\, Px + A^\top y + c\,\tau,\;\; -A x + b\,\tau,
    \;\; -c^\top x - b^\top y \,\big), $$
 where `A^\top` is the inner-product adjoint of `A`. The skew off-diagonal
@@ -342,7 +344,7 @@ theorem inner_u_M (u : H X Y) :
       real_inner_comm 𝓢.b u.ofLp.2.ofLp.1]
   ring
 
-/-- The KKT operator `Q : H → H` from eq. (2.4):
+/-- The KKT operator `Q : H → H` (paper `eq:Q`):
 $$ Q(u) = M u - \frac{1}{\tau}\!\big(0,\,0,\,x^\top P x\big)
         = M u - \big(Px_{\mathrm{bilinform}}(x, x) / \tau\big) \cdot e_\tau. $$
 Only meaningful on `Cplus` (`τ > 0`) — outside, the rational correction
@@ -873,8 +875,8 @@ theorem phi_eq_F_grad (u : H X Y) (hu : u ∈ 𝓢.C_interior) :
     exact ⟨hu.1, hu.2⟩
   exact (LHSCB.add_grad 𝓢.f_lhscb 𝓢.g_lhscb hu').symm
 
-/-- **Euler-type identity for `φ`** (Proposition 3):
-`⟨u, φ(u)⟩ = -(ν+1)` on `C_interior`. -/
+/-- **Euler-type identity for `φ`** (paper §2.1 `eq:euler-id` summed over
+the `y` and `τ` blocks): `⟨u, φ(u)⟩ = -(ν+1)` on `C_interior`. -/
 theorem inner_u_phi (u : H X Y) (hu : u ∈ 𝓢.C_interior) :
     inner ℝ u (𝓢.φ u) = -((𝓢.ν : ℝ) + 1) := by
   rw [𝓢.phi_eq_F_grad u hu,

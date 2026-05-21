@@ -10,7 +10,8 @@ analytic machinery needed by the path-following analysis:
   identity translating Euler to the Hessian.
 * `normWinv`, `normWinv_sq` — the `W(u)⁻¹` dual norm via the
   variational sup characterisation, with triangle, smul, and the
-  `‖φ(u)‖_{W⁻¹} ≤ √(ν+1)` bound of paper §3.2.
+  `‖φ(u)‖_{W⁻¹} ≤ √(ν+1)` bound used in the paper §6.3 proof of
+  Lemma 13.
 * `W_op`, `hess_op`, `hessian_h`, `hessian_plus_M`, `hessian_h_equiv` —
   the Hessian preconditioner and its sum with `M`, packaged as
   continuous linear equivalences (positive-definite ⇒ invertible in
@@ -28,12 +29,13 @@ fixed-point property at central-path points) remain as `sorry`s —
 these depend on Hessian-norm machinery beyond the current scope.
 
 Paper references:
-* §3.2 (a posteriori error bound) — `normWinv_phi_bound`
-* §5.2, eq. (5.3) — `rjnStep`, `rjnLambda`
-* §5.4, Proposition 11 — `rjnLambda_at_central`,
+* §6.3 Lemma 13 proof — `normWinv_phi_bound` (the `‖φ‖²_{W⁻¹} ≤ ν+1`
+  bound used to derive the transfer constant)
+* §5.3 eq. `eq:rjn` — `rjnStep`, `rjnLambda`
+* §5.5 Proposition 10 — `rjnLambda_at_central`,
   `rjnLambda_continuousAt_central`
-* §5.5, Theorem 12 — `rjnStep_euclidean_basin` (sorry)
-* §6.3, Lemma 15 — `rjnStep_delta_contraction` (sorry)
+* §5.6 Theorem 11 — `rjnStep_euclidean_basin` (sorry)
+* §6.3 Lemma 15 — `rjnStep_delta_contraction` (sorry)
 * Appendix — `resolvent_exists` (Minty's theorem for `H_k + Ψ`)
 -/
 
@@ -800,11 +802,13 @@ noncomputable def rjnStep (𝓢 : IrnSetup X Y) (μ : ℝ) (u_k : H X Y) : H X Y
     Classical.choose (𝓢.resolvent_exists μ u_k z h.1 h.2)
   else 0
 
-/-- The sphere-constraint Lagrange multiplier (paper Proposition 11).
+/-- The sphere-constraint Lagrange multiplier (paper Proposition 10).
 Defined as the constant-zero function; the paper's actual `λ_k` is
-related to the scalar `θ` from the resolvent, but since only the
-vanishing at central-path points and local continuity are needed
-downstream, the constant-zero definition suffices. -/
+determined by the scalar equation `φ(λ) = 0` of paper §5.5 (closed
+form: a quadratic in `λ` for Variants B/C, a quartic for Variant A).
+The constant-zero definition suffices for current downstream consumers,
+which only need the vanishing at central-path points and local
+continuity. -/
 noncomputable def rjnLambda (_ : IrnSetup X Y) (_ : ℝ) (_ : H X Y) : ℝ := 0
 
 /-- **Fixed-point property.** The central-path point `u*(μ)` is a
@@ -821,14 +825,14 @@ quadratic has a unique positive root), which holds since
 theorem rjnStep_fixed_point (μ : ℝ) (hμ : 0 < μ) :
     𝓢.rjnStep μ (𝓢.centralPathPoint μ hμ) = 𝓢.centralPathPoint μ hμ := sorry
 
-/-- **Proposition 11 (Existence of `λ_k`).** `rjnLambda μ` evaluates to
+/-- **Proposition 10 (Existence of `λ_k`).** `rjnLambda μ` evaluates to
 `0` at central-path points. -/
 theorem rjnLambda_at_central : ∀ μ : ℝ, ∀ u : H X Y, 0 < μ →
     u ∈ 𝓢.C_interior →
     𝓢.Q u + μ • u + μ • 𝓢.φ u = 0 → 𝓢.rjnLambda μ u = 0 := by
   intros; rfl
 
-/-- **Proposition 11 (continued).** `rjnLambda μ` is continuous at the
+/-- **Proposition 10 (continued).** `rjnLambda μ` is continuous at the
 central-path point. -/
 theorem rjnLambda_continuousAt_central : ∀ μ : ℝ, ∀ u : H X Y, 0 < μ →
     u ∈ 𝓢.C_interior →
@@ -863,7 +867,7 @@ theorem rjnStep_delta_contraction : ∃ ρ_star K_star : ℝ,
         K_star *
           (𝓢.normWinv u (𝓢.Q u + μ • u + μ • 𝓢.φ u) / μ) ^ 2 := sorry
 
-/-- **Theorem 12 (Euclidean Newton–Kantorovich).** Near each
+/-- **Theorem 11 (Euclidean Newton–Kantorovich).** Near each
 central-path point, there is an open `U` and a rate `K` such that the
 corrector stays in `U` and contracts the Euclidean error quadratically. -/
 theorem rjnStep_euclidean_basin : ∀ μ : ℝ, 0 < μ → ∀ u_star : H X Y,

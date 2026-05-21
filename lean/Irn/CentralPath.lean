@@ -2,14 +2,14 @@
 # Central Path (paper §2.2–§3.2)
 
 The central-path map `T_μ : Cplus → H`, the central-path point at
-level `μ`, existence and uniqueness (Theorem 5), and smoothness in `μ`
-(Theorem 6).
+level `μ`, existence and uniqueness (Theorem 6), and smoothness in `μ`
+(Theorem 7).
 
 Paper references:
-* Definition 3 (central path)
-* Proposition 3 (sphericity) → `centralPath_norm_sq`
-* Theorem 5 (existence and uniqueness)
-* Theorem 6 (smoothness)
+* §2.2 Definition 3 (central path)
+* §2.3 Proposition 4 (sphericity) → `centralPath_norm_sq`
+* §3.2 Theorem 6 (existence and uniqueness)
+* §3.2 Theorem 7 (smoothness)
 -/
 
 import Irn.Setting
@@ -39,7 +39,7 @@ noncomputable def T (μ : ℝ) (u : H X Y) : H X Y :=
 def IsCentralPathPoint (μ : ℝ) (u : H X Y) : Prop :=
   u ∈ 𝓢.C_interior ∧ 𝓢.T μ u = 0
 
-/-- **Proposition 3 (Sphericity).** Every central-path point lies on
+/-- **Proposition 4 (Sphericity).** Every central-path point lies on
 the sphere of radius `r = √(ν+1)`. -/
 theorem centralPath_norm_sq {μ : ℝ} (hμ : 0 < μ) {u : H X Y}
     (h : 𝓢.IsCentralPathPoint μ u) :
@@ -582,7 +582,7 @@ theorem T_contDiffOn1 (μ : ℝ) : ContDiffOn ℝ 1 (𝓢.T μ) 𝓢.C_interior 
   have h12' : (1 : ℕ∞) ≤ 𝓢.d - 1 := le_trans (by decide) h2
   exact_mod_cast h12'
 
-/-- **Theorem 5 (Existence and uniqueness).** For every `μ > 0` there
+/-- **Theorem 6 (Existence and uniqueness).** For every `μ > 0` there
 is a unique central-path point. Existence by the corrected Minty-style
 theorem `exists_unique_zero_of_stronglyMonotone_C1_coercive` applied to
 `T_μ` (continuous, strongly monotone with constant `μ`, `C¹`, boundary-
@@ -618,7 +618,7 @@ theorem centralPathMap_of_pos {μ : ℝ} (hμ : 0 < μ) :
   show (if h : 0 < μ then 𝓢.centralPathPoint μ h else 0) = _
   rw [dif_pos hμ]
 
-/-! ### Smoothness of the central-path map (Theorem 6)
+/-! ### Smoothness of the central-path map (Theorem 7)
 
 The proof applies Mathlib's implicit function theorem
 (`ContDiffAt.contDiffAt_implicitFunction`) to `T_μ(u) = 0`:
@@ -756,7 +756,7 @@ theorem T_partial_u_isInvertible {μ : ℝ} (hμ : 0 < μ)
   -- Construct the `ContinuousLinearEquiv`.
   exact ⟨ContinuousLinearEquiv.ofBijective L h_inj h_range, rfl⟩
 
-/-- **Theorem 6 (Smoothness).** If the user's barrier `fBarrier` has
+/-- **Theorem 7 (Smoothness).** If the user's barrier `fBarrier` has
 smoothness degree `d ≥ 3` (recorded in `𝓢.d`, with `d = ⊤` denoting
 `C^∞`), then the central-path map `μ ↦ u*(μ)` is `C^(d-1)` on the open
 ray `(0, ∞)`. (When `d = ⊤`, `d - 1 = ⊤` so the conclusion is `C^∞`.)

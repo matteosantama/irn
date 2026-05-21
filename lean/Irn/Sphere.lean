@@ -6,8 +6,8 @@ space, the tangentiality lemma, and the a-posteriori error bound.
 
 Paper references:
 * §3.1 (geometry)
-* Lemma 6 (tangentiality) → `tangent_T`
-* Theorem 7 (a posteriori error bound) → `error_bound`,
+* §3.1 Lemma 5 (tangentiality) → `tangent_T`
+* §3.3 Theorem 8 (a posteriori error bound) → `error_bound`,
   `error_bound_tangent`
 -/
 
@@ -47,7 +47,7 @@ variable {X Y : Type*}
 /-- The sphere `Sr = { u : ‖u‖ = r }`. -/
 def sphere : Set (H X Y) := {u | ‖u‖ = 𝓢.r}
 
-/-- **Lemma 6 (Tangentiality).** `T_μ(u) ∈ T_u Sr` for every
+/-- **Lemma 5 (Tangentiality).** `T_μ(u) ∈ T_u Sr` for every
 `u ∈ Sr ∩ int C`. -/
 theorem tangent_T {μ : ℝ} (_hμ : 0 < μ) {u : H X Y}
     (hS : u ∈ 𝓢.sphere) (hC : u ∈ 𝓢.C_interior) :
@@ -62,7 +62,7 @@ theorem tangent_T {μ : ℝ} (_hμ : 0 < μ) {u : H X Y}
   rw [huu]
   ring
 
-/-- **Theorem 7 (A posteriori error bound, ambient form).**
+/-- **Theorem 8 (A posteriori error bound, ambient form).**
 `‖u - u*(μ)‖ ≤ ‖T_μ(u)‖ / μ` for every `u ∈ int C`. -/
 theorem error_bound {μ : ℝ} (hμ : 0 < μ) {u : H X Y} (hu : u ∈ 𝓢.C_interior) :
     ‖u - 𝓢.centralPathPoint μ hμ‖ ≤ ‖𝓢.T μ u‖ / μ := by
@@ -105,7 +105,7 @@ theorem error_bound {μ : ℝ} (hμ : 0 < μ) {u : H X Y} (hu : u ∈ 𝓢.C_int
     rw [le_div_iff₀ hμ, mul_comm]
     exact key
 
-/-- **Theorem 7 (A posteriori error bound, tangent form).**
+/-- **Theorem 8 (A posteriori error bound, tangent form).**
 On the sphere, the bound sharpens to the tangent-projected residual:
 `‖u - u*(μ)‖ ≤ ‖P_u T_μ(u)‖ / μ`. On the sphere `T_μ u` is already
 tangent (`tangent_T`), so `P_u T_μ u = T_μ u` and this is just
@@ -117,7 +117,7 @@ theorem error_bound_tangent {μ : ℝ} (hμ : 0 < μ) {u : H X Y}
   exact 𝓢.error_bound hμ hC
 
 /-- The Newton corrector preserves the constraint set: combining
-Proposition 11 (well-definedness within a basin) and Theorem 12
+Proposition 10 (well-definedness within a basin) and Theorem 11
 (the iterates stay on `Sr ∩ int C`). Built from the two analytic
 hypotheses `rjnStep_norm_sq` and `rjnStep_in_C`. -/
 theorem rjnStep_invariant

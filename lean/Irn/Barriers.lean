@@ -43,9 +43,9 @@ Other API:
   `int(K)` (lifted barriers do not satisfy this).
 
 Paper references:
-* Definition 2 (`ν`-LHSCB)
-* Eq. (2.2) (Euler identity)
-* §2.1 (conjugate barriers)
+* §2.1 Definition 2 (`ν`-LHSCB)
+* §2.1 eq. `eq:euler-id` (Euler identity)
+* §2.1 (conjugate barriers `f*`, `g*`, `φ`)
 -/
 
 import Mathlib.Analysis.Calculus.ContDiff.Basic

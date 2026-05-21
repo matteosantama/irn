@@ -3,14 +3,26 @@
 
 The splitting `T_μ = h + Ψ`, the augmented Newton inclusion with a
 Lagrange multiplier for the sphere constraint, existence/uniqueness
-of the multiplier (Proposition 11), and local quadratic convergence
-(Theorem 12).
+of the multiplier (Proposition 10), and local quadratic convergence
+(Theorem 11).
+
+**Variant note.** Paper §5.3 introduces three variants of the RJN step:
+* **A** — sphericity constraint `C_A(u) = ‖u‖² − (ν+1)`, identity
+  retraction.
+* **B** — tangency constraint `C_B(u) = u_k⊤u − (ν+1)`, projection
+  retraction `r·(u_k+v)/‖u_k+v‖`.
+* **C** — tangency constraint `C_B`, geodesic retraction `exp_{u_k}`.
+
+The Lean development currently models only Variant A: the placeholders
+`IsRJNStepA` and `IsRJNStepB` are definitionally equal, and `rjnStep` /
+`rjnLambda` come from a single sorry-stubbed analytic spec. Adding the
+B/C tangent solve plus geodesic exponential is future work.
 
 Paper references:
-* Eq. (5.1) splitting `T_μ = h + Ψ`
-* Eq. (5.3) Riemannian Josephy–Newton step
-* Proposition 11 (existence and local uniqueness of `λ_k`)
-* Theorem 12 (local quadratic convergence)
+* §5.1 eq. `eq:splitting`        — splitting `T_μ = h + Ψ`
+* §5.3 eq. `eq:rjn`              — Riemannian Josephy–Newton step
+* §5.5 Proposition 10 (existence and local uniqueness of `λ_k`)
+* §5.6 Theorem 11 (local quadratic convergence of Variants A, B, C)
 -/
 
 import Irn.Resolvent
@@ -29,22 +41,24 @@ variable {X Y : Type*}
 noncomputable def h (𝓢 : IrnSetup X Y) (μ : ℝ) (u : H X Y) : H X Y :=
   μ • u + μ • 𝓢.φ u
 
-/-- Variant A (sphericity): `(u_next, lam)` is the augmented Newton
-step iff `u_next` is the corrector output and `lam` is the
+/-- Variant A (sphericity, paper §5.3): `(u_next, lam)` is the augmented
+Newton step iff `u_next` is the corrector output and `lam` is the
 sphere-constraint Lagrange multiplier. Both come from the analytic
 sorry'd definitions `rjnStep` and `rjnLambda`. -/
 def IsRJNStepA (𝓢 : IrnSetup X Y) (μ : ℝ) (u_k u_next : H X Y) (lam : ℝ) :
     Prop :=
   u_next = 𝓢.rjnStep μ u_k ∧ lam = 𝓢.rjnLambda μ u_k
 
-/-- Variant B (tangency): identified with Variant A here. -/
+/-- Variant B (tangency + projection retraction, paper §5.3). Identified
+here with Variant A as a placeholder until the tangent solve / projection
+retraction is formalised separately. -/
 def IsRJNStepB (𝓢 : IrnSetup X Y) (μ : ℝ) (u_k u_next : H X Y) (lam : ℝ) :
     Prop :=
   IsRJNStepA 𝓢 μ u_k u_next lam
 
 variable (𝓢 : IrnSetup X Y)
 
-/-- **Proposition 11 (Existence and local uniqueness of `λ_k`).** -/
+/-- **Proposition 10 (Existence and local uniqueness of `λ_k`).** -/
 theorem lambda_exists_unique
     {μ : ℝ} (hμ : 0 < μ) :
     ∃ U : Set (H X Y), ∃ Λ : Set ℝ,
@@ -75,7 +89,9 @@ theorem lambda_exists_unique
     rintro lam ⟨_, _, _, h_lam_eq⟩
     exact h_lam_eq
 
-/-- **Theorem 12 (Local quadratic convergence).** -/
+/-- **Theorem 11 (Local quadratic convergence).** Currently states the
+result only for Variant A (via `rjnStep`); Variants B and C from
+paper §5.6 are future work. -/
 theorem rjn_quadratic_convergence
     {μ : ℝ} (hμ : 0 < μ) :
     ∃ U : Set (H X Y), IsOpen U ∧ 𝓢.centralPathPoint μ hμ ∈ U ∧

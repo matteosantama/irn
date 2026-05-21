@@ -1,20 +1,20 @@
 /-
 # Closed-form resolvent (paper §4)
 
-Theorem 8 (closed-form resolvent of `Ψ = Q + μ ∂G*`) and the
-auxiliary maximal-monotone extension result (Lemma A.1).
+Theorem 9 (closed-form resolvent of `Ψ = Q + μ ∂G*`) and the
+auxiliary maximal-monotone extension result (Appendix Lemma 24).
 
 With the embedding structure on `IrnSetup` (matrix `M_clm`, unit
 `e_τ`, scalar function `tau_proj`, bilinear form `Px_bilinform_clm`,
-and the linear equivalence `hessian_plus_M = H_k + M`), Theorem 8 is
+and the linear equivalence `hessian_plus_M = H_k + M`), Theorem 9 is
 stated literally and proved *modulo* the discriminant analysis for the
 scalar quadratic — itself recorded as `exists_pos_root_quad` and
-fed by the Minty-existence sorry in `Irn.Analytic`.
+fed by `resolvent_exists` in `Irn.Analytic`.
 
 Paper references:
-* Theorem 8 (closed-form resolvent of `Ψ`)
-* Eq. (4.4) (scalar quadratic for `θ`)
-* Appendix Lemma A.1 (maximal monotone extension)
+* §4 Theorem 9 (closed-form resolvent of `Ψ`)
+* §4 eq. `eq:theta` (scalar quadratic for `θ`)
+* Appendix Lemma 24 (maximal monotone extension)
 -/
 
 import Irn.Sphere
@@ -33,7 +33,7 @@ variable {X Y : Type*}
 /-! ### The closed-form factor vectors
 
 `w_0` and `w_1` are the two `λ`-independent solves against `H_k + M`
-that appear in the closed-form formula `u = w_0 + θ w_1` of Theorem 8.
+that appear in the closed-form formula `u = w_0 + θ w_1` of Theorem 9.
 -/
 
 /-- `w_0(μ, u_k, z) = (H_k + M)⁻¹ (H_k z)`. -/
@@ -87,7 +87,7 @@ noncomputable def quad_γ (μ : ℝ) (hμ : 0 < μ) (u_k : H X Y)
     (hu_k : u_k ∈ 𝓢.C_interior) (z : H X Y) : ℝ :=
   - 𝓢.Px_bilinform_clm (𝓢.w0 μ hμ u_k hu_k z) (𝓢.w0 μ hμ u_k hu_k z) - μ
 
-/-! ### Theorem 8 and Lemma A.1. -/
+/-! ### Theorem 9 and Lemma 24. -/
 
 /-- **Existence of a positive root of the scalar quadratic.**
 
@@ -148,7 +148,7 @@ theorem exists_pos_root_quad (μ : ℝ) (hμ : 0 < μ) (u_k : H X Y)
     linarith [h_scalar']
   exact ⟨θ, hθ_pos, h_quad, h_tau_pos⟩
 
-/-- **Theorem 8 (Closed-form resolvent of `Ψ`).** With `H_k = hessian_h μ u_k`,
+/-- **Theorem 9 (Closed-form resolvent of `Ψ`).** With `H_k = hessian_h μ u_k`,
 the resolvent value `u = J_Ψ^{H_k}(z)` lies in `Cplus` and is the unique
 pair `(u, θ)` with `θ > 0` satisfying
 `(H_k + M) u = H_k z + θ • e_τ` and `θ · tau_proj u = B_P(u, u) + μ`. -/
@@ -220,7 +220,7 @@ theorem resolvent_closed_form
 
 end IrnSetup
 
-/-- **Lemma A.1 (Maximal monotone extension).** A continuous monotone
+/-- **Lemma 24 (Maximal monotone extension).** A continuous monotone
 single-valued operator on an open convex set extends to a maximally
 monotone operator on the ambient Hilbert space. Stating this
 meaningfully requires defining maximally monotone (set-valued)
