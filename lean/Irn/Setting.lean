@@ -300,6 +300,20 @@ theorem Q_monotone (u : H) (hu : u ∈ 𝓢.Cplus) (v : H) (hv : v ∈ 𝓢.Cplu
   rw [h_id]
   exact div_nonneg h_psd (le_of_lt hτuv)
 
+/-- `Cplus` is open: it equals the preimage of `(0, ∞)` under the
+continuous linear functional `tau_proj_linear`. -/
+theorem Cplus_open : IsOpen 𝓢.Cplus := by
+  have h_eq : 𝓢.Cplus = 𝓢.tau_proj_linear ⁻¹' Set.Ioi 0 := by
+    ext u
+    refine ⟨fun hu => ?_, fun hu => ?_⟩
+    · show 0 < 𝓢.tau_proj_linear u
+      rw [𝓢.tau_proj_linear_eq u]; exact 𝓢.tau_proj_pos u hu
+    · refine 𝓢.Cplus_of_tau_proj_pos u ?_
+      have : 0 < 𝓢.tau_proj_linear u := hu
+      rw [𝓢.tau_proj_linear_eq u] at this; exact this
+  rw [h_eq]
+  exact 𝓢.tau_proj_linear.continuous.isOpen_preimage _ isOpen_Ioi
+
 /-- The concrete `1`-LHSCB `g(τ) = -log τ` lifted to `H`. The gradient
 is `(-1/tau_proj u) • e_τ`; the Euler identity `⟨u, ∇g(u)⟩ = -1` uses
 `inner_u_e_tau`; monotonicity uses `(τ_u - τ_v)² / (τ_u τ_v) ≥ 0`. -/
@@ -307,6 +321,7 @@ noncomputable def g_lhscb : LHSCB H 1 where
   f := fun u => -Real.log (𝓢.tau_proj u)
   grad := fun u => (-1 / 𝓢.tau_proj u) • 𝓢.e_τ
   domain := 𝓢.Cplus
+  domain_open := 𝓢.Cplus_open
   euler := by
     intros u hu
     have hτ : 0 < 𝓢.tau_proj u := 𝓢.tau_proj_pos u hu

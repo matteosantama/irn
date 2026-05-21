@@ -76,8 +76,10 @@ structure ProblemData (X : Type*) (Y : Type*)
   K_closed : IsClosed K
   /-- A `ν`-LHSCB for `K`. -/
   fBarrier : LHSCB Y ν
-  /-- The barrier domain is contained in `K`. -/
-  fBarrier_domain_subset : fBarrier.domain ⊆ K
+  /-- The barrier domain is the (topological) interior of `K`. An LHSCB
+  is by definition only defined on the interior of its cone, since the
+  barrier blows up on the boundary. -/
+  fBarrier_domain_eq_interior : fBarrier.domain = interior K
 
 namespace ProblemData
 
@@ -268,15 +270,24 @@ lemma inner_u_lifted_y (u : H X Y) (yv : Y) :
   simp only [WithLp.prod_inner_apply, inner_zero_right, zero_add, add_zero]
   rfl
 
+/-- The y-projection is continuous (composition of `WithLp.snd` and
+`WithLp.fst`). -/
+lemma y_proj_continuous : Continuous 𝓟.y_proj :=
+  WithLp.continuous_fst.comp WithLp.continuous_snd
+
 /-- **Lift of `fBarrier` to `H`.** The user's `ν`-LHSCB `f` on `Y` extends
 to a `ν`-LHSCB `f_lhscb` on `H = X × Y × ℝ` by acting only on the y-block:
-`f_lift(x, y, τ) := f(y)`, with gradient `(0, ∇f(y), 0)`. The Euler
-identity and gradient monotonicity transport from `fBarrier`. -/
+`f_lift(x, y, τ) := f(y)`, with gradient `(0, ∇f(y), 0)`, and domain
+`y_proj⁻¹(int K)` (the preimage of the cone interior — open since
+`y_proj` is continuous). The Euler identity and gradient monotonicity
+transport from `fBarrier`. -/
 noncomputable def f_lhscb : LHSCB (H X Y) 𝓟.ν where
   f u := 𝓟.fBarrier.f (𝓟.y_proj u)
   grad u := WithLp.toLp 2 ((0 : X),
     WithLp.toLp 2 (𝓟.fBarrier.grad (𝓟.y_proj u), (0 : ℝ)))
   domain := {u | 𝓟.y_proj u ∈ 𝓟.fBarrier.domain}
+  domain_open :=
+    𝓟.y_proj_continuous.isOpen_preimage _ 𝓟.fBarrier.domain_open
   euler := by
     intros u hu
     rw [𝓟.inner_u_lifted_y]

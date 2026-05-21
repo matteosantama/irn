@@ -41,8 +41,13 @@ structure LHSCB (V : Type*)
   f : V → ℝ
   /-- The gradient `∇f`. -/
   grad : V → V
-  /-- The (open) barrier domain. -/
+  /-- The barrier domain — intended to be the (topological) interior of
+  the associated convex cone. An LHSCB is defined only on the interior
+  of its cone, since the barrier blows up on the boundary. -/
   domain : Set V
+  /-- The domain is open (an LHSCB is defined on the interior of a
+  convex cone, which is open). -/
+  domain_open : IsOpen domain
   /-- **Euler identity.** Logarithmic homogeneity of degree `-ν`
   implies `⟨u, ∇f(u)⟩ = -ν` for every `u ∈ domain`. -/
   euler : ∀ u ∈ domain, inner ℝ u (grad u) = -(ν : ℝ)
@@ -63,6 +68,7 @@ def add {ν₁ ν₂ : ℕ} (f : LHSCB V ν₁) (g : LHSCB V ν₂) :
   f := fun v => f.f v + g.f v
   grad := fun v => f.grad v + g.grad v
   domain := f.domain ∩ g.domain
+  domain_open := f.domain_open.inter g.domain_open
   euler := by
     rintro u ⟨hu_f, hu_g⟩
     rw [inner_add_right, f.euler u hu_f, g.euler u hu_g]
