@@ -397,6 +397,193 @@ theorem C_interior_subset_f_lhscb_domain :
   rw [𝓟.fBarrier_domain_eq_interior]
   exact hu.1
 
+/-! ### Sphere radius and derived norm facts -/
+
+/-- Sphere radius `r = √(ν+1)`. -/
+noncomputable def r : ℝ := Real.sqrt ((𝓟.ν : ℝ) + 1)
+
+theorem r_sq : 𝓟.r ^ 2 = (𝓟.ν : ℝ) + 1 := by
+  unfold r
+  exact Real.sq_sqrt (by positivity)
+
+theorem r_pos : 0 < 𝓟.r := by
+  unfold r
+  exact Real.sqrt_pos.mpr (by positivity)
+
+/-! ### `Cplus` topology -/
+
+/-- `Cplus = {u | 0 < tau_proj u}` is open: it's the preimage of
+`(0, ∞)` under the continuous linear functional `tau_proj_linear`. -/
+theorem Cplus_open : IsOpen 𝓟.Cplus := by
+  have h_eq : 𝓟.Cplus =
+      (ProblemData.tau_proj_linear : H X Y →L[ℝ] ℝ) ⁻¹' Set.Ioi 0 := by
+    ext u
+    show 0 < 𝓟.tau_proj u ↔ 0 < tau_proj_linear u
+    rw [tau_proj_linear_apply]
+  rw [h_eq]
+  exact (ProblemData.tau_proj_linear : H X Y →L[ℝ] ℝ).continuous.isOpen_preimage
+    _ isOpen_Ioi
+
+/-! ### `Q` monotonicity (Proposition 1) -/
+
+/-- **Proposition 1 (Monotonicity of `Q`).** Direct calculation gives
+`⟨u₁ - u₂, Q(u₁) - Q(u₂)⟩ = τ₁τ₂(z₁ - z₂)⊤ P (z₁ - z₂) ≥ 0`. The
+τ-rescaling is captured by `Px_quad_form_psd`. -/
+theorem Q_monotone (u : H X Y) (hu : u ∈ 𝓟.Cplus)
+    (v : H X Y) (hv : v ∈ 𝓟.Cplus) :
+    0 ≤ inner ℝ (u - v) (𝓟.Q u - 𝓟.Q v) := by
+  have hτu : 0 < 𝓟.tau_proj u := 𝓟.tau_proj_pos hu
+  have hτv : 0 < 𝓟.tau_proj v := 𝓟.tau_proj_pos hv
+  have hτu_ne : 𝓟.tau_proj u ≠ 0 := ne_of_gt hτu
+  have hτv_ne : 𝓟.tau_proj v ≠ 0 := ne_of_gt hτv
+  have hτuv : 0 < 𝓟.tau_proj u * 𝓟.tau_proj v := mul_pos hτu hτv
+  -- Unfold Q to M_apply minus the rational correction.
+  show 0 ≤ inner ℝ (u - v)
+    ((𝓟.M_apply u - (𝓟.Px_bilinform (𝓟.x_proj u) (𝓟.x_proj u) /
+      𝓟.tau_proj u) • 𝓟.e_τ) -
+     (𝓟.M_apply v - (𝓟.Px_bilinform (𝓟.x_proj v) (𝓟.x_proj v) /
+      𝓟.tau_proj v) • 𝓟.e_τ))
+  -- Use the M_clm packaging to repackage M_apply via M_clm's linearity:
+  -- M_apply u - M_apply v = M_clm (u - v) (since M_clm_apply is rfl).
+  have h_arrange :
+      (𝓟.M_apply u - (𝓟.Px_bilinform (𝓟.x_proj u) (𝓟.x_proj u) /
+        𝓟.tau_proj u) • 𝓟.e_τ) -
+      (𝓟.M_apply v - (𝓟.Px_bilinform (𝓟.x_proj v) (𝓟.x_proj v) /
+        𝓟.tau_proj v) • 𝓟.e_τ) =
+      𝓟.M_clm (u - v) -
+        ((𝓟.Px_bilinform (𝓟.x_proj u) (𝓟.x_proj u) / 𝓟.tau_proj u) -
+          (𝓟.Px_bilinform (𝓟.x_proj v) (𝓟.x_proj v) / 𝓟.tau_proj v)) • 𝓟.e_τ := by
+    rw [show 𝓟.M_apply u = 𝓟.M_clm u from rfl,
+        show 𝓟.M_apply v = 𝓟.M_clm v from rfl,
+        map_sub 𝓟.M_clm]
+    module
+  rw [h_arrange, inner_sub_right, inner_smul_right]
+  -- ⟨u-v, M(u-v)⟩ = Px(x(u-v), x(u-v))
+  have h_x_sub : 𝓟.x_proj (u - v) = 𝓟.x_proj u - 𝓟.x_proj v := by
+    unfold x_proj
+    simp
+  have h_inner_M : inner ℝ (u - v) (𝓟.M_clm (u - v)) =
+      𝓟.Px_bilinform (𝓟.x_proj u - 𝓟.x_proj v) (𝓟.x_proj u - 𝓟.x_proj v) := by
+    rw [show 𝓟.M_clm (u - v) = 𝓟.M_apply (u - v) from rfl, 𝓟.inner_u_M]
+    rw [h_x_sub]
+  rw [h_inner_M]
+  -- Expand `Px(x_u - x_v, x_u - x_v)` bilinearly.
+  set xu := 𝓟.x_proj u
+  set xv := 𝓟.x_proj v
+  have h_Px_expand : 𝓟.Px_bilinform (xu - xv) (xu - xv) =
+      𝓟.Px_bilinform xu xu - 2 * 𝓟.Px_bilinform xu xv +
+      𝓟.Px_bilinform xv xv := by
+    show inner ℝ (xu - xv) (𝓟.P (xu - xv)) =
+      inner ℝ xu (𝓟.P xu) - 2 * inner ℝ xu (𝓟.P xv) +
+      inner ℝ xv (𝓟.P xv)
+    rw [map_sub, inner_sub_left, inner_sub_right, inner_sub_right]
+    have h_sym : inner ℝ xv (𝓟.P xu) = inner ℝ xu (𝓟.P xv) := by
+      rw [← 𝓟.P_symm, real_inner_comm]
+    rw [h_sym]
+    ring
+  rw [h_Px_expand]
+  -- `⟨u - v, e_τ⟩ = τ_u - τ_v`.
+  have h_inner_etau : inner ℝ (u - v) 𝓟.e_τ = 𝓟.tau_proj u - 𝓟.tau_proj v := by
+    rw [inner_sub_left, 𝓟.inner_u_e_tau, 𝓟.inner_u_e_tau]
+  rw [h_inner_etau]
+  -- Algebraic regrouping into the τ-rescaled PSD form.
+  have h_psd :
+      0 ≤ 𝓟.tau_proj v ^ 2 * 𝓟.Px_bilinform xu xu -
+          2 * 𝓟.tau_proj u * 𝓟.tau_proj v * 𝓟.Px_bilinform xu xv +
+          𝓟.tau_proj u ^ 2 * 𝓟.Px_bilinform xv xv :=
+    𝓟.Px_quad_form_psd xu xv (𝓟.tau_proj u) (𝓟.tau_proj v)
+  have h_id :
+      𝓟.Px_bilinform xu xu - 2 * 𝓟.Px_bilinform xu xv +
+        𝓟.Px_bilinform xv xv -
+          (𝓟.Px_bilinform xu xu / 𝓟.tau_proj u -
+            𝓟.Px_bilinform xv xv / 𝓟.tau_proj v) *
+              (𝓟.tau_proj u - 𝓟.tau_proj v) =
+        (𝓟.tau_proj v ^ 2 * 𝓟.Px_bilinform xu xu -
+          2 * 𝓟.tau_proj u * 𝓟.tau_proj v * 𝓟.Px_bilinform xu xv +
+          𝓟.tau_proj u ^ 2 * 𝓟.Px_bilinform xv xv) /
+          (𝓟.tau_proj u * 𝓟.tau_proj v) := by
+    field_simp
+    ring
+  rw [h_id]
+  exact div_nonneg h_psd (le_of_lt hτuv)
+
+/-! ### The combined `(ν+1)`-LHSCB `F = f + g` -/
+
+/-- The concrete `1`-LHSCB `g(τ) = -log τ` lifted to `H`. The gradient
+is `(-1/tau_proj u) • e_τ`; Euler uses `inner_u_e_tau`; monotonicity
+uses `(τ_u - τ_v)² / (τ_u τ_v) ≥ 0`. -/
+noncomputable def g_lhscb : LHSCB (H X Y) 1 where
+  f := fun u => -Real.log (𝓟.tau_proj u)
+  grad := fun u => (-1 / 𝓟.tau_proj u) • 𝓟.e_τ
+  domain := 𝓟.Cplus
+  domain_open := 𝓟.Cplus_open
+  euler := by
+    intros u hu
+    have hτ : 0 < 𝓟.tau_proj u := 𝓟.tau_proj_pos hu
+    have hτ_ne : 𝓟.tau_proj u ≠ 0 := ne_of_gt hτ
+    rw [inner_smul_right, 𝓟.inner_u_e_tau]
+    push_cast
+    field_simp
+  grad_monotone := by
+    intros u hu v hv
+    have hτu : 0 < 𝓟.tau_proj u := 𝓟.tau_proj_pos hu
+    have hτv : 0 < 𝓟.tau_proj v := 𝓟.tau_proj_pos hv
+    have hτu_ne : 𝓟.tau_proj u ≠ 0 := ne_of_gt hτu
+    have hτv_ne : 𝓟.tau_proj v ≠ 0 := ne_of_gt hτv
+    have h_sub_smul :
+        (-1 / 𝓟.tau_proj u) • 𝓟.e_τ - (-1 / 𝓟.tau_proj v) • 𝓟.e_τ =
+        ((-1 / 𝓟.tau_proj u) - (-1 / 𝓟.tau_proj v)) • 𝓟.e_τ := by
+      rw [sub_smul]
+    rw [h_sub_smul, inner_smul_right]
+    have h_inner :
+        inner ℝ (u - v) 𝓟.e_τ = 𝓟.tau_proj u - 𝓟.tau_proj v := by
+      rw [inner_sub_left, 𝓟.inner_u_e_tau, 𝓟.inner_u_e_tau]
+    rw [h_inner]
+    have h_factor :
+        ((-1 / 𝓟.tau_proj u) - (-1 / 𝓟.tau_proj v)) *
+            (𝓟.tau_proj u - 𝓟.tau_proj v) =
+        (𝓟.tau_proj u - 𝓟.tau_proj v) ^ 2 /
+            (𝓟.tau_proj u * 𝓟.tau_proj v) := by
+      field_simp
+      ring
+    rw [h_factor]
+    positivity
+
+/-- The combined `(ν+1)`-LHSCB `F = f + g` driving the IRN central path. -/
+noncomputable def F_lhscb : LHSCB (H X Y) (𝓟.ν + 1) :=
+  𝓟.f_lhscb.add 𝓟.g_lhscb
+
+/-- `C_interior ⊆ F_lhscb.domain = f_lhscb.domain ∩ Cplus`. -/
+theorem C_interior_subset_F_domain : 𝓟.C_interior ⊆ 𝓟.F_lhscb.domain :=
+  fun _ hu =>
+    ⟨𝓟.C_interior_subset_f_lhscb_domain hu, 𝓟.C_interior_subset_Cplus hu⟩
+
+/-- The IRN setup's `φ` equals the combined LHSCB gradient on
+`C_interior`. -/
+theorem phi_eq_F_grad (u : H X Y) (_hu : u ∈ 𝓟.C_interior) :
+    𝓟.φ u = 𝓟.F_lhscb.grad u := by
+  show 𝓟.φ u = (𝓟.f_lhscb.add 𝓟.g_lhscb).grad u
+  rw [LHSCB.add_grad]
+  rfl
+
+/-- **Euler-type identity for `φ`** (Proposition 3):
+`⟨u, φ(u)⟩ = -(ν+1)` on `C_interior`. -/
+theorem inner_u_phi (u : H X Y) (hu : u ∈ 𝓟.C_interior) :
+    inner ℝ u (𝓟.φ u) = -((𝓟.ν : ℝ) + 1) := by
+  rw [𝓟.phi_eq_F_grad u hu,
+    𝓟.F_lhscb.euler u (𝓟.C_interior_subset_F_domain hu)]
+  push_cast
+  ring
+
+/-- **Monotonicity of `φ`** on `C_interior`. The gradient of a convex
+function is monotone; here `F = f + g` is convex. -/
+theorem phi_monotone (u : H X Y) (hu : u ∈ 𝓟.C_interior)
+    (v : H X Y) (hv : v ∈ 𝓟.C_interior) :
+    0 ≤ inner ℝ (u - v) (𝓟.φ u - 𝓟.φ v) := by
+  rw [𝓟.phi_eq_F_grad u hu, 𝓟.phi_eq_F_grad v hv]
+  exact 𝓟.F_lhscb.grad_monotone u (𝓟.C_interior_subset_F_domain hu) v
+    (𝓟.C_interior_subset_F_domain hv)
+
 end ProblemData
 
 end Irn
