@@ -311,10 +311,9 @@ theorem Q_eq {u : H X Y} (hu : u ∈ 𝓟.Cplus) :
         (𝓟.Px_bilinform (𝓟.x_proj u) (𝓟.x_proj u) / 𝓟.tau_proj u) • 𝓟.e_τ :=
   rfl
 
-/-- **Euler-type identity for `Q`.** `⟨u, Q(u)⟩ = 0` on `Cplus`. The
-matrix part contributes `Px(x, x)` (via `inner_u_M`) and the rational
-correction contributes `-(Px(x, x)/τ) · τ = -Px(x, x)`, which cancels. -/
-theorem inner_u_Q {u : H X Y} (hu : u ∈ 𝓟.Cplus) :
+/-- **Euler-type identity for `Q_apply`.** `⟨u, Q_apply(u, hu)⟩ = 0` on
+`Cplus`. -/
+theorem inner_u_Q_apply {u : H X Y} (hu : u ∈ 𝓟.Cplus) :
     inner ℝ u (𝓟.Q_apply u hu) = (0 : ℝ) := by
   have hτ : 0 < 𝓟.tau_proj u := 𝓟.tau_proj_pos hu
   have hτ_ne : 𝓟.tau_proj u ≠ 0 := ne_of_gt hτ
@@ -381,6 +380,14 @@ noncomputable def Q (𝓟 : ProblemData X Y) (u : H X Y) : H X Y :=
 defined). -/
 theorem Q_eq_Q_apply {u : H X Y} (hu : u ∈ 𝓟.Cplus) :
     𝓟.Q u = 𝓟.Q_apply u hu := rfl
+
+/-- **Euler-type identity for `Q`** (total form). `⟨u, Q(u)⟩ = 0` on
+`Cplus`: the matrix part contributes `Px(x, x)` (via `inner_u_M`) and
+the rational correction `-(Px(x, x)/τ) · τ = -Px(x, x)` cancels. -/
+theorem inner_u_Q {u : H X Y} (hu : u ∈ 𝓟.Cplus) :
+    inner ℝ u (𝓟.Q u) = (0 : ℝ) := by
+  rw [𝓟.Q_eq_Q_apply hu]
+  exact 𝓟.inner_u_Q_apply hu
 
 /-- **Totalised `φ`.** The barrier-gradient `φ = ∇f + ∇g` lifted to
 `H`, where `∇g(u) = (-1/tau_proj u) • e_τ` is the τ-component of the

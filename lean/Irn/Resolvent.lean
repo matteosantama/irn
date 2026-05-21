@@ -4,12 +4,12 @@
 Theorem 8 (closed-form resolvent of `Ψ = Q + μ ∂G*`) and the
 auxiliary maximal-monotone extension result (Lemma A.1).
 
-With the explicit embedding structure on `IrnSetup` (matrix `M`, unit
-`e_τ`, scalar functions `q`, `tau_proj`, bilinear form `Px_bilinform`,
+With the embedding structure on `ProblemData` (matrix `M_clm`, unit
+`e_τ`, scalar function `tau_proj`, bilinear form `Px_bilinform_clm`,
 and the linear equivalence `hessian_plus_M = H_k + M`), Theorem 8 is
 stated literally and proved *modulo* the discriminant analysis for the
-scalar quadratic — itself recorded as `exists_pos_root_quad` with a
-`sorry` proof.
+scalar quadratic — itself recorded as `exists_pos_root_quad` and
+fed by the Minty-existence sorry in `Irn.Analytic`.
 
 Paper references:
 * Theorem 8 (closed-form resolvent of `Ψ`)
@@ -23,11 +23,12 @@ namespace Irn
 
 open scoped InnerProductSpace
 
-namespace IrnSetup
+namespace ProblemData
 
-variable {H : Type*}
-  [NormedAddCommGroup H] [InnerProductSpace ℝ H] [FiniteDimensional ℝ H]
-  (𝓢 : IrnSetup H)
+variable {X Y : Type*}
+  [NormedAddCommGroup X] [InnerProductSpace ℝ X] [FiniteDimensional ℝ X]
+  [NormedAddCommGroup Y] [InnerProductSpace ℝ Y] [FiniteDimensional ℝ Y]
+  (𝓟 : ProblemData X Y)
 
 /-! ### The closed-form factor vectors
 
@@ -36,25 +37,25 @@ that appear in the closed-form formula `u = w_0 + θ w_1` of Theorem 8.
 -/
 
 /-- `w_0(μ, u_k, z) = (H_k + M)⁻¹ (H_k z)`. -/
-noncomputable def w0 (μ : ℝ) (u_k z : H) : H :=
-  (𝓢.hessian_plus_M μ u_k).symm (𝓢.hessian_h μ u_k z)
+noncomputable def w0 (μ : ℝ) (u_k z : H X Y) : H X Y :=
+  (𝓟.hessian_plus_M μ u_k).symm (𝓟.hessian_h μ u_k z)
 
 /-- `w_1(μ, u_k) = (H_k + M)⁻¹ e_τ`. -/
-noncomputable def w1 (μ : ℝ) (u_k : H) : H :=
-  (𝓢.hessian_plus_M μ u_k).symm 𝓢.e_τ
+noncomputable def w1 (μ : ℝ) (u_k : H X Y) : H X Y :=
+  (𝓟.hessian_plus_M μ u_k).symm 𝓟.e_τ
 
 /-- `(H_k + M) w_0 = H_k z`. -/
-theorem hessian_plus_M_w0 (μ : ℝ) (u_k z : H) :
-    (𝓢.hessian_plus_M μ u_k : H →L[ℝ] H) (𝓢.w0 μ u_k z) =
-      𝓢.hessian_h μ u_k z := by
+theorem hessian_plus_M_w0 (μ : ℝ) (u_k z : H X Y) :
+    (𝓟.hessian_plus_M μ u_k : H X Y →L[ℝ] H X Y) (𝓟.w0 μ u_k z) =
+      𝓟.hessian_h μ u_k z := by
   unfold w0
-  exact (𝓢.hessian_plus_M μ u_k).apply_symm_apply _
+  exact (𝓟.hessian_plus_M μ u_k).apply_symm_apply _
 
 /-- `(H_k + M) w_1 = e_τ`. -/
-theorem hessian_plus_M_w1 (μ : ℝ) (u_k : H) :
-    (𝓢.hessian_plus_M μ u_k : H →L[ℝ] H) (𝓢.w1 μ u_k) = 𝓢.e_τ := by
+theorem hessian_plus_M_w1 (μ : ℝ) (u_k : H X Y) :
+    (𝓟.hessian_plus_M μ u_k : H X Y →L[ℝ] H X Y) (𝓟.w1 μ u_k) = 𝓟.e_τ := by
   unfold w1
-  exact (𝓢.hessian_plus_M μ u_k).apply_symm_apply _
+  exact (𝓟.hessian_plus_M μ u_k).apply_symm_apply _
 
 /-! ### Scalar-quadratic coefficients
 
@@ -64,173 +65,178 @@ into the inclusion `θ τ = x⊤Px + μ`.
 -/
 
 /-- `α = w_1^τ - w_1^x⊤P w_1^x`. -/
-noncomputable def quad_α (μ : ℝ) (u_k : H) : ℝ :=
-  𝓢.tau_proj (𝓢.w1 μ u_k) - 𝓢.Px_bilinform (𝓢.w1 μ u_k) (𝓢.w1 μ u_k)
+noncomputable def quad_α (μ : ℝ) (u_k : H X Y) : ℝ :=
+  𝓟.tau_proj (𝓟.w1 μ u_k) -
+    𝓟.Px_bilinform_clm (𝓟.w1 μ u_k) (𝓟.w1 μ u_k)
 
 /-- `β = w_0^τ - 2 w_0^x⊤P w_1^x`. -/
-noncomputable def quad_β (μ : ℝ) (u_k z : H) : ℝ :=
-  𝓢.tau_proj (𝓢.w0 μ u_k z) -
-    2 * 𝓢.Px_bilinform (𝓢.w0 μ u_k z) (𝓢.w1 μ u_k)
+noncomputable def quad_β (μ : ℝ) (u_k z : H X Y) : ℝ :=
+  𝓟.tau_proj (𝓟.w0 μ u_k z) -
+    2 * 𝓟.Px_bilinform_clm (𝓟.w0 μ u_k z) (𝓟.w1 μ u_k)
 
 /-- `γ = -(w_0^x⊤P w_0^x + μ)`. -/
-noncomputable def quad_γ (μ : ℝ) (u_k z : H) : ℝ :=
-  - 𝓢.Px_bilinform (𝓢.w0 μ u_k z) (𝓢.w0 μ u_k z) - μ
+noncomputable def quad_γ (μ : ℝ) (u_k z : H X Y) : ℝ :=
+  - 𝓟.Px_bilinform_clm (𝓟.w0 μ u_k z) (𝓟.w0 μ u_k z) - μ
 
 /-! ### Auxiliary linearity / bilinearity lemmas. -/
 
 /-- Additivity of `tau_proj`. -/
-theorem tau_proj_add (u v : H) :
-    𝓢.tau_proj (u + v) = 𝓢.tau_proj u + 𝓢.tau_proj v := by
-  rw [← 𝓢.tau_proj_linear_eq, ← 𝓢.tau_proj_linear_eq, ← 𝓢.tau_proj_linear_eq,
-      map_add]
+theorem tau_proj_add (u v : H X Y) :
+    𝓟.tau_proj (u + v) = 𝓟.tau_proj u + 𝓟.tau_proj v := by
+  rw [← 𝓟.tau_proj_linear_apply, ← 𝓟.tau_proj_linear_apply,
+      ← 𝓟.tau_proj_linear_apply, map_add]
 
 /-- Scalar homogeneity of `tau_proj`. -/
-theorem tau_proj_smul (r : ℝ) (u : H) :
-    𝓢.tau_proj (r • u) = r * 𝓢.tau_proj u := by
-  rw [← 𝓢.tau_proj_linear_eq, ← 𝓢.tau_proj_linear_eq, map_smul, smul_eq_mul]
+theorem tau_proj_smul (r : ℝ) (u : H X Y) :
+    𝓟.tau_proj (r • u) = r * 𝓟.tau_proj u := by
+  rw [← 𝓟.tau_proj_linear_apply, ← 𝓟.tau_proj_linear_apply,
+      map_smul, smul_eq_mul]
 
-/-- Additivity of `Px_bilinform` in the first slot. -/
-theorem Px_bilinform_add_left (u v w : H) :
-    𝓢.Px_bilinform (u + v) w = 𝓢.Px_bilinform u w + 𝓢.Px_bilinform v w := by
+/-- Additivity of `Px_bilinform_clm` in the first slot. -/
+theorem Px_bilinform_clm_add_left (u v w : H X Y) :
+    𝓟.Px_bilinform_clm (u + v) w =
+      𝓟.Px_bilinform_clm u w + 𝓟.Px_bilinform_clm v w := by
   rw [map_add]; rfl
 
-/-- Scalar homogeneity of `Px_bilinform` in the first slot. -/
-theorem Px_bilinform_smul_left (r : ℝ) (u v : H) :
-    𝓢.Px_bilinform (r • u) v = r * 𝓢.Px_bilinform u v := by
+/-- Scalar homogeneity of `Px_bilinform_clm` in the first slot. -/
+theorem Px_bilinform_clm_smul_left (r : ℝ) (u v : H X Y) :
+    𝓟.Px_bilinform_clm (r • u) v = r * 𝓟.Px_bilinform_clm u v := by
   rw [map_smul]; rfl
 
-/-- Additivity of `Px_bilinform` in the second slot. -/
-theorem Px_bilinform_add_right (u v w : H) :
-    𝓢.Px_bilinform u (v + w) = 𝓢.Px_bilinform u v + 𝓢.Px_bilinform u w :=
-  map_add (𝓢.Px_bilinform u) v w
+/-- Additivity of `Px_bilinform_clm` in the second slot. -/
+theorem Px_bilinform_clm_add_right (u v w : H X Y) :
+    𝓟.Px_bilinform_clm u (v + w) =
+      𝓟.Px_bilinform_clm u v + 𝓟.Px_bilinform_clm u w :=
+  map_add (𝓟.Px_bilinform_clm u) v w
 
-/-- Scalar homogeneity of `Px_bilinform` in the second slot. -/
-theorem Px_bilinform_smul_right (r : ℝ) (u v : H) :
-    𝓢.Px_bilinform u (r • v) = r * 𝓢.Px_bilinform u v := by
+/-- Scalar homogeneity of `Px_bilinform_clm` in the second slot. -/
+theorem Px_bilinform_clm_smul_right (r : ℝ) (u v : H X Y) :
+    𝓟.Px_bilinform_clm u (r • v) = r * 𝓟.Px_bilinform_clm u v := by
   rw [map_smul]; rfl
 
-end IrnSetup
+/-- `Px_bilinform_clm` is symmetric (lifted from `Px_bilinform_symm`). -/
+theorem Px_bilinform_clm_symm (u v : H X Y) :
+    𝓟.Px_bilinform_clm u v = 𝓟.Px_bilinform_clm v u := by
+  rw [𝓟.Px_bilinform_clm_apply, 𝓟.Px_bilinform_clm_apply]
+  exact 𝓟.Px_bilinform_symm _ _
 
 /-! ### Theorem 8 and Lemma A.1. -/
 
-variable {H : Type*}
-  [NormedAddCommGroup H] [InnerProductSpace ℝ H] [FiniteDimensional ℝ H]
-  (𝓢 : IrnSetup H)
-
 /-- **Existence of a positive root of the scalar quadratic.**
 
-Built from `resolvent_exists` (the Minty-existence axiom on
-`IrnSetup`). Given `(u, θ)` from the axiom, the unique-inverse property
-of `hessian_plus_M` forces `u = w_0 + θ • w_1`. The scalar relation
-`θ · tau_proj u = B_P(u, u) + μ` then expands via linearity /
+Built from `resolvent_exists` (the Minty-existence sorry in
+`Irn.Analytic`). Given `(u, θ)` from the existence, the unique-inverse
+property of `hessian_plus_M` forces `u = w_0 + θ • w_1`. The scalar
+relation `θ · tau_proj u = B_P(u, u) + μ` then expands via linearity /
 bilinearity into the quadratic `α θ² + β θ + γ = 0`. -/
-theorem exists_pos_root_quad (μ : ℝ) (hμ : 0 < μ) (u_k z : H) :
+theorem exists_pos_root_quad (μ : ℝ) (hμ : 0 < μ) (u_k z : H X Y) :
     ∃ θ : ℝ, 0 < θ ∧
-      𝓢.quad_α μ u_k * θ ^ 2 +
-        𝓢.quad_β μ u_k z * θ + 𝓢.quad_γ μ u_k z = 0 ∧
-      0 < 𝓢.tau_proj (𝓢.w0 μ u_k z + θ • 𝓢.w1 μ u_k) := by
+      𝓟.quad_α μ u_k * θ ^ 2 +
+        𝓟.quad_β μ u_k z * θ + 𝓟.quad_γ μ u_k z = 0 ∧
+      0 < 𝓟.tau_proj (𝓟.w0 μ u_k z + θ • 𝓟.w1 μ u_k) := by
   obtain ⟨u, hu_Cplus, θ, hθ_pos, h_eq, h_scalar⟩ :=
-    𝓢.resolvent_exists μ u_k z hμ
+    𝓟.resolvent_exists μ u_k z hμ
   -- Step 1: u = w_0 + θ • w_1, from the augmented equation.
-  have h_u_decomp : u = 𝓢.w0 μ u_k z + θ • 𝓢.w1 μ u_k := by
-    -- Convert (H_k + M) u to (hessian_plus_M μ u_k) u via hessian_plus_M_eq.
-    have h_apply : (𝓢.hessian_plus_M μ u_k : H →L[ℝ] H) u =
-                    𝓢.hessian_h μ u_k z + θ • 𝓢.e_τ := by
-      have hsum : 𝓢.hessian_h μ u_k u + 𝓢.M u =
-                  𝓢.hessian_h μ u_k z + θ • 𝓢.e_τ := by
+  have h_u_decomp : u = 𝓟.w0 μ u_k z + θ • 𝓟.w1 μ u_k := by
+    have h_apply :
+        (𝓟.hessian_plus_M μ u_k : H X Y →L[ℝ] H X Y) u =
+          𝓟.hessian_h μ u_k z + θ • 𝓟.e_τ := by
+      have hsum : 𝓟.hessian_h μ u_k u + 𝓟.M_clm u =
+                  𝓟.hessian_h μ u_k z + θ • 𝓟.e_τ := by
         have := h_eq
         simpa [ContinuousLinearMap.add_apply] using this
-      rw [𝓢.hessian_plus_M_eq]
+      rw [𝓟.hessian_plus_M_eq]
       exact hsum
-    -- Invert via .symm_apply_apply, then expand by linearity of .symm.
-    have h_u : u = (𝓢.hessian_plus_M μ u_k).symm
-                    (𝓢.hessian_h μ u_k z + θ • 𝓢.e_τ) := by
+    have h_u : u = (𝓟.hessian_plus_M μ u_k).symm
+                    (𝓟.hessian_h μ u_k z + θ • 𝓟.e_τ) := by
       rw [← h_apply]
-      exact ((𝓢.hessian_plus_M μ u_k).symm_apply_apply u).symm
+      exact ((𝓟.hessian_plus_M μ u_k).symm_apply_apply u).symm
     rw [h_u, map_add, map_smul]
     rfl
   -- Step 2: tau_proj (w_0 + θ • w_1) > 0 from u ∈ Cplus.
-  have h_tau_pos : 0 < 𝓢.tau_proj (𝓢.w0 μ u_k z + θ • 𝓢.w1 μ u_k) := by
+  have h_tau_pos : 0 < 𝓟.tau_proj (𝓟.w0 μ u_k z + θ • 𝓟.w1 μ u_k) := by
     rw [← h_u_decomp]
-    exact 𝓢.tau_proj_pos u hu_Cplus
+    exact 𝓟.tau_proj_pos hu_Cplus
   -- Step 3: Quadratic identity. Substitute u and expand.
-  have h_quad : 𝓢.quad_α μ u_k * θ ^ 2 +
-                𝓢.quad_β μ u_k z * θ + 𝓢.quad_γ μ u_k z = 0 := by
-    have h_scalar' : θ * 𝓢.tau_proj (𝓢.w0 μ u_k z + θ • 𝓢.w1 μ u_k) =
-        𝓢.Px_bilinform (𝓢.w0 μ u_k z + θ • 𝓢.w1 μ u_k)
-          (𝓢.w0 μ u_k z + θ • 𝓢.w1 μ u_k) + μ := by
+  have h_quad : 𝓟.quad_α μ u_k * θ ^ 2 +
+                𝓟.quad_β μ u_k z * θ + 𝓟.quad_γ μ u_k z = 0 := by
+    have h_scalar' :
+        θ * 𝓟.tau_proj (𝓟.w0 μ u_k z + θ • 𝓟.w1 μ u_k) =
+        𝓟.Px_bilinform_clm (𝓟.w0 μ u_k z + θ • 𝓟.w1 μ u_k)
+          (𝓟.w0 μ u_k z + θ • 𝓟.w1 μ u_k) + μ := by
       rw [← h_u_decomp]; exact h_scalar
-    rw [𝓢.tau_proj_add, 𝓢.tau_proj_smul,
-        𝓢.Px_bilinform_add_left, 𝓢.Px_bilinform_smul_left,
-        𝓢.Px_bilinform_add_right, 𝓢.Px_bilinform_smul_right,
-        𝓢.Px_bilinform_add_right, 𝓢.Px_bilinform_smul_right] at h_scalar'
-    have h_sym : 𝓢.Px_bilinform (𝓢.w1 μ u_k) (𝓢.w0 μ u_k z) =
-                  𝓢.Px_bilinform (𝓢.w0 μ u_k z) (𝓢.w1 μ u_k) := 𝓢.Px_symm _ _
+    rw [𝓟.tau_proj_add, 𝓟.tau_proj_smul,
+        𝓟.Px_bilinform_clm_add_left, 𝓟.Px_bilinform_clm_smul_left,
+        𝓟.Px_bilinform_clm_add_right, 𝓟.Px_bilinform_clm_smul_right,
+        𝓟.Px_bilinform_clm_add_right, 𝓟.Px_bilinform_clm_smul_right] at h_scalar'
+    have h_sym : 𝓟.Px_bilinform_clm (𝓟.w1 μ u_k) (𝓟.w0 μ u_k z) =
+                  𝓟.Px_bilinform_clm (𝓟.w0 μ u_k z) (𝓟.w1 μ u_k) :=
+      𝓟.Px_bilinform_clm_symm _ _
     rw [h_sym] at h_scalar'
-    unfold IrnSetup.quad_α IrnSetup.quad_β IrnSetup.quad_γ
+    unfold quad_α quad_β quad_γ
     linarith [h_scalar']
   exact ⟨θ, hθ_pos, h_quad, h_tau_pos⟩
 
 /-- **Theorem 8 (Closed-form resolvent of `Ψ`).** With `H_k = hessian_h μ u_k`,
 the resolvent value `u = J_Ψ^{H_k}(z)` lies in `Cplus` and is the unique
 pair `(u, θ)` with `θ > 0` satisfying
-`(H_k + M) u = H_k z + θ • e_τ` and `θ · tau_proj u = B_P(u, u) + μ`
-(the inclusion form of `θ τ = x⊤Px + μ`).
-
-Proof: take `θ` from `exists_pos_root_quad` and `u := w_0 + θ w_1`.
-The closed-form equation is purely linear-algebraic; the scalar
-equation follows from the quadratic identity expanded via bilinearity
-of `Px_bilinform` and linearity of `tau_proj`. -/
+`(H_k + M) u = H_k z + θ • e_τ` and `θ · tau_proj u = B_P(u, u) + μ`. -/
 theorem resolvent_closed_form
-    (μ : ℝ) (hμ : 0 < μ) (u_k z : H) :
-    ∃ u : H, ∃ θ : ℝ,
-      u ∈ 𝓢.Cplus ∧
+    (μ : ℝ) (hμ : 0 < μ) (u_k z : H X Y) :
+    ∃ u : H X Y, ∃ θ : ℝ,
+      u ∈ 𝓟.Cplus ∧
       0 < θ ∧
-      (𝓢.hessian_h μ u_k + 𝓢.M) u =
-        (𝓢.hessian_h μ u_k) z + θ • 𝓢.e_τ ∧
-      θ * 𝓢.tau_proj u = 𝓢.Px_bilinform u u + μ := by
+      (𝓟.hessian_h μ u_k + 𝓟.M_clm) u =
+        (𝓟.hessian_h μ u_k) z + θ • 𝓟.e_τ ∧
+      θ * 𝓟.tau_proj u = 𝓟.Px_bilinform_clm u u + μ := by
   obtain ⟨θ, hθ_pos, h_quad, h_tau_pos⟩ :=
-    exists_pos_root_quad 𝓢 μ hμ u_k z
-  refine ⟨𝓢.w0 μ u_k z + θ • 𝓢.w1 μ u_k, θ, ?_, hθ_pos, ?_, ?_⟩
+    𝓟.exists_pos_root_quad μ hμ u_k z
+  refine ⟨𝓟.w0 μ u_k z + θ • 𝓟.w1 μ u_k, θ, ?_, hθ_pos, ?_, ?_⟩
   -- (1) u ∈ Cplus.
-  · exact 𝓢.Cplus_of_tau_proj_pos _ h_tau_pos
+  · exact 𝓟.Cplus_of_tau_proj_pos h_tau_pos
   -- (2) (H_k + M) u = H_k z + θ • e_τ.
-  · have h_app_w0 : (𝓢.hessian_h μ u_k + 𝓢.M) (𝓢.w0 μ u_k z) =
-        𝓢.hessian_h μ u_k z := by
-      have h_eq := 𝓢.hessian_plus_M_eq μ u_k (𝓢.w0 μ u_k z)
-      have h_apply := 𝓢.hessian_plus_M_w0 μ u_k z
-      simp [ContinuousLinearMap.add_apply, h_apply, ← h_eq]
-    have h_app_w1 : (𝓢.hessian_h μ u_k + 𝓢.M) (𝓢.w1 μ u_k) = 𝓢.e_τ := by
-      have h_eq := 𝓢.hessian_plus_M_eq μ u_k (𝓢.w1 μ u_k)
-      have h_apply := 𝓢.hessian_plus_M_w1 μ u_k
-      simp [ContinuousLinearMap.add_apply, h_apply, ← h_eq]
-    calc (𝓢.hessian_h μ u_k + 𝓢.M) (𝓢.w0 μ u_k z + θ • 𝓢.w1 μ u_k)
-        = (𝓢.hessian_h μ u_k + 𝓢.M) (𝓢.w0 μ u_k z) +
-            (𝓢.hessian_h μ u_k + 𝓢.M) (θ • 𝓢.w1 μ u_k) := by rw [map_add]
-      _ = (𝓢.hessian_h μ u_k + 𝓢.M) (𝓢.w0 μ u_k z) +
-            θ • (𝓢.hessian_h μ u_k + 𝓢.M) (𝓢.w1 μ u_k) := by rw [map_smul]
-      _ = 𝓢.hessian_h μ u_k z + θ • 𝓢.e_τ := by rw [h_app_w0, h_app_w1]
+  · have h_app_w0 :
+        (𝓟.hessian_h μ u_k + 𝓟.M_clm) (𝓟.w0 μ u_k z) =
+          𝓟.hessian_h μ u_k z := by
+      have h_eq := 𝓟.hessian_plus_M_eq μ u_k (𝓟.w0 μ u_k z)
+      have h_apply := 𝓟.hessian_plus_M_w0 μ u_k z
+      rw [ContinuousLinearMap.add_apply, ← h_eq]; exact h_apply
+    have h_app_w1 :
+        (𝓟.hessian_h μ u_k + 𝓟.M_clm) (𝓟.w1 μ u_k) = 𝓟.e_τ := by
+      have h_eq := 𝓟.hessian_plus_M_eq μ u_k (𝓟.w1 μ u_k)
+      have h_apply := 𝓟.hessian_plus_M_w1 μ u_k
+      rw [ContinuousLinearMap.add_apply, ← h_eq]; exact h_apply
+    calc (𝓟.hessian_h μ u_k + 𝓟.M_clm) (𝓟.w0 μ u_k z + θ • 𝓟.w1 μ u_k)
+        = (𝓟.hessian_h μ u_k + 𝓟.M_clm) (𝓟.w0 μ u_k z) +
+            (𝓟.hessian_h μ u_k + 𝓟.M_clm) (θ • 𝓟.w1 μ u_k) := by rw [map_add]
+      _ = (𝓟.hessian_h μ u_k + 𝓟.M_clm) (𝓟.w0 μ u_k z) +
+            θ • (𝓟.hessian_h μ u_k + 𝓟.M_clm) (𝓟.w1 μ u_k) := by rw [map_smul]
+      _ = 𝓟.hessian_h μ u_k z + θ • 𝓟.e_τ := by rw [h_app_w0, h_app_w1]
   -- (3) θ · tau_proj u = B_P(u, u) + μ.
-  · set T0 := 𝓢.tau_proj (𝓢.w0 μ u_k z)
-    set T1 := 𝓢.tau_proj (𝓢.w1 μ u_k)
-    set S0 := 𝓢.Px_bilinform (𝓢.w0 μ u_k z) (𝓢.w0 μ u_k z)
-    set S01 := 𝓢.Px_bilinform (𝓢.w0 μ u_k z) (𝓢.w1 μ u_k)
-    set S1 := 𝓢.Px_bilinform (𝓢.w1 μ u_k) (𝓢.w1 μ u_k)
-    have h_tau_u : 𝓢.tau_proj (𝓢.w0 μ u_k z + θ • 𝓢.w1 μ u_k) = T0 + θ * T1 := by
-      rw [𝓢.tau_proj_add, 𝓢.tau_proj_smul]
-    have h_Px_u : 𝓢.Px_bilinform (𝓢.w0 μ u_k z + θ • 𝓢.w1 μ u_k)
-                    (𝓢.w0 μ u_k z + θ • 𝓢.w1 μ u_k) =
-                  S0 + 2 * θ * S01 + θ ^ 2 * S1 := by
-      rw [𝓢.Px_bilinform_add_left, 𝓢.Px_bilinform_smul_left,
-          𝓢.Px_bilinform_add_right, 𝓢.Px_bilinform_smul_right,
-          𝓢.Px_bilinform_add_right, 𝓢.Px_bilinform_smul_right]
-      have h_sym : 𝓢.Px_bilinform (𝓢.w1 μ u_k) (𝓢.w0 μ u_k z) = S01 :=
-        𝓢.Px_symm _ _
+  · set T0 := 𝓟.tau_proj (𝓟.w0 μ u_k z)
+    set T1 := 𝓟.tau_proj (𝓟.w1 μ u_k)
+    set S0 := 𝓟.Px_bilinform_clm (𝓟.w0 μ u_k z) (𝓟.w0 μ u_k z)
+    set S01 := 𝓟.Px_bilinform_clm (𝓟.w0 μ u_k z) (𝓟.w1 μ u_k)
+    set S1 := 𝓟.Px_bilinform_clm (𝓟.w1 μ u_k) (𝓟.w1 μ u_k)
+    have h_tau_u : 𝓟.tau_proj (𝓟.w0 μ u_k z + θ • 𝓟.w1 μ u_k) =
+        T0 + θ * T1 := by
+      rw [𝓟.tau_proj_add, 𝓟.tau_proj_smul]
+    have h_Px_u :
+        𝓟.Px_bilinform_clm (𝓟.w0 μ u_k z + θ • 𝓟.w1 μ u_k)
+            (𝓟.w0 μ u_k z + θ • 𝓟.w1 μ u_k) =
+          S0 + 2 * θ * S01 + θ ^ 2 * S1 := by
+      rw [𝓟.Px_bilinform_clm_add_left, 𝓟.Px_bilinform_clm_smul_left,
+          𝓟.Px_bilinform_clm_add_right, 𝓟.Px_bilinform_clm_smul_right,
+          𝓟.Px_bilinform_clm_add_right, 𝓟.Px_bilinform_clm_smul_right]
+      have h_sym : 𝓟.Px_bilinform_clm (𝓟.w1 μ u_k) (𝓟.w0 μ u_k z) = S01 :=
+        𝓟.Px_bilinform_clm_symm _ _
       rw [h_sym]
       ring
     rw [h_tau_u, h_Px_u]
-    unfold IrnSetup.quad_α IrnSetup.quad_β IrnSetup.quad_γ at h_quad
+    unfold quad_α quad_β quad_γ at h_quad
     linarith [h_quad]
+
+end ProblemData
 
 /-- **Lemma A.1 (Maximal monotone extension).** A continuous monotone
 single-valued operator on an open convex set extends to a maximally
@@ -238,6 +244,7 @@ monotone operator on the ambient Hilbert space. Stating this
 meaningfully requires defining maximally monotone (set-valued)
 operators in Mathlib first, which is left as future work. -/
 theorem exists_maximal_monotone_extension
+    {H : Type*} [NormedAddCommGroup H] [InnerProductSpace ℝ H]
     {H₀ : Set H} (_hH₀_open : IsOpen H₀) (_hH₀_convex : Convex ℝ H₀)
     (Q : H → H) (_hQ_cont : ContinuousOn Q H₀)
     (_hQ_mono : ∀ u ∈ H₀, ∀ v ∈ H₀, 0 ≤ inner ℝ (u - v) (Q u - Q v)) :
