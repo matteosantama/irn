@@ -645,12 +645,95 @@ noncomputable def g_lhscb : LHSCB (H X Y) 𝓢.K_g_lifted 1 where
       simpa using this
     exact ((h_log.comp u h_tau).neg).contDiffWithinAt
   self_concordant := by
-    -- For `-log t` on `t > 0`: `D²(-log) = 1/t²`, `D³(-log) = -2/t³`,
-    -- so `(D³)² = 4/t⁶ = 4·(1/t²)³` — the SC bound holds with
-    -- equality. Lifting through the CLM `tau_proj` requires the
-    -- iteratedFDeriv chain rule for linear maps. Deferred.
-    intro x _hx h
-    sorry
+    -- Strategy: apply `LHSCB.self_concordant_comp_right_clm` to reduce
+    -- to the 1D SC bound for `-Real.log` on `Ioi 0` (the base case,
+    -- proven below as `neg_log_self_concordant`), then lift along
+    -- `tau_proj_linear`.
+    have h_contDiff : ContDiffOn ℝ 3 (fun y : ℝ => -Real.log y) (Set.Ioi 0) := by
+      intro y hy
+      have h_log : ContDiffAt ℝ 3 Real.log y :=
+        Real.contDiffAt_log.mpr (ne_of_gt hy)
+      exact h_log.neg.contDiffWithinAt
+    have h_sc_log : ∀ τ ∈ Set.Ioi (0 : ℝ), ∀ s : ℝ,
+        (iteratedFDerivWithin ℝ 3 (fun y : ℝ => -Real.log y)
+            (Set.Ioi 0) τ (fun _ => s)) ^ 2 ≤
+          4 * (iteratedFDerivWithin ℝ 2 (fun y : ℝ => -Real.log y)
+            (Set.Ioi 0) τ (fun _ => s)) ^ 3 := by
+      -- 1D SC for `-log` on `Ioi 0`. Holds with EQUALITY:
+      -- D²(-log)(τ) = 1/τ², D³(-log)(τ) = -2/τ³, so (D³)² = 4/τ⁶ = 4(D²)³.
+      intro τ hτ_pos s
+      have hτ : (0 : ℝ) < τ := hτ_pos
+      have hτ_ne : τ ≠ 0 := ne_of_gt hτ
+      have hτ2_ne : τ ^ 2 ≠ 0 := pow_ne_zero _ hτ_ne
+      -- Step 1: Reduce iteratedFDerivWithin to iteratedDeriv via 1D formula.
+      have h_within2 : iteratedDerivWithin 2 (fun y : ℝ => -Real.log y)
+            (Set.Ioi 0) τ = iteratedDeriv 2 (fun y : ℝ => -Real.log y) τ :=
+        iteratedDerivWithin_of_isOpen isOpen_Ioi hτ_pos
+      have h_within3 : iteratedDerivWithin 3 (fun y : ℝ => -Real.log y)
+            (Set.Ioi 0) τ = iteratedDeriv 3 (fun y : ℝ => -Real.log y) τ :=
+        iteratedDerivWithin_of_isOpen isOpen_Ioi hτ_pos
+      have h_eq2 : iteratedFDerivWithin ℝ 2 (fun y : ℝ => -Real.log y)
+            (Set.Ioi 0) τ (fun _ => s) = s ^ 2 * iteratedDeriv 2
+            (fun y : ℝ => -Real.log y) τ := by
+        rw [iteratedFDerivWithin_apply_eq_iteratedDerivWithin_mul_prod, h_within2]
+        simp [Finset.prod_const, smul_eq_mul]
+      have h_eq3 : iteratedFDerivWithin ℝ 3 (fun y : ℝ => -Real.log y)
+            (Set.Ioi 0) τ (fun _ => s) = s ^ 3 * iteratedDeriv 3
+            (fun y : ℝ => -Real.log y) τ := by
+        rw [iteratedFDerivWithin_apply_eq_iteratedDerivWithin_mul_prod, h_within3]
+        simp [Finset.prod_const, smul_eq_mul]
+      -- Step 2: Compute iteratedDeriv 2 and 3 of (-log) at τ.
+      -- iteratedDeriv 2 (-log) y = (y^2)⁻¹ for ALL y (including y=0 where both sides are 0).
+      have h_iD2_fn : iteratedDeriv 2 (fun y : ℝ => -Real.log y) =
+            fun y => (y ^ 2)⁻¹ := by
+        have h_deriv1_fn : (deriv fun y : ℝ => -Real.log y) =
+            fun y => -y⁻¹ := by
+          funext y
+          show deriv (-Real.log) y = -y⁻¹
+          rw [deriv.neg, Real.deriv_log]
+        funext y
+        rw [show (2 : ℕ) = 1 + 1 from rfl, iteratedDeriv_succ, iteratedDeriv_one,
+            h_deriv1_fn]
+        show deriv (fun y' : ℝ => -y'⁻¹) y = (y ^ 2)⁻¹
+        rw [show (fun y' : ℝ => -y'⁻¹) = -fun y' : ℝ => y'⁻¹ from rfl,
+            deriv.neg, deriv_inv]
+        ring
+      have h_iD2 : iteratedDeriv 2 (fun y : ℝ => -Real.log y) τ = (τ ^ 2)⁻¹ := by
+        rw [h_iD2_fn]
+      have h_iD3 : iteratedDeriv 3 (fun y : ℝ => -Real.log y) τ = -2 / τ ^ 3 := by
+        rw [show (3 : ℕ) = 2 + 1 from rfl, iteratedDeriv_succ, h_iD2_fn]
+        -- Goal: deriv (fun y => (y^2)⁻¹) τ = -2/τ^3
+        have h_pow : HasDerivAt (fun y : ℝ => y ^ 2) (2 * τ) τ := by
+          have := (hasDerivAt_id τ).pow 2
+          simpa using this
+        have h_inv_pow : HasDerivAt (fun y : ℝ => y ^ 2)⁻¹
+            (-(2 * τ) / (τ ^ 2) ^ 2) τ := h_pow.inv hτ2_ne
+        have h_eq_fn : (fun y : ℝ => y ^ 2)⁻¹ = fun y : ℝ => (y ^ 2)⁻¹ := rfl
+        rw [h_eq_fn] at h_inv_pow
+        have h_simp : -(2 * τ) / (τ ^ 2) ^ 2 = -2 / τ ^ 3 := by
+          field_simp
+        rw [← h_simp]
+        exact h_inv_pow.deriv
+      -- Step 3: Substitute and verify the SC bound (equality).
+      rw [h_eq2, h_eq3, h_iD2, h_iD3]
+      -- Goal: (s^3 * (-2/τ^3))^2 ≤ 4 * (s^2 * (τ^2)⁻¹)^3
+      have h_lhs : (s ^ 3 * (-2 / τ ^ 3)) ^ 2 = 4 * s ^ 6 / τ ^ 6 := by
+        field_simp
+        ring
+      have h_rhs : 4 * (s ^ 2 * (τ ^ 2)⁻¹) ^ 3 = 4 * s ^ 6 / τ ^ 6 := by
+        field_simp
+      rw [h_lhs, h_rhs]
+    have key := LHSCB.self_concordant_comp_right_clm
+      (s := Set.Ioi (0 : ℝ))
+      isOpen_Ioi h_contDiff h_sc_log
+      (IrnSetup.tau_proj_linear : H X Y →L[ℝ] ℝ)
+    -- `interior K_g_lifted = Cplus = tau_proj_linear ⁻¹' (Ioi 0)`.
+    intro x hx h
+    rw [𝓢.interior_K_g_lifted] at hx
+    have hx' : x ∈ (IrnSetup.tau_proj_linear : H X Y →L[ℝ] ℝ) ⁻¹' Set.Ioi 0 := hx
+    have := key x hx' h
+    rw [𝓢.interior_K_g_lifted]
+    exact this
   log_homog := by
     intros u hu t ht
     rw [𝓢.interior_K_g_lifted] at hu
