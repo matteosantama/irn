@@ -61,12 +61,38 @@ theorem hessianBilin_self_nonneg (u : H X Y) (hu : u ∈ 𝓢.C_interior)
   have hu' : u ∈ interior (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted) :=
     𝓢.C_interior_subset_F_interior hu
   have := 𝓢.F_lhscb.self_concordant_hessian_nonneg u hu' v
-  -- Identify `![v, v]` with `fun _ : Fin 2 => v`.
   show 0 ≤ iteratedFDerivWithin ℝ 2 𝓢.F_lhscb.f
     (interior (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted)) u ![v, v]
   convert this using 2
   funext i
   fin_cases i <;> rfl
+
+/-- **Hessian-times-self identity** for `hessianBilin`. On `C_interior`,
+`hessianBilin u u h = -⟨h, φ u⟩`. Derived from
+`LHSCB.hessian_fderiv_apply_self_inner` for `F_lhscb` by translating
+through `iteratedFDeriv_two_apply` (on the open `interior`). -/
+theorem hessianBilin_apply_self (u : H X Y) (hu : u ∈ 𝓢.C_interior)
+    (h : H X Y) : 𝓢.hessianBilin u u h = -inner ℝ h (𝓢.φ u) := by
+  have hu' : u ∈ interior (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted) :=
+    𝓢.C_interior_subset_F_interior hu
+  show iteratedFDerivWithin ℝ 2 𝓢.F_lhscb.f
+    (interior (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted)) u ![u, h] = -inner ℝ h (𝓢.φ u)
+  have h_eq : iteratedFDerivWithin ℝ 2 𝓢.F_lhscb.f
+        (interior (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted)) u =
+      iteratedFDeriv ℝ 2 𝓢.F_lhscb.f u :=
+    iteratedFDerivWithin_of_isOpen 2 isOpen_interior hu'
+  rw [h_eq, iteratedFDeriv_two_apply]
+  show (fderiv ℝ (fderiv ℝ 𝓢.F_lhscb.f) u) u h = -inner ℝ h (𝓢.φ u)
+  rw [𝓢.F_lhscb.hessian_fderiv_apply_self_inner u hu' h,
+      ← 𝓢.phi_eq_F_grad u hu]
+
+/-- `hessianBilin u u u = ν + 1` on `C_interior`. Follows from
+`hessianBilin_apply_self` at `h = u` and the Euler identity
+`⟨u, φ u⟩ = -(ν + 1)` (which is `inner_u_phi`). -/
+theorem hessianBilin_self_self (u : H X Y) (hu : u ∈ 𝓢.C_interior) :
+    𝓢.hessianBilin u u u = (𝓢.ν : ℝ) + 1 := by
+  rw [𝓢.hessianBilin_apply_self u hu u, 𝓢.inner_u_phi u hu]
+  ring
 
 /-- The `W`-quadratic form `⟨v, W(u) v⟩ = ‖v‖² + ∇²F^*(u)(v, v)`,
 where `W(u) = I + ∇²F^*(u)`. Always `≥ ‖v‖²` since the Hessian is PSD. -/
