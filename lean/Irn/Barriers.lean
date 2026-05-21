@@ -45,7 +45,9 @@ Paper references:
 import Mathlib.Analysis.Calculus.ContDiff.Basic
 import Mathlib.Analysis.Calculus.ContDiff.FTaylorSeries
 import Mathlib.Analysis.Calculus.ContDiff.Operations
+import Mathlib.Analysis.Calculus.FDeriv.Symmetric
 import Mathlib.Analysis.InnerProductSpace.Basic
+import Mathlib.Analysis.InnerProductSpace.Calculus
 import Mathlib.Analysis.InnerProductSpace.Dual
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import Mathlib.Analysis.SpecialFunctions.Log.Deriv
@@ -302,6 +304,25 @@ theorem euler {K : Set V} {ν : ℕ} (f : LHSCB V K ν) :
     show inner ℝ ((InnerProductSpace.toDual ℝ V).symm (fderiv ℝ f.f u)) u = _
     rw [InnerProductSpace.toDual_symm_apply]
   rw [real_inner_comm, h_riesz, h_eq]
+
+/-- **Hessian-times-self identity** (differentiated Euler). On `int K`,
+`(fderiv ∇f x) x = -∇f x`, equivalently `∇²f(x) x = -∇f(x)` in
+operator form. Obtained by differentiating the Euler identity
+`⟨y, ∇f(y)⟩ = -ν` once more, using Hessian symmetry. This is the
+load-bearing identity for the `‖∇f‖²_{(∇²f)⁻¹} = ν` LHSCB bound.
+
+Currently sorried — proof outline: from `f.euler`, the function
+`y ↦ ⟨y, ∇f(y)⟩` is locally constant `-ν` on `int K`, hence
+`fderiv` at `x` is `0`. By `HasFDerivAt.inner` plus the chain rule
+through `∇f = (toDual).symm ∘ fderiv f.f`, the derivative at `h` is
+`⟨h, ∇f(x)⟩ + ⟨x, (fderiv ∇f x) h⟩`. Use `second_derivative_symmetric`
+to swap `⟨x, (fderiv ∇f x) h⟩` to `⟨(fderiv ∇f x) x, h⟩`. Setting the
+sum to zero for all `h` and applying `inner_self_eq_zero` gives the
+vector identity. -/
+theorem hessian_apply_self {K : Set V} {ν : ℕ} (f : LHSCB V K ν) :
+    ∀ x ∈ interior K, (fderiv ℝ f.grad x) x = -f.grad x := by
+  intro x _hx
+  sorry
 
 /-- **Hessian non-negativity from SC bound.** The squared SC bound
 forces `D²f(x)[h,h] ≥ 0` (the cube of a negative is negative, but
