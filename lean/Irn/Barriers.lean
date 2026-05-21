@@ -48,6 +48,7 @@ import Mathlib.Analysis.Calculus.ContDiff.Operations
 import Mathlib.Analysis.InnerProductSpace.Basic
 import Mathlib.Analysis.InnerProductSpace.Dual
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
+import Mathlib.Analysis.SpecialFunctions.Log.Deriv
 
 namespace Irn
 
@@ -159,14 +160,62 @@ def IsStrict {K : Set V} {ν : ℕ} (f : LHSCB V K ν) : Prop :=
 
 /-- **Euler identity** (theorem). `⟨u, ∇f(u)⟩ = -ν` follows from
 `log_homog` by differentiating `f(t · u) = f(u) - ν · log t` at
-`t = 1`. The chain rule for `fun t => f(t · u)` gives a derivative
-`⟨u, ∇f(u)⟩` at `t = 1`; the RHS derivative is `-ν · (1/t) = -ν`.
-
-Currently sorried. -/
+`t = 1`. -/
 theorem euler {K : Set V} {ν : ℕ} (f : LHSCB V K ν) :
     ∀ u ∈ interior K, inner ℝ u (f.grad u) = -(ν : ℝ) := by
-  intro u _hu
-  sorry
+  intro u hu
+  -- `f.f` is differentiable at `u`.
+  have h_diff_f : DifferentiableAt ℝ f.f u :=
+    (f.contDiff.differentiableOn (by norm_num)).differentiableAt
+      (isOpen_interior.mem_nhds hu)
+  -- Chain rule: `g(t) := f.f(t • u)` has derivative `(fderiv f.f u) u` at t = 1.
+  let L : ℝ →L[ℝ] V := (1 : ℝ →L[ℝ] ℝ).smulRight u
+  have h_L_smul : HasFDerivAt (fun t : ℝ => t • u) L 1 := L.hasFDerivAt
+  have h_f_at_u : HasFDerivAt f.f (fderiv ℝ f.f u) ((1 : ℝ) • u) := by
+    rw [one_smul]; exact h_diff_f.hasFDerivAt
+  have h_chain : HasDerivAt (fun t : ℝ => f.f (t • u))
+      ((fderiv ℝ f.f u) u) 1 := by
+    have h_comp : HasFDerivAt (fun t : ℝ => f.f (t • u))
+        ((fderiv ℝ f.f u).comp L) 1 := h_f_at_u.comp 1 h_L_smul
+    have := h_comp.hasDerivAt
+    convert this using 1
+    show (fderiv ℝ f.f u) u =
+      ((fderiv ℝ f.f u).comp L) 1
+    rw [ContinuousLinearMap.comp_apply]
+    show (fderiv ℝ f.f u) u = (fderiv ℝ f.f u) (L 1)
+    congr 1
+    show u = ((1 : ℝ →L[ℝ] ℝ).smulRight u) 1
+    rw [ContinuousLinearMap.smulRight_apply]
+    simp
+  -- Other direction: `h(t) := f.f u - ν log t` has derivative `-ν` at t = 1.
+  have h_explicit : HasDerivAt (fun t : ℝ => f.f u - (ν : ℝ) * Real.log t)
+      (-(ν : ℝ)) 1 := by
+    have h_log : HasDerivAt Real.log (1 : ℝ)⁻¹ 1 :=
+      Real.hasDerivAt_log one_ne_zero
+    have h_neg_log : HasDerivAt (fun t : ℝ => -((ν : ℝ) * Real.log t))
+        (-((ν : ℝ) * (1 : ℝ)⁻¹)) 1 := (h_log.const_mul (ν : ℝ)).neg
+    have h_add : HasDerivAt (fun t : ℝ => f.f u + -((ν : ℝ) * Real.log t))
+        (-((ν : ℝ) * (1 : ℝ)⁻¹)) 1 := h_neg_log.const_add (f.f u)
+    have heq : (fun t : ℝ => f.f u + -((ν : ℝ) * Real.log t))
+        = (fun t : ℝ => f.f u - (ν : ℝ) * Real.log t) := by
+      funext t; ring
+    have hsimp : -((ν : ℝ) * (1 : ℝ)⁻¹) = -(ν : ℝ) := by simp
+    rw [heq, hsimp] at h_add
+    exact h_add
+  -- The two functions agree on a neighborhood of 1 (where t > 0) via log_homog.
+  have h_g_deriv : HasDerivAt (fun t : ℝ => f.f (t • u)) (-(ν : ℝ)) 1 := by
+    apply h_explicit.congr_of_eventuallyEq
+    have h_nhds : Set.Ioi (0 : ℝ) ∈ nhds (1 : ℝ) :=
+      Ioi_mem_nhds (by norm_num : (0 : ℝ) < 1)
+    filter_upwards [h_nhds] with t ht
+    exact f.log_homog u hu t ht
+  -- Uniqueness of HasDerivAt gives `(fderiv f.f u) u = -ν`.
+  have h_eq : (fderiv ℝ f.f u) u = -(ν : ℝ) := h_chain.unique h_g_deriv
+  -- Riesz: `⟨f.grad u, u⟩ = (fderiv f.f u) u`.
+  have h_riesz : inner ℝ (f.grad u) u = (fderiv ℝ f.f u) u := by
+    show inner ℝ ((InnerProductSpace.toDual ℝ V).symm (fderiv ℝ f.f u)) u = _
+    rw [InnerProductSpace.toDual_symm_apply]
+  rw [real_inner_comm, h_riesz, h_eq]
 
 /-- **Gradient monotonicity** (theorem). Follows from
 `self_concordant` via positivity of `D²f` (forced by the squared SC
