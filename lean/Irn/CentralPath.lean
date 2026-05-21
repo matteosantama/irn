@@ -53,14 +53,13 @@ theorem centralPath_norm_sq {μ : ℝ} (hμ : 0 < μ) {u : H X Y}
       real_inner_self_eq_norm_sq] at key
   nlinarith [key, hμ]
 
-/-- `T_μ` is strictly monotone on `C_interior` for `μ > 0`. This is the
-key monotonicity fact: `T_μ = Q + μ•id + μ•φ`, where `Q` is monotone
-(`Q_monotone`), `μ•id` is strictly monotone (`μ > 0`), and `μ•φ` is
-monotone (`phi_monotone`). The sum (mono + strict + mono) is strictly
-monotone. -/
-theorem T_strictMonotoneOn (μ : ℝ) (hμ : 0 < μ) :
-    IsStrictMonotoneOn (𝓢.T μ) 𝓢.C_interior := by
-  intro u hu v hv huv
+/-- `T_μ` is **strongly monotone** on `C_interior` with constant `μ`:
+`μ ‖u-v‖² ≤ ⟨u-v, T_μ u - T_μ v⟩`. This is the quantitative form of
+the strict monotonicity below, used by the Minty-style existence
+theorem `exists_unique_zero_of_stronglyMonotone_C1_coercive`. -/
+theorem T_stronglyMonotoneOn (μ : ℝ) (hμ : 0 < μ) :
+    IsStronglyMonotoneOn (𝓢.T μ) 𝓢.C_interior μ := by
+  intro u hu v hv
   have h_expand : 𝓢.T μ u - 𝓢.T μ v =
       (𝓢.Q u - 𝓢.Q v) + μ • (u - v) + μ • (𝓢.φ u - 𝓢.φ v) := by
     unfold T; rw [smul_sub, smul_sub]; abel
@@ -69,13 +68,15 @@ theorem T_strictMonotoneOn (μ : ℝ) (hμ : 0 < μ) :
   have h_Q := 𝓢.Q_monotone u (𝓢.C_interior_subset_Cplus hu) v
     (𝓢.C_interior_subset_Cplus hv)
   have h_phi := 𝓢.phi_monotone u hu v hv
-  have h_norm_pos : 0 < ‖u - v‖ ^ 2 := by
-    have : 0 < ‖u - v‖ := norm_pos_iff.mpr (sub_ne_zero.mpr huv)
-    positivity
-  have h_mu_norm : 0 < μ * ‖u - v‖ ^ 2 := mul_pos hμ h_norm_pos
   have h_mu_phi : 0 ≤ μ * inner ℝ (u - v) (𝓢.φ u - 𝓢.φ v) :=
     mul_nonneg hμ.le h_phi
   linarith
+
+/-- `T_μ` is strictly monotone on `C_interior` for `μ > 0`. Follows from
+strong monotonicity (with constant `μ > 0`). -/
+theorem T_strictMonotoneOn (μ : ℝ) (hμ : 0 < μ) :
+    IsStrictMonotoneOn (𝓢.T μ) 𝓢.C_interior :=
+  (𝓢.T_stronglyMonotoneOn μ hμ).isStrictMonotoneOn hμ
 
 /-- **Uniqueness of the central-path point.** Two central-path points
 at the same `μ > 0` are equal. Immediate from strict monotonicity of
@@ -455,16 +456,30 @@ theorem T_coercive (μ : ℝ) (hμ : 0 < μ) :
       refine h_sum.congr ?_; intro u; ring
     exact Filter.tendsto_atTop_mono' _ h_eventually_le h_diff_atTop
 
+/-- `T_μ` is `C¹` on `C_interior`. This is the regularity hypothesis
+needed by the corrected Minty-style existence theorem
+`exists_unique_zero_of_stronglyMonotone_C1_coercive`, which uses the
+inverse function theorem to show that the image of `T_μ` is open.
+
+**Currently sorried** — follows from the joint-smoothness chain of
+`f_lhscb_grad_contDiffOn`, `phi_contDiffAt`, etc., specialised to
+degree `1` (downgrading from `𝓢.d - 1 ≥ 2`). -/
+theorem T_contDiffOn1 (μ : ℝ) : ContDiffOn ℝ 1 (𝓢.T μ) 𝓢.C_interior := sorry
+
 /-- **Theorem 5 (Existence and uniqueness).** For every `μ > 0` there
-is a unique central-path point. Existence by Minty's theorem applied to
-`T_μ` (strictly monotone, continuous, boundary-coercive on the open
-convex `C_interior`); uniqueness from strict monotonicity. -/
+is a unique central-path point. Existence by the corrected Minty-style
+theorem `exists_unique_zero_of_stronglyMonotone_C1_coercive` applied to
+`T_μ` (continuous, strongly monotone with constant `μ`, `C¹`, boundary-
+coercive on the open convex `C_interior`). -/
 theorem exists_unique_centralPath (μ : ℝ) (hμ : 0 < μ) :
     ∃! u : H X Y, 𝓢.IsCentralPathPoint μ u := by
   obtain ⟨u, ⟨hu_C, hu_T⟩, _⟩ :=
-    exists_unique_zero_of_strict_monotone_continuous_coercive
+    exists_unique_zero_of_stronglyMonotone_C1_coercive
       𝓢.C_interior_isOpen 𝓢.C_interior_convex 𝓢.C_interior_nonempty
-      (𝓢.T_continuousOn μ) (𝓢.T_strictMonotoneOn μ hμ) (𝓢.T_coercive μ hμ)
+      (𝓢.T_continuousOn μ) hμ
+      (𝓢.T_stronglyMonotoneOn μ hμ)
+      (𝓢.T_contDiffOn1 μ)
+      (𝓢.T_coercive μ hμ)
   exact ⟨u, ⟨hu_C, hu_T⟩, fun y hy => 𝓢.unique_centralPath μ hμ hy ⟨hu_C, hu_T⟩⟩
 
 /-- The (well-defined, for `μ > 0`) central-path point at level `μ`. -/
