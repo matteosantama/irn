@@ -1,37 +1,39 @@
 /-
-# Analytic content of the IRN method (stubbed with `sorry`)
+# Analytic content of the IRN method
 
-The structural data of an IRN setup — the cones, the KKT operator `Q`,
-the barrier-gradient `φ`, the embedding map `M`, the bilinear form
-`Px_bilinform`, the τ-projection, etc. — are all derivable from a
-`IrnSetup` (see `Irn.Setting`). This file declares the
-remaining ingredients (the `W(u)⁻¹` dual norm, the Hessian
-preconditioner, the Riemannian Josephy–Newton corrector and Lagrange
-multiplier, Minty's resolvent existence, and the two
-Newton–Kantorovich basins) as `sorry`-stubbed `def`s / `theorem`s in
-the `IrnSetup` namespace, so that the `toIrnSetup` bridge in
-`Irn.Bridge` only needs a `IrnSetup` as input (no separate analytic
-hypothesis bundle).
+Beyond the structural data already built in `Irn.Setting` (the cones,
+`Q`, `φ`, `M`, `Px_bilinform`, τ-projection), this file develops the
+analytic machinery needed by the path-following analysis:
 
-Each `sorry` below corresponds to a paper-level claim that is either:
+* `hessianBilin` — the Hessian bilinear form of `F_lhscb`, with
+  symmetry, bilinearity, PSD Cauchy–Schwarz, and the Hessian-times-self
+  identity translating Euler to the Hessian.
+* `normWinv`, `normWinv_sq` — the `W(u)⁻¹` dual norm via the
+  variational sup characterisation, with triangle, smul, and the
+  `‖φ(u)‖_{W⁻¹} ≤ √(ν+1)` bound of paper §3.2.
+* `W_op`, `hess_op`, `hessian_h`, `hessian_plus_M`, `hessian_h_equiv` —
+  the Hessian preconditioner and its sum with `M`, packaged as
+  continuous linear equivalences (positive-definite ⇒ invertible in
+  finite dimensions).
+* `resolvent_exists` — Minty for `H_k + Ψ` via the scalar quadratic
+  `α θ² + β θ + γ = 0` with `α > 0`, `γ < 0` (intermediate value
+  theorem).
+* `rjnStep`, `rjnLambda` — the Riemannian Josephy–Newton corrector
+  (paper eq. (5.3) with `λ_k = 0`) and the sphere-constraint Lagrange
+  multiplier.
 
-* part of standard LHSCB / monotone-operator / Newton–Kantorovich
-  theory (resolvent existence, Hessian-norm contraction, Euclidean
-  basin), or
-* a fact about the IRN dual norm `‖·‖_{W(u)⁻¹}` (which is built from
-  `W = I + ∇²F*`, requiring Hessian machinery we do not yet formalise).
-
-Filling these in is the substantive future work of the formalisation;
-the structural derivations (eg. `inner_u_M`, `Px_quad_form_psd`,
-`inner_u_Q`) are already proven `sorry`-free.
+A handful of paper-level results (the two Newton–Kantorovich basins,
+`rjnStep` invariance on the sphere/`C_interior`, the
+fixed-point property at central-path points) remain as `sorry`s —
+these depend on Hessian-norm machinery beyond the current scope.
 
 Paper references:
 * §3.2 (a posteriori error bound) — `normWinv_phi_bound`
 * §5.2, eq. (5.3) — `rjnStep`, `rjnLambda`
 * §5.4, Proposition 11 — `rjnLambda_at_central`,
   `rjnLambda_continuousAt_central`
-* §5.5, Theorem 12 — `rjnStep_euclidean_basin`
-* §6.3, Lemma 15 — `rjnStep_delta_contraction`
+* §5.5, Theorem 12 — `rjnStep_euclidean_basin` (sorry)
+* §6.3, Lemma 15 — `rjnStep_delta_contraction` (sorry)
 * Appendix — `resolvent_exists` (Minty's theorem for `H_k + Ψ`)
 -/
 
@@ -114,31 +116,25 @@ theorem hessianBilin_add_left (u : H X Y) (hu : u ∈ 𝓢.C_interior)
     (v₁ v₂ w : H X Y) :
     𝓢.hessianBilin u (v₁ + v₂) w =
       𝓢.hessianBilin u v₁ w + 𝓢.hessianBilin u v₂ w := by
-  rw [𝓢.hessianBilin_eq_fderiv u hu, 𝓢.hessianBilin_eq_fderiv u hu,
-      𝓢.hessianBilin_eq_fderiv u hu]
-  rw [map_add]
-  rfl
+  simp only [𝓢.hessianBilin_eq_fderiv u hu, map_add,
+    ContinuousLinearMap.add_apply]
 
 theorem hessianBilin_smul_left (u : H X Y) (hu : u ∈ 𝓢.C_interior)
     (r : ℝ) (v w : H X Y) :
     𝓢.hessianBilin u (r • v) w = r * 𝓢.hessianBilin u v w := by
-  rw [𝓢.hessianBilin_eq_fderiv u hu, 𝓢.hessianBilin_eq_fderiv u hu]
-  rw [map_smul]
-  rfl
+  simp only [𝓢.hessianBilin_eq_fderiv u hu, map_smul,
+    ContinuousLinearMap.smul_apply, smul_eq_mul]
 
 theorem hessianBilin_add_right (u : H X Y) (hu : u ∈ 𝓢.C_interior)
     (v w₁ w₂ : H X Y) :
     𝓢.hessianBilin u v (w₁ + w₂) =
       𝓢.hessianBilin u v w₁ + 𝓢.hessianBilin u v w₂ := by
-  rw [𝓢.hessianBilin_eq_fderiv u hu, 𝓢.hessianBilin_eq_fderiv u hu,
-      𝓢.hessianBilin_eq_fderiv u hu]
-  exact ContinuousLinearMap.map_add _ _ _
+  simp only [𝓢.hessianBilin_eq_fderiv u hu, map_add]
 
 theorem hessianBilin_smul_right (u : H X Y) (hu : u ∈ 𝓢.C_interior)
     (r : ℝ) (v w : H X Y) :
     𝓢.hessianBilin u v (r • w) = r * 𝓢.hessianBilin u v w := by
-  rw [𝓢.hessianBilin_eq_fderiv u hu, 𝓢.hessianBilin_eq_fderiv u hu]
-  exact ContinuousLinearMap.map_smul _ _ _
+  simp only [𝓢.hessianBilin_eq_fderiv u hu, map_smul, smul_eq_mul]
 
 /-- `hessianBilin u · ·` is symmetric: a consequence of
 `second_derivative_symmetric_of_eventually` for `F_lhscb.f`. -/
@@ -275,7 +271,7 @@ theorem normWinv_ratio_le_norm_sq (u : H X Y) (hu : u ∈ 𝓢.C_interior)
     have heq : 𝓢.W_quad u w = 0 := le_antisymm hw h0
     rw [heq, div_zero]
     exact sq_nonneg _
-  · push_neg at hw
+  · replace hw : 0 < 𝓢.W_quad u w := not_le.mp hw
     rw [div_le_iff₀ hw]
     -- (⟨v, w⟩)² ≤ ‖v‖² * W_quad u w
     have hCS : (inner ℝ v w) ^ 2 ≤ ‖v‖ ^ 2 * ‖w‖ ^ 2 := by
@@ -764,29 +760,16 @@ theorem resolvent_exists : ∀ μ : ℝ, ∀ u_k z : H X Y, 0 < μ →
     -- Expand τ(u) and Bₚ(u,u) using linearity, get quadratic = 0
     have h_tau : 𝓢.tau_proj u = 𝓢.tau_proj w₀ + θ * 𝓢.tau_proj w₁ := by
       show 𝓢.tau_proj (w₀ + θ • w₁) = _
-      rw [← 𝓢.tau_proj_linear_apply, ← 𝓢.tau_proj_linear_apply w₀,
-          ← 𝓢.tau_proj_linear_apply w₁, map_add, map_smul, smul_eq_mul]
+      rw [𝓢.tau_proj_add, 𝓢.tau_proj_smul]
     have h_Px : 𝓢.Px_bilinform_clm u u =
         𝓢.Px_bilinform_clm w₀ w₀ + 2 * θ * 𝓢.Px_bilinform_clm w₀ w₁ +
         θ ^ 2 * 𝓢.Px_bilinform_clm w₁ w₁ := by
-      -- Expand using bilinearity: Px_bilinform_clm is a CLM in each slot
       show 𝓢.Px_bilinform_clm (w₀ + θ • w₁) (w₀ + θ • w₁) = _
-      have add_l : ∀ a b c, 𝓢.Px_bilinform_clm (a + b) c =
-          𝓢.Px_bilinform_clm a c + 𝓢.Px_bilinform_clm b c :=
-        fun a b c => by rw [map_add]; rfl
-      have smul_l : ∀ r a b, 𝓢.Px_bilinform_clm (r • a) b =
-          r * 𝓢.Px_bilinform_clm a b :=
-        fun r a b => by rw [map_smul]; rfl
-      have add_r : ∀ a b c, 𝓢.Px_bilinform_clm a (b + c) =
-          𝓢.Px_bilinform_clm a b + 𝓢.Px_bilinform_clm a c :=
-        fun a b c => map_add (𝓢.Px_bilinform_clm a) b c
-      have smul_r : ∀ r a b, 𝓢.Px_bilinform_clm a (r • b) =
-          r * 𝓢.Px_bilinform_clm a b :=
-        fun r a b => by rw [map_smul]; rfl
-      simp only [add_l, smul_l, add_r, smul_r]
-      have h_sym : 𝓢.Px_bilinform_clm w₁ w₀ = 𝓢.Px_bilinform_clm w₀ w₁ :=
-        𝓢.Px_bilinform_symm _ _
-      nlinarith [h_sym]
+      rw [𝓢.Px_bilinform_clm_add_left, 𝓢.Px_bilinform_clm_smul_left,
+          𝓢.Px_bilinform_clm_add_right, 𝓢.Px_bilinform_clm_smul_right,
+          𝓢.Px_bilinform_clm_add_right, 𝓢.Px_bilinform_clm_smul_right,
+          𝓢.Px_bilinform_clm_symm w₁ w₀]
+      ring
     -- θ * τ(u) - Bₚ(u,u) - μ = α θ² + β θ + γ = 0
     nlinarith [hθ_root]
   -- u ∈ Cplus: τ(u) > 0 from θ > 0 and θ·τ(u) = Bₚ(u,u) + μ > 0

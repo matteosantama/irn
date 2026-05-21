@@ -234,6 +234,46 @@ noncomputable def Px_bilinform_clm (𝓢 : IrnSetup X Y) :
 @[simp] theorem Px_bilinform_clm_apply (𝓢 : IrnSetup X Y) (u v : H X Y) :
     𝓢.Px_bilinform_clm u v = 𝓢.Px_bilinform (𝓢.x_proj u) (𝓢.x_proj v) := rfl
 
+/-- Additivity of `tau_proj`. -/
+theorem tau_proj_add (u v : H X Y) :
+    𝓢.tau_proj (u + v) = 𝓢.tau_proj u + 𝓢.tau_proj v := by
+  rw [← 𝓢.tau_proj_linear_apply, ← 𝓢.tau_proj_linear_apply,
+      ← 𝓢.tau_proj_linear_apply, map_add]
+
+/-- Scalar homogeneity of `tau_proj`. -/
+theorem tau_proj_smul (r : ℝ) (u : H X Y) :
+    𝓢.tau_proj (r • u) = r * 𝓢.tau_proj u := by
+  rw [← 𝓢.tau_proj_linear_apply, ← 𝓢.tau_proj_linear_apply,
+      map_smul, smul_eq_mul]
+
+/-- Additivity of `Px_bilinform_clm` in the first slot. -/
+theorem Px_bilinform_clm_add_left (u v w : H X Y) :
+    𝓢.Px_bilinform_clm (u + v) w =
+      𝓢.Px_bilinform_clm u w + 𝓢.Px_bilinform_clm v w := by
+  rw [map_add]; rfl
+
+/-- Scalar homogeneity of `Px_bilinform_clm` in the first slot. -/
+theorem Px_bilinform_clm_smul_left (r : ℝ) (u v : H X Y) :
+    𝓢.Px_bilinform_clm (r • u) v = r * 𝓢.Px_bilinform_clm u v := by
+  rw [map_smul]; rfl
+
+/-- Additivity of `Px_bilinform_clm` in the second slot. -/
+theorem Px_bilinform_clm_add_right (u v w : H X Y) :
+    𝓢.Px_bilinform_clm u (v + w) =
+      𝓢.Px_bilinform_clm u v + 𝓢.Px_bilinform_clm u w :=
+  map_add (𝓢.Px_bilinform_clm u) v w
+
+/-- Scalar homogeneity of `Px_bilinform_clm` in the second slot. -/
+theorem Px_bilinform_clm_smul_right (r : ℝ) (u v : H X Y) :
+    𝓢.Px_bilinform_clm u (r • v) = r * 𝓢.Px_bilinform_clm u v := by
+  rw [map_smul]; rfl
+
+/-- `Px_bilinform_clm` is symmetric (lifted from `Px_bilinform_symm`). -/
+theorem Px_bilinform_clm_symm (u v : H X Y) :
+    𝓢.Px_bilinform_clm u v = 𝓢.Px_bilinform_clm v u := by
+  rw [𝓢.Px_bilinform_clm_apply, 𝓢.Px_bilinform_clm_apply]
+  exact 𝓢.Px_bilinform_symm _ _
+
 /-- The block-matrix KKT operator `M : H → H` from the homogeneous
 embedding eq. (2.4):
 $$ M(x, y, \tau) = \big(\, Px + A^\top y + c\,\tau,\;\; -A x + b\,\tau,
@@ -305,30 +345,22 @@ theorem inner_u_M (u : H X Y) :
 /-- The KKT operator `Q : H → H` from eq. (2.4):
 $$ Q(u) = M u - \frac{1}{\tau}\!\big(0,\,0,\,x^\top P x\big)
         = M u - \big(Px_{\mathrm{bilinform}}(x, x) / \tau\big) \cdot e_\tau. $$
-Defined only on `Cplus` (the `τ > 0` region) because the rational
-correction `Px(x, x)/τ` is undefined at `τ = 0`. The `hu : u ∈ Cplus`
-hypothesis is taken explicitly. -/
-noncomputable def Q_apply (𝓢 : IrnSetup X Y) (u : H X Y)
-    (_hu : u ∈ 𝓢.Cplus) : H X Y :=
+Only meaningful on `Cplus` (`τ > 0`) — outside, the rational correction
+`Px(x, x)/τ` is `0` by Lean's division-by-zero convention. Total so it
+can be used without threading a `Cplus` hypothesis through the API. -/
+noncomputable def Q (𝓢 : IrnSetup X Y) (u : H X Y) : H X Y :=
   𝓢.M_apply u -
     (𝓢.Px_bilinform (𝓢.x_proj u) (𝓢.x_proj u) / 𝓢.tau_proj u) • 𝓢.e_τ
 
-/-- **The `Q_eq` decomposition** — `Q u = M u - (Px(x,x)/τ) • e_τ` — is
-the definition itself. -/
-theorem Q_eq {u : H X Y} (hu : u ∈ 𝓢.Cplus) :
-    𝓢.Q_apply u hu =
-      𝓢.M_apply u -
-        (𝓢.Px_bilinform (𝓢.x_proj u) (𝓢.x_proj u) / 𝓢.tau_proj u) • 𝓢.e_τ :=
-  rfl
-
-/-- **Euler-type identity for `Q_apply`.** `⟨u, Q_apply(u, hu)⟩ = 0` on
-`Cplus`. -/
-theorem inner_u_Q_apply {u : H X Y} (hu : u ∈ 𝓢.Cplus) :
-    inner ℝ u (𝓢.Q_apply u hu) = (0 : ℝ) := by
-  have hτ : 0 < 𝓢.tau_proj u := 𝓢.tau_proj_pos hu
-  have hτ_ne : 𝓢.tau_proj u ≠ 0 := ne_of_gt hτ
-  rw [𝓢.Q_eq hu, inner_sub_right, real_inner_smul_right,
-      𝓢.inner_u_M, 𝓢.inner_u_e_tau]
+/-- **Euler-type identity for `Q`.** `⟨u, Q u⟩ = 0` on `Cplus`: the
+matrix part contributes `Px(x, x)` (via `inner_u_M`) and the rational
+correction `-(Px(x, x)/τ) · τ = -Px(x, x)` cancels. -/
+theorem inner_u_Q {u : H X Y} (hu : u ∈ 𝓢.Cplus) :
+    inner ℝ u (𝓢.Q u) = (0 : ℝ) := by
+  have hτ_ne : 𝓢.tau_proj u ≠ 0 := ne_of_gt (𝓢.tau_proj_pos hu)
+  show inner ℝ u (𝓢.M_apply u -
+      (𝓢.Px_bilinform (𝓢.x_proj u) (𝓢.x_proj u) / 𝓢.tau_proj u) • 𝓢.e_τ) = 0
+  rw [inner_sub_right, real_inner_smul_right, 𝓢.inner_u_M, 𝓢.inner_u_e_tau]
   field_simp
   ring
 
@@ -460,27 +492,6 @@ noncomputable def f_lhscb : LHSCB (H X Y) 𝓢.K_f_lifted 𝓢.ν 𝓢.d where
       filter_upwards [self_mem_nhdsWithin] with u hu
       exact hu
     exact (𝓢.fBarrier.barrier (𝓢.y_proj x) h_yp_frontier).comp h_yp_tendsto
-
-/-- **Totalised `Q`.** A version of `Q_apply` extended to all of `H`
-(using Lean's division-by-zero-is-zero convention outside `Cplus`).
-Only meaningful on `Cplus`; provided for compatibility with
-`IrnSetup.Q : H → H` (which is a total function). -/
-noncomputable def Q (𝓢 : IrnSetup X Y) (u : H X Y) : H X Y :=
-  𝓢.M_apply u -
-    (𝓢.Px_bilinform (𝓢.x_proj u) (𝓢.x_proj u) / 𝓢.tau_proj u) • 𝓢.e_τ
-
-/-- `Q` agrees with `Q_apply` on `Cplus` (where Q is mathematically
-defined). -/
-theorem Q_eq_Q_apply {u : H X Y} (hu : u ∈ 𝓢.Cplus) :
-    𝓢.Q u = 𝓢.Q_apply u hu := rfl
-
-/-- **Euler-type identity for `Q`** (total form). `⟨u, Q(u)⟩ = 0` on
-`Cplus`: the matrix part contributes `Px(x, x)` (via `inner_u_M`) and
-the rational correction `-(Px(x, x)/τ) · τ = -Px(x, x)` cancels. -/
-theorem inner_u_Q {u : H X Y} (hu : u ∈ 𝓢.Cplus) :
-    inner ℝ u (𝓢.Q u) = (0 : ℝ) := by
-  rw [𝓢.Q_eq_Q_apply hu]
-  exact 𝓢.inner_u_Q_apply hu
 
 /-- **Totalised `φ`.** The barrier-gradient `φ = ∇f + ∇g` lifted to
 `H`, where `∇g(u) = (-1/tau_proj u) • e_τ` is the τ-component of the

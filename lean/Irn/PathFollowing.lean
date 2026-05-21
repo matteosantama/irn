@@ -270,7 +270,7 @@ theorem hessian_quadratic_contraction :
 
 /-- **Theorem 16 (Polynomial complexity).** -/
 theorem polynomial_complexity :
-    ∃ α : ℝ, ∃ β : ℝ, ∃ N : ℕ,
+    ∃ α : ℝ, ∃ β : ℝ,
       0 < α ∧ α < 1 ∧ 0 < β ∧ β < 1 ∧
       ∀ {μ₀ : ℝ}, 0 < μ₀ →
         ∀ {u₀ : H X Y}, u₀ ∈ 𝓢.sphere → u₀ ∈ 𝓢.C_interior →
@@ -295,7 +295,7 @@ theorem polynomial_complexity :
     rw [hα_def, div_le_div_iff₀ h_denom_pos (by norm_num : (0 : ℝ) < 72)]
     nlinarith [h_ρ_lt, h_K_ge]
   have hα_lt_1 : α < 1 := by linarith
-  refine ⟨α, α, 1, hα_pos, hα_lt_1, hα_pos, hα_lt_1, ?_⟩
+  refine ⟨α, α, hα_pos, hα_lt_1, hα_pos, hα_lt_1, ?_⟩
   set s : ℝ := Real.sqrt ((𝓢.ν : ℝ) + 1) with hs_def
   have hs_pos : 0 < s := 𝓢.r_pos
   have hs_ge_1 : 1 ≤ s := by

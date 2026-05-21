@@ -87,48 +87,6 @@ noncomputable def quad_γ (μ : ℝ) (hμ : 0 < μ) (u_k : H X Y)
     (hu_k : u_k ∈ 𝓢.C_interior) (z : H X Y) : ℝ :=
   - 𝓢.Px_bilinform_clm (𝓢.w0 μ hμ u_k hu_k z) (𝓢.w0 μ hμ u_k hu_k z) - μ
 
-/-! ### Auxiliary linearity / bilinearity lemmas. -/
-
-/-- Additivity of `tau_proj`. -/
-theorem tau_proj_add (u v : H X Y) :
-    𝓢.tau_proj (u + v) = 𝓢.tau_proj u + 𝓢.tau_proj v := by
-  rw [← 𝓢.tau_proj_linear_apply, ← 𝓢.tau_proj_linear_apply,
-      ← 𝓢.tau_proj_linear_apply, map_add]
-
-/-- Scalar homogeneity of `tau_proj`. -/
-theorem tau_proj_smul (r : ℝ) (u : H X Y) :
-    𝓢.tau_proj (r • u) = r * 𝓢.tau_proj u := by
-  rw [← 𝓢.tau_proj_linear_apply, ← 𝓢.tau_proj_linear_apply,
-      map_smul, smul_eq_mul]
-
-/-- Additivity of `Px_bilinform_clm` in the first slot. -/
-theorem Px_bilinform_clm_add_left (u v w : H X Y) :
-    𝓢.Px_bilinform_clm (u + v) w =
-      𝓢.Px_bilinform_clm u w + 𝓢.Px_bilinform_clm v w := by
-  rw [map_add]; rfl
-
-/-- Scalar homogeneity of `Px_bilinform_clm` in the first slot. -/
-theorem Px_bilinform_clm_smul_left (r : ℝ) (u v : H X Y) :
-    𝓢.Px_bilinform_clm (r • u) v = r * 𝓢.Px_bilinform_clm u v := by
-  rw [map_smul]; rfl
-
-/-- Additivity of `Px_bilinform_clm` in the second slot. -/
-theorem Px_bilinform_clm_add_right (u v w : H X Y) :
-    𝓢.Px_bilinform_clm u (v + w) =
-      𝓢.Px_bilinform_clm u v + 𝓢.Px_bilinform_clm u w :=
-  map_add (𝓢.Px_bilinform_clm u) v w
-
-/-- Scalar homogeneity of `Px_bilinform_clm` in the second slot. -/
-theorem Px_bilinform_clm_smul_right (r : ℝ) (u v : H X Y) :
-    𝓢.Px_bilinform_clm u (r • v) = r * 𝓢.Px_bilinform_clm u v := by
-  rw [map_smul]; rfl
-
-/-- `Px_bilinform_clm` is symmetric (lifted from `Px_bilinform_symm`). -/
-theorem Px_bilinform_clm_symm (u v : H X Y) :
-    𝓢.Px_bilinform_clm u v = 𝓢.Px_bilinform_clm v u := by
-  rw [𝓢.Px_bilinform_clm_apply, 𝓢.Px_bilinform_clm_apply]
-  exact 𝓢.Px_bilinform_symm _ _
-
 /-! ### Theorem 8 and Lemma A.1. -/
 
 /-- **Existence of a positive root of the scalar quadratic.**

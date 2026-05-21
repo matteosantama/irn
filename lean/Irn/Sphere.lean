@@ -20,8 +20,7 @@ open scoped InnerProductSpace
 
 section Projector
 
-variable {H : Type*}
-  [NormedAddCommGroup H] [InnerProductSpace ℝ H] [FiniteDimensional ℝ H]
+variable {H : Type*} [NormedAddCommGroup H] [InnerProductSpace ℝ H]
 
 /-- The orthogonal projector onto `u^⊥` in `H` (the tangent space to
 the sphere through `u`, when `u ≠ 0`).  We use the totalised formula

@@ -22,10 +22,14 @@ Required fields:
 Derived:
 
 * `grad` — `(toDual ℝ V).symm (fderiv ℝ f x)`;
-* `euler` — `⟨u, ∇f(u)⟩ = -ν` (theorem from `log_homog`, currently
-  sorried);
-* `grad_monotone` — convexity in gradient form (theorem from
-  `self_concordant`, currently sorried).
+* `euler` — `⟨u, ∇f(u)⟩ = -ν`, proven from `log_homog` by differentiating
+  `f(t · u) = f(u) - ν · log t` at `t = 1`;
+* `grad_monotone` — convexity in gradient form, proven from
+  `self_concordant_hessian_nonneg` via monotonicity of the Hessian
+  quadratic form along the segment `v + t(u - v)`;
+* `grad_inequality` — first-order convexity inequality
+  `f(v) ≥ f(u) + ⟨∇f(u), v - u⟩`;
+* `grad_norm_tendsto_atTop` — `‖∇f(u)‖ → ∞` at the boundary of `K`.
 
 Other API:
 
@@ -33,6 +37,8 @@ Other API:
   is a `(ν₁+ν₂)`-LHSCB on `K₁ ∩ K₂`. Uses `interior_inter`.
 * `LHSCB.add_grad` — derived gradient of the sum equals the sum of
   derived gradients (via `fderiv.add` + Riesz linearity).
+* `LHSCB.hessian_fderiv_apply_self` — `(∇²f x) x = -∇f x` (and its
+  inner-product variant).
 * `LHSCB.IsStrict` — separate predicate for strict convexity on
   `int(K)` (lifted barriers do not satisfy this).
 
@@ -103,6 +109,7 @@ noncomputable def grad {K : Set V} {ν : ℕ} {d : ℕ∞} (f : LHSCB V K ν d) 
     V → V :=
   fun x => (InnerProductSpace.toDual ℝ V).symm (fderiv ℝ f.f x)
 
+omit [CompleteSpace V] in
 /-- `f` is `C^3` on `int(K)`: downgrade `f.contDiff` (which gives
 `C^d`) using `f.hd_ge : 3 ≤ d`. -/
 theorem contDiff₃ {K : Set V} {ν : ℕ} {d : ℕ∞} (f : LHSCB V K ν d) :
@@ -164,6 +171,7 @@ lemma self_concordant_comp_right_clm
   rw [h2_eq, h3_eq]
   exact hf_sc (L x) hLxs (L h)
 
+omit [CompleteSpace V] in
 /-- **Hessian non-negativity from SC bound.** The squared SC bound
 forces `D²f(x)[h,h] ≥ 0` (the cube of a negative is negative, but
 the LHS is a square). -/
@@ -173,7 +181,8 @@ lemma self_concordant_hessian_nonneg {K : Set V} {ν : ℕ} {d : ℕ∞}
       0 ≤ iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => h) := by
   intro x hx h
   by_contra hneg
-  push_neg at hneg
+  replace hneg : iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => h) < 0 :=
+    not_le.mp hneg
   have hsc := f.self_concordant x hx h
   have h_cube : (iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => h)) ^ 3 < 0 :=
     Odd.pow_neg (by decide : Odd 3) hneg
@@ -789,9 +798,9 @@ theorem grad_norm_tendsto_atTop {K : Set V} {ν : ℕ} {d : ℕ∞}
         mul_le_mul_of_nonneg_left h_norm_le h_norm_grad_nn
       have h_total : f.f u - f.f u₀ ≤ ‖f.grad u‖ * C := by linarith
       exact (div_le_iff₀ hC_pos).mpr h_total
-    · push_neg at h_pos
-      have : (f.f u - f.f u₀) / C ≤ 0 := by
-        exact div_nonpos_of_nonpos_of_nonneg h_pos.le hC_pos.le
+    · replace h_pos : f.f u - f.f u₀ < 0 := not_le.mp h_pos
+      have : (f.f u - f.f u₀) / C ≤ 0 :=
+        div_nonpos_of_nonpos_of_nonneg h_pos.le hC_pos.le
       linarith [norm_nonneg (f.grad u)]
   -- Combine: (f.f u - f.f u₀)/C → ∞ and ‖∇f u‖ ≥ that, hence ‖∇f u‖ → ∞.
   exact Filter.tendsto_atTop_mono' _ h_bound_eventually h_quot

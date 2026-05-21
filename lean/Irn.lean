@@ -7,11 +7,13 @@ This is the root module. It re-exports every submodule so that
 The submodules track the structure of `paper/standalone.tex`:
 
 * `Irn.Barriers`       — paper §2.1     (LHSCB, `φ`, `F*`, `G*`)
-* `Irn.Setting`    — paper §1–§2.2  (problem data `(P, A, b, c, K, f)`,
+* `Irn.Setting`        — paper §1–§2.2  (problem data `(P, A, b, c, K, f)`,
                                           embedding, `Q`, `M`, `φ`)
-* `Irn.Analytic`       — sorry'd analytic content (Newton-Kantorovich,
-                                          Minty, Hessian preconditioner)
+* `Irn.Monotone`       — monotone operator API and a Minty-style
+                                          existence theorem
 * `Irn.CentralPath`    — paper §2.2–§3.2 (`T_μ`, existence, smoothness)
+* `Irn.Analytic`       — Hessian preconditioner, `W⁻¹` dual norm,
+                                          Minty resolvent existence
 * `Irn.Sphere`         — paper §3.1–§3.3 (sphere, tangency, error bound)
 * `Irn.Resolvent`      — paper §4        (closed-form resolvent)
 * `Irn.RJN`            — paper §5        (Riemannian Josephy–Newton)
@@ -20,8 +22,9 @@ The submodules track the structure of `paper/standalone.tex`:
 
 import Irn.Barriers
 import Irn.Setting
-import Irn.Analytic
+import Irn.Monotone
 import Irn.CentralPath
+import Irn.Analytic
 import Irn.Sphere
 import Irn.Resolvent
 import Irn.RJN
