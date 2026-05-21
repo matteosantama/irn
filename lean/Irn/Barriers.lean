@@ -579,6 +579,44 @@ theorem grad_monotone {K : Set V} {ν : ℕ} (f : LHSCB V K ν)
   rw [inner_sub_right]
   linarith
 
+/-- **LHSCB gradient inequality** (convexity in gradient form). For
+`u, v ∈ int K`, `f(v) ≥ f(u) + ⟨∇f(u), v - u⟩`. Follows from
+`grad_monotone` via the standard one-variable MVT argument on
+`t ↦ f(γ(t))` along the segment from `u` to `v`.
+
+Currently sorried — the proof structure mirrors `grad_monotone`'s
+own proof (segment `γ(t) = u + t(v-u)`, function `φ(t) = f.f(γ t)`,
+chain rule + `monotoneOn_of_hasDerivWithinAt_nonneg`), but here the
+output is a function-value inequality rather than an inner-product
+monotonicity. -/
+theorem grad_inequality {K : Set V} {ν : ℕ} (f : LHSCB V K ν)
+    (_hK_conv : Convex ℝ (interior K)) :
+    ∀ u ∈ interior K, ∀ v ∈ interior K,
+      f.f v ≥ f.f u + inner ℝ (f.grad u) (v - u) := by
+  intro u _hu v _hv
+  sorry
+
+/-- **LHSCB gradient blow-up at the boundary** (Euclidean norm).
+As `u → x` within `int K` for `x ∈ frontier K`, `‖∇f(u)‖ → ∞`.
+
+Proof outline: pick a fixed `u₀ ∈ int K`. Gradient inequality at `u`:
+`f(u₀) ≥ f(u) + ⟨∇f(u), u₀ - u⟩`, so
+`⟨∇f(u), u - u₀⟩ ≥ f(u) - f(u₀)`.
+By Cauchy-Schwarz: `‖∇f(u)‖ · ‖u - u₀‖ ≥ f(u) - f(u₀)`.
+As `u → x ∈ frontier K`, `f(u) → ∞` (by `f.barrier`), and
+`‖u - u₀‖ → ‖x - u₀‖` (bounded), so `‖∇f(u)‖ → ∞`.
+
+Currently sorried — depends on `grad_inequality` (also sorried) and
+some boundedness/continuity bookkeeping for the limit. -/
+theorem grad_norm_tendsto_atTop {K : Set V} {ν : ℕ} (f : LHSCB V K ν)
+    (_hK_conv : Convex ℝ (interior K))
+    (_hK_int_nonempty : (interior K).Nonempty) :
+    ∀ x ∈ frontier K,
+      Filter.Tendsto (fun u => ‖f.grad u‖) (nhdsWithin x (interior K))
+        Filter.atTop := by
+  intro x _hx
+  sorry
+
 end LHSCB
 
 end Irn
