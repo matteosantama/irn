@@ -183,6 +183,72 @@ theorem Px_quad_form_psd (xu xv : X) (τu τv : ℝ) :
     ring
   linarith [h_psd, h_expand]
 
+/-- The block-matrix KKT operator `M : H → H` from the homogeneous
+embedding eq. (2.4):
+$$ M(x, y, \tau) = \big(\, Px + A^\top y + c\,\tau,\;\; -A x + b\,\tau,
+   \;\; -c^\top x - b^\top y \,\big), $$
+where `A^\top` is the inner-product adjoint of `A`. The skew off-diagonal
+blocks are what makes `⟨u, M u⟩ = ⟨x, P x⟩` (lemma `inner_u_M` below);
+the symmetric block `P` is what survives.
+
+Packaged here as a plain function; the `H →L[ℝ] H` linearity packaging
+that `IrnSetup` expects can be added later (linearity follows from
+each block being a continuous linear map). -/
+noncomputable def M_apply (𝓟 : ProblemData X Y) (u : H X Y) : H X Y :=
+  WithLp.toLp 2 (
+    𝓟.P (𝓟.x_proj u) +
+      ContinuousLinearMap.adjoint 𝓟.A (𝓟.y_proj u) +
+      𝓟.tau_proj u • 𝓟.c,
+    WithLp.toLp 2 (
+      -𝓟.A (𝓟.x_proj u) + 𝓟.tau_proj u • 𝓟.b,
+      -inner ℝ 𝓟.c (𝓟.x_proj u) - inner ℝ 𝓟.b (𝓟.y_proj u)))
+
+/-- **Euler-type identity for `M`.** `⟨u, M u⟩ = ⟨x, P x⟩`: the skew
+off-diagonal blocks cancel pairwise (the `A`/`A†` pair, the `c` pair,
+and the `b` pair each contribute zero), leaving only the symmetric
+`P`-block. -/
+theorem inner_u_M (u : H X Y) :
+    inner ℝ u (𝓟.M_apply u) =
+      𝓟.Px_bilinform (𝓟.x_proj u) (𝓟.x_proj u) := by
+  unfold M_apply Px_bilinform x_proj y_proj tau_proj
+  simp only [WithLp.prod_inner_apply, WithLp.fst, WithLp.snd,
+             inner_add_right, inner_neg_right, real_inner_smul_right,
+             ContinuousLinearMap.adjoint_inner_right,
+             RCLike.inner_apply, starRingEnd_apply, star_trivial]
+  rw [real_inner_comm (𝓟.A u.ofLp.1) u.ofLp.2.ofLp.1,
+      real_inner_comm 𝓟.c u.ofLp.1,
+      real_inner_comm 𝓟.b u.ofLp.2.ofLp.1]
+  ring
+
+/-- The KKT operator `Q : H → H` from eq. (2.4):
+$$ Q(u) = M u - \frac{1}{\tau}\!\big(0,\,0,\,x^\top P x\big)
+        = M u - \big(Px_{\mathrm{bilinform}}(x, x) / \tau\big) \cdot e_\tau. $$
+Defined on `Cplus` (the `τ > 0` region); outside `Cplus` we use Lean's
+division-by-zero-is-zero convention, so the definition extends. -/
+noncomputable def Q_apply (𝓟 : ProblemData X Y) (u : H X Y) : H X Y :=
+  𝓟.M_apply u -
+    (𝓟.Px_bilinform (𝓟.x_proj u) (𝓟.x_proj u) / 𝓟.tau_proj u) • 𝓟.e_τ
+
+/-- **The `Q_eq` decomposition** — `Q u = M u - (Px(x,x)/τ) • e_τ` — is
+the definition itself. -/
+theorem Q_eq (u : H X Y) :
+    𝓟.Q_apply u =
+      𝓟.M_apply u -
+        (𝓟.Px_bilinform (𝓟.x_proj u) (𝓟.x_proj u) / 𝓟.tau_proj u) • 𝓟.e_τ :=
+  rfl
+
+/-- **Euler-type identity for `Q`.** `⟨u, Q(u)⟩ = 0` on `Cplus`. The
+matrix part contributes `Px(x, x)` (via `inner_u_M`) and the rational
+correction contributes `-(Px(x, x)/τ) · τ = -Px(x, x)`, which cancels. -/
+theorem inner_u_Q {u : H X Y} (hu : u ∈ 𝓟.Cplus) :
+    inner ℝ u (𝓟.Q_apply u) = (0 : ℝ) := by
+  have hτ : 0 < 𝓟.tau_proj u := 𝓟.tau_proj_pos hu
+  have hτ_ne : 𝓟.tau_proj u ≠ 0 := ne_of_gt hτ
+  rw [Q_eq, inner_sub_right, real_inner_smul_right,
+      𝓟.inner_u_M, 𝓟.inner_u_e_tau]
+  field_simp
+  ring
+
 end ProblemData
 
 end Irn
