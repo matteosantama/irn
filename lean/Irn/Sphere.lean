@@ -1,14 +1,17 @@
 /-
-# Sphere geometry, tangentiality, error bound (paper §3)
+# Sphere geometry, tangentiality, error bound (paper §3, §7.1)
 
 The sphere `Sr ⊆ H`, the orthogonal projector `P_u` onto the tangent
-space, the tangentiality lemma, and the a-posteriori error bound.
+space, the tangentiality lemma, the a-posteriori error bound, and the
+closed-form geodesic exponential of `Sr`.
 
 Paper references:
 * §3.1 (geometry)
 * §3.1 Lemma 5 (tangentiality) → `tangent_T`
 * §3.3 Theorem 8 (a posteriori error bound) → `error_bound`,
   `error_bound_tangent`
+* §7.1 eq. `eq:exp-map` (geodesic exp) → `expMap`
+* §7.1 Proposition 17 (exact sphericity of `exp_u`) → `expMap_mem_sphere`
 -/
 
 import Irn.CentralPath
@@ -46,6 +49,70 @@ variable {X Y : Type*}
 
 /-- The sphere `Sr = { u : ‖u‖ = r }`. -/
 def sphere : Set (H X Y) := {u | ‖u‖ = 𝓢.r}
+
+/-! ### Geodesic exponential map on `Sr` (paper §7.1)
+
+The round sphere `Sr` of radius `r` has a closed-form Riemannian
+exponential map (paper eq. `eq:exp-map`):
+`exp_u(v) = cos(‖v‖/r) · u + r · sin(‖v‖/r)/‖v‖ · v`
+for `v ∈ T_u Sr`, with the convention `exp_u(0) = u`. -/
+
+/-- The geodesic exp map at `u` on the sphere `Sr` of radius `r`, in
+closed form. The base formula
+`cos(‖v‖/r) • u + r·sin(‖v‖/r)/‖v‖ • v`
+has a removable `0/0` singularity at `v = 0`; for that case
+Lean's `0⁻¹ = 0` convention turns the second term into `0`, leaving
+`cos 0 • u = u` — so the closed form is correct on all of `H X Y`. For
+`v ∈ T_u Sr` the result lies on `Sr` (see `expMap_mem_sphere`). -/
+noncomputable def expMap (𝓢 : IrnSetup X Y) (u v : H X Y) : H X Y :=
+  Real.cos (‖v‖ / 𝓢.r) • u + (𝓢.r * Real.sin (‖v‖ / 𝓢.r) / ‖v‖) • v
+
+@[simp] theorem expMap_zero (u : H X Y) : 𝓢.expMap u 0 = u := by
+  show Real.cos (‖(0 : H X Y)‖ / 𝓢.r) • u +
+      (𝓢.r * Real.sin (‖(0 : H X Y)‖ / 𝓢.r) / ‖(0 : H X Y)‖) • (0 : H X Y) = u
+  simp
+
+/-- **Proposition 17 (Exact sphericity of `exp_u`).** For `u ∈ Sr` and
+`v ⟂ u` in the Euclidean sense, `exp_u(v) ∈ Sr`. Orthogonality kills
+the cross term in `‖a u + b v‖²`, and `cos² + sin² = 1` recovers `r²`.
+Handles `v = 0` via `expMap_zero`. Sorry-free. -/
+theorem expMap_mem_sphere (u v : H X Y) (hu : u ∈ 𝓢.sphere)
+    (hv : inner ℝ u v = (0 : ℝ)) :
+    𝓢.expMap u v ∈ 𝓢.sphere := by
+  have hr_pos : 0 < 𝓢.r := 𝓢.r_pos
+  have h_u_norm : ‖u‖ = 𝓢.r := hu
+  show ‖𝓢.expMap u v‖ = 𝓢.r
+  by_cases hv0 : v = 0
+  · rw [hv0, 𝓢.expMap_zero]; exact h_u_norm
+  have hvn : (0 : ℝ) < ‖v‖ := norm_pos_iff.mpr hv0
+  set t : ℝ := ‖v‖ / 𝓢.r
+  set a : ℝ := Real.cos t
+  set b : ℝ := 𝓢.r * Real.sin t / ‖v‖
+  -- ‖a u + b v‖² = a² ‖u‖² + b² ‖v‖² (cross term ⟨u, v⟩ vanishes).
+  have h_cross_zero : inner ℝ (a • u) (b • v) = 0 := by
+    rw [real_inner_smul_left, real_inner_smul_right, hv]; ring
+  have h_cross_zero_flipped : inner ℝ (b • v) (a • u) = 0 := by
+    rw [real_inner_comm]; exact h_cross_zero
+  have h_norm_add_sq : ‖a • u + b • v‖ ^ 2 = ‖a • u‖ ^ 2 + ‖b • v‖ ^ 2 := by
+    rw [← real_inner_self_eq_norm_sq, inner_add_left, inner_add_right,
+        inner_add_right, h_cross_zero, h_cross_zero_flipped,
+        ← real_inner_self_eq_norm_sq (a • u),
+        ← real_inner_self_eq_norm_sq (b • v)]
+    ring
+  have h_a_sq : ‖a • u‖ ^ 2 = a ^ 2 * 𝓢.r ^ 2 := by
+    rw [norm_smul, mul_pow, Real.norm_eq_abs, sq_abs, h_u_norm]
+  have h_b_sq : ‖b • v‖ ^ 2 = 𝓢.r ^ 2 * Real.sin t ^ 2 := by
+    rw [norm_smul, mul_pow, Real.norm_eq_abs, sq_abs]
+    show (𝓢.r * Real.sin t / ‖v‖) ^ 2 * ‖v‖ ^ 2 = _
+    field_simp
+  have h_sq : ‖𝓢.expMap u v‖ ^ 2 = 𝓢.r ^ 2 := by
+    show ‖a • u + b • v‖ ^ 2 = _
+    rw [h_norm_add_sq, h_a_sq, h_b_sq]
+    -- Goal: a² * r² + r² * sin²t = r², with a = cos t.
+    have h_pyth : Real.cos t ^ 2 + Real.sin t ^ 2 = 1 := Real.cos_sq_add_sin_sq t
+    show Real.cos t ^ 2 * 𝓢.r ^ 2 + 𝓢.r ^ 2 * Real.sin t ^ 2 = 𝓢.r ^ 2
+    nlinarith [h_pyth]
+  nlinarith [h_sq, norm_nonneg (𝓢.expMap u v), hr_pos]
 
 /-- **Lemma 5 (Tangentiality).** `T_μ(u) ∈ T_u Sr` for every
 `u ∈ Sr ∩ int C`. -/
