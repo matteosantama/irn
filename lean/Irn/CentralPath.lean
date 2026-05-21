@@ -15,6 +15,9 @@ Paper references:
 import Irn.Setting
 import Irn.Monotone
 import Mathlib.Analysis.Calculus.ContDiff.Defs
+import Mathlib.Analysis.Calculus.ImplicitContDiff
+
+open scoped ContDiff
 
 namespace Irn
 
@@ -484,22 +487,117 @@ theorem centralPathMap_of_pos {μ : ℝ} (hμ : 0 < μ) :
   show (if h : 0 < μ then 𝓢.centralPathPoint μ h else 0) = _
   rw [dif_pos hμ]
 
+/-! ### Smoothness of the central-path map (Theorem 6)
+
+The proof applies Mathlib's implicit function theorem
+(`ContDiffAt.contDiffAt_implicitFunction`) to `T_μ(u) = 0`:
+
+1. `T_joint (μ, u) = T_μ u` is `C^(d-1)` jointly: `Q u + μ•u` is `C^∞`
+   on `Cplus`, and `μ • φ u = μ • F_lhscb.grad u` inherits one
+   derivative less than `F_lhscb` (which is `C^d`).
+2. The partial derivative `D_u T_μ(u)` at `u = u*(μ)` is invertible:
+   for all `v`,
+   `⟨v, (D_u T_μ(u)) v⟩ = ⟨v, D_u Q(u) v⟩ + μ‖v‖² + μ ⟨v, ∇²F_lhscb(u) v⟩`.
+   `D_u Q` and `∇²F_lhscb` are PSD (the former from `Q_monotone` after
+   differentiation, the latter from `self_concordant_hessian_nonneg`),
+   and `μ > 0`. So `D_u T_μ(u)` is positive definite — in finite
+   dimensions, injective ⇒ bijective ⇒ invertible.
+3. The implicit function `ψ : ℝ → H` produced by IFT satisfies
+   `ψ μ₀ = u*(μ₀)` and `T_μ (ψ μ) = 0` locally. By continuity of `ψ`
+   and openness of `C_interior`, `ψ μ ∈ C_interior` near `μ₀`. By
+   uniqueness of the central path, `ψ μ = u*(μ) = centralPathMap μ`. -/
+
+/-- The joint function `T_joint (μ, u) = T_μ u`. -/
+noncomputable def T_joint (𝓢 : IrnSetup X Y) : ℝ × H X Y → H X Y :=
+  fun p => 𝓢.T p.1 p.2
+
+/-- **Joint smoothness of `T_joint`.** At any `(μ₀, u₀)` with `μ₀ > 0`
+and `u₀ ∈ C_interior`, `T_joint` is `C^(d-1)`. The smoothness is
+limited by `μ • F_lhscb.grad u` — `F_lhscb.grad` is `C^(d-1)` because
+`F_lhscb.f` is `C^d` and the gradient is one derivative of `f` (via
+the Riesz isomorphism, which is `C^∞`). The other pieces (`Q`,
+`μ•u`) are `C^∞` on `Cplus × ℝ`.
+
+**Currently sorried.** Mechanical via composition of smooth maps. -/
+theorem T_joint_contDiffAt {μ₀ : ℝ} (hμ₀ : 0 < μ₀)
+    {u₀ : H X Y} (hu₀ : u₀ ∈ 𝓢.C_interior) :
+    ContDiffAt ℝ (𝓢.d - 1) 𝓢.T_joint (μ₀, u₀) := sorry
+
+/-- **Invertibility of `D_u T_μ` at central-path points.** The partial
+derivative of `T_joint` in the `u`-direction at `(μ, u)` (with `μ > 0`
+and `u ∈ C_interior`) is positive-definite, hence invertible in finite
+dimensions.
+
+**Proof outline (sorried).** For each `v ∈ H`, differentiating the
+monotonicity `0 ≤ ⟨u-u', Q u - Q u'⟩` and `0 ≤ ⟨u-u', φ u - φ u'⟩`
+along `v` gives `⟨v, D Q(u) v⟩ ≥ 0` and `⟨v, D φ(u) v⟩ ≥ 0`. The
+identity component contributes `μ‖v‖²`. So
+`⟨v, (D_u T_μ) v⟩ ≥ μ‖v‖² > 0` for `v ≠ 0` — hence injective, and
+finite-dimensional ⇒ bijective ⇒ invertible. -/
+theorem T_partial_u_isInvertible {μ : ℝ} (hμ : 0 < μ)
+    {u : H X Y} (hu : u ∈ 𝓢.C_interior) :
+    ((fderiv ℝ 𝓢.T_joint (μ, u)).comp
+      (ContinuousLinearMap.inr ℝ ℝ (H X Y))).IsInvertible := sorry
+
+/-- `𝓢.d - 1 ≠ 0` (in `ℕ∞ω`): immediate from `𝓢.d ≥ 3` since `d - 1`
+in `ℕ∞` is zero only when `d ≤ 1`, contradicting `3 ≤ d`. -/
+theorem d_sub_one_ne_zero : ((𝓢.d - 1 : ℕ∞) : ℕ∞ω) ≠ 0 := by
+  intro heq
+  have h0 : 𝓢.d - 1 = (0 : ℕ∞) := by exact_mod_cast heq
+  have h_le_1 : 𝓢.d ≤ 1 := tsub_eq_zero_iff_le.mp h0
+  have h_3_le_1 : (3 : ℕ∞) ≤ 1 := 𝓢.hd_ge.trans h_le_1
+  exact absurd h_3_le_1 (by decide)
+
 /-- **Theorem 6 (Smoothness).** If the user's barrier `fBarrier` has
 smoothness degree `d ≥ 3` (recorded in `𝓢.d`, with `d = ⊤` denoting
 `C^∞`), then the central-path map `μ ↦ u*(μ)` is `C^(d-1)` on the open
 ray `(0, ∞)`. (When `d = ⊤`, `d - 1 = ⊤` so the conclusion is `C^∞`.)
 
-**Proof sketch (sorried).** Apply the implicit function theorem to
-`T_μ(u) = 0`: the partial derivative `D_u T_μ(u*(μ))` is invertible —
-strict monotonicity of `T_μ` plus positive-definiteness of the Hessian
-of the LHSCB (from `self_concordant`) yield a positive-definite linear
-operator, which on a finite-dimensional space is invertible. Mathlib's
-IFT (`HasStrictFDerivAt.contDiffOn_implicit`) then upgrades the
-solution map `μ ↦ u*(μ)` to `C^(d-1)` (one derivative is lost relative
-to `T`, which is `C^(d-1)` since it carries `μ` linearly and `f` is
-`C^d`). -/
+Strategy: apply the implicit function theorem to `T_μ(u) = 0` at each
+`μ₀ > 0`, using joint smoothness of `T` (`T_joint_contDiffAt`) and
+positive-definiteness of the partial derivative `D_u T`
+(`T_partial_u_isInvertible`). Identify the implicit function with
+`centralPathMap` via uniqueness of central-path points. -/
 theorem centralPathPoint_contDiff :
-    ContDiffOn ℝ (𝓢.d - 1) 𝓢.centralPathMap (Set.Ioi 0) := sorry
+    ContDiffOn ℝ (𝓢.d - 1) 𝓢.centralPathMap (Set.Ioi 0) := by
+  intro μ₀ hμ₀
+  have h_C : 𝓢.centralPathPoint μ₀ hμ₀ ∈ 𝓢.C_interior :=
+    (𝓢.centralPathPoint_isCentralPathPoint μ₀ hμ₀).1
+  have h_cdaT := 𝓢.T_joint_contDiffAt hμ₀ h_C
+  have h_inv := 𝓢.T_partial_u_isInvertible hμ₀ h_C
+  -- IFT: the implicit function `ψ` of `T_joint` is `C^(d-1)` at `μ₀`.
+  set ψ : ℝ → H X Y :=
+    h_cdaT.implicitFunction 𝓢.d_sub_one_ne_zero h_inv with hψ_def
+  have h_implicit_cd : ContDiffAt ℝ (𝓢.d - 1) ψ μ₀ :=
+    h_cdaT.contDiffAt_implicitFunction 𝓢.d_sub_one_ne_zero h_inv
+  -- `ψ` equals `centralPathMap` on a neighbourhood of `μ₀`:
+  -- 1. `ψ μ₀ = u*(μ₀) ∈ C_interior` (apply_self), and `ψ` is continuous,
+  --    so `ψ μ ∈ C_interior` for `μ` near `μ₀` (since `C_interior` is open).
+  -- 2. By IFT, `T_joint (μ, ψ μ) = T_joint (μ₀, u*(μ₀)) = 0` near `μ₀`.
+  -- 3. So `(ψ μ, μ)` is a central path point at `μ` (for `μ > 0` near `μ₀`),
+  --    and by uniqueness `ψ μ = centralPathPoint μ = centralPathMap μ`.
+  have h_eq : 𝓢.centralPathMap =ᶠ[nhds μ₀] ψ := by
+    have h_ψ_self : ψ μ₀ = 𝓢.centralPathPoint μ₀ hμ₀ :=
+      h_cdaT.implicitFunction_apply_self 𝓢.d_sub_one_ne_zero h_inv
+    have h_ψ_cont : ContinuousAt ψ μ₀ := h_implicit_cd.continuousAt
+    have h_ψ_in_C : ∀ᶠ μ in nhds μ₀, ψ μ ∈ 𝓢.C_interior := by
+      have h_self_in : ψ μ₀ ∈ 𝓢.C_interior := h_ψ_self ▸ h_C
+      exact h_ψ_cont (𝓢.C_interior_isOpen.mem_nhds h_self_in)
+    have h_μ_pos : ∀ᶠ μ in nhds μ₀, 0 < μ :=
+      isOpen_Ioi.mem_nhds hμ₀
+    have h_T_base : 𝓢.T_joint (μ₀, 𝓢.centralPathPoint μ₀ hμ₀) = 0 :=
+      (𝓢.centralPathPoint_isCentralPathPoint μ₀ hμ₀).2
+    have h_T_apply :=
+      h_cdaT.eventually_apply_implicitFunction 𝓢.d_sub_one_ne_zero h_inv
+    -- `h_T_apply : ∀ᶠ μ in 𝓝 μ₀, T_joint (μ, ψ μ) = T_joint (μ₀, u*(μ₀))`.
+    have h_T_zero : ∀ᶠ μ in nhds μ₀, 𝓢.T_joint (μ, ψ μ) = 0 := by
+      filter_upwards [h_T_apply] with μ hμ
+      rw [hμ, h_T_base]
+    filter_upwards [h_ψ_in_C, h_μ_pos, h_T_zero] with μ h_ψC h_μp h_T0
+    rw [𝓢.centralPathMap_of_pos h_μp]
+    exact 𝓢.unique_centralPath μ h_μp
+      (𝓢.centralPathPoint_isCentralPathPoint μ h_μp) ⟨h_ψC, h_T0⟩
+  exact (h_implicit_cd.congr_of_eventuallyEq h_eq).contDiffWithinAt
 
 end IrnSetup
 
