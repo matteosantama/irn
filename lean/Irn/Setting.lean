@@ -367,6 +367,19 @@ noncomputable def f_lhscb : LHSCB (H X Y) 𝓢.ν where
     rw [inner_sub_right, 𝓢.inner_u_lifted_y, 𝓢.inner_u_lifted_y,
         ← inner_sub_right, 𝓢.y_proj_sub]
     exact 𝓢.fBarrier.grad_monotone (𝓢.y_proj u) hu (𝓢.y_proj v) hv
+  log_homog := by
+    -- Lifted f: f_lift(u) = fBarrier.f(y_proj u). Smul commutes with
+    -- y_proj (linearity), so f_lift(t • u) = fBarrier.f(t • y_proj u),
+    -- which by fBarrier.log_homog equals fBarrier.f(y_proj u) - ν log t
+    -- = f_lift(u) - ν log t.
+    intros u hu t ht
+    show 𝓢.fBarrier.f (𝓢.y_proj (t • u)) =
+      𝓢.fBarrier.f (𝓢.y_proj u) - (𝓢.ν : ℝ) * Real.log t
+    have h_proj : 𝓢.y_proj (t • u) = t • 𝓢.y_proj u := by
+      unfold y_proj
+      simp
+    rw [h_proj]
+    exact 𝓢.fBarrier.log_homog (𝓢.y_proj u) hu t ht
 
 /-- **Totalised `Q`.** A version of `Q_apply` extended to all of `H`
 (using Lean's division-by-zero-is-zero convention outside `Cplus`).
@@ -555,6 +568,19 @@ noncomputable def g_lhscb : LHSCB (H X Y) 1 where
       ring
     rw [h_factor]
     positivity
+  log_homog := by
+    -- g(t • u) = -log(tau_proj (t • u)) = -log(t * tau_proj u)
+    --         = -log t - log(tau_proj u) = g(u) - 1 * log t.
+    intros u hu t ht
+    have hτ : 0 < 𝓢.tau_proj u := 𝓢.tau_proj_pos hu
+    have h_proj : 𝓢.tau_proj (t • u) = t * 𝓢.tau_proj u := by
+      unfold tau_proj
+      simp
+    show -Real.log (𝓢.tau_proj (t • u)) =
+      -Real.log (𝓢.tau_proj u) - ((1 : ℕ) : ℝ) * Real.log t
+    rw [h_proj, Real.log_mul (ne_of_gt ht) (ne_of_gt hτ)]
+    push_cast
+    ring
 
 /-- The combined `(ν+1)`-LHSCB `F = f + g` driving the IRN central path. -/
 noncomputable def F_lhscb : LHSCB (H X Y) (𝓢.ν + 1) :=

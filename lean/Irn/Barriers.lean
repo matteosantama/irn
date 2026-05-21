@@ -4,19 +4,32 @@
 Logarithmically homogeneous self-concordant barriers (LHSCB) and the
 conjugate barrier-gradient maps `F*`, `G*`, `φ`.
 
-This pass exposes only the LHSCB consequences the rest of the
-formalisation actually needs, plus a sum operation:
+This pass exposes the LHSCB consequences the rest of the formalisation
+needs, plus a sum operation. The barrier function `f` and its gradient
+`grad` are defined on all of `V`, but only their values on the open
+`domain` (intended to be the interior of an associated convex cone)
+are constrained and meaningful.
 
-* the Euler identity `⟨u, ∇f(u)⟩ = -ν` (logarithmic homogeneity of
-  degree `-ν`),
-* gradient monotonicity (convexity of `f`),
-* `LHSCB.add`: the sum of a `ν₁`-LHSCB and a `ν₂`-LHSCB is a
+Recorded properties:
+
+* `euler` — `⟨u, ∇f(u)⟩ = -ν` on `domain` (the differentiated form of
+  log-homogeneity);
+* `grad_monotone` — convexity of `f`, as gradient monotonicity;
+* `log_homog` — `f(λ x) = f(x) - ν log λ` for `x ∈ domain` and `λ > 0`
+  (the log-homogeneity from which `euler` is derivable);
+* `LHSCB.add` — the sum of a `ν₁`-LHSCB and a `ν₂`-LHSCB is a
   `(ν₁+ν₂)`-LHSCB on the intersection of their domains.
 
-Smoothness, the third-derivative self-concordance bound, and the
-`(Hess f)⁻¹`-dual-norm gradient bound are deferred — the dual-norm
-bound applies to the IRN setup's combined `F = f + g` only and is
-carried at the `IrnSetup` level since it does not decompose.
+**Deferred to future commits:**
+
+* `K : Set V` as a structural parameter (the convex cone of which
+  `domain` is the interior). Currently we carry only `domain` and its
+  openness; the cone is implicit.
+* Strict convexity on `domain` (captured by a separate predicate
+  `LHSCB.IsStrict`; not always satisfied by lifted barriers).
+* The barrier property `f(x) → +∞` at `∂K` (requires knowing `K`).
+* The third-derivative self-concordance bound (requires Mathlib's
+  higher-order Frechet derivative API).
 
 Paper references:
 * Definition 2 (`ν`-LHSCB)
@@ -25,44 +38,46 @@ Paper references:
 -/
 
 import Mathlib.Analysis.InnerProductSpace.Basic
+import Mathlib.Analysis.SpecialFunctions.Log.Basic
 
 namespace Irn
 
 open scoped InnerProductSpace
 
-/-- An abstract `ν`-LHSCB on a real inner product space. We record
-only the gradient, the domain, and the two Euler / convexity
-consequences that the IRN analysis consumes through sums. The barrier
-function `f` itself is kept around so a concrete instance can attach a
-potential. -/
+/-- An abstract `ν`-LHSCB on a real inner product space `V`. The
+domain (an open set) is intended to be the interior of an associated
+convex cone; the constraints are imposed only there. -/
 structure LHSCB (V : Type*)
     [NormedAddCommGroup V] [InnerProductSpace ℝ V] (ν : ℕ) where
   /-- The barrier function. -/
   f : V → ℝ
   /-- The gradient `∇f`. -/
   grad : V → V
-  /-- The barrier domain — intended to be the (topological) interior of
-  the associated convex cone. An LHSCB is defined only on the interior
-  of its cone, since the barrier blows up on the boundary. -/
+  /-- The (open) barrier domain — intended to be `interior K` for the
+  associated cone `K`. -/
   domain : Set V
-  /-- The domain is open (an LHSCB is defined on the interior of a
-  convex cone, which is open). -/
+  /-- The domain is open. -/
   domain_open : IsOpen domain
-  /-- **Euler identity.** Logarithmic homogeneity of degree `-ν`
-  implies `⟨u, ∇f(u)⟩ = -ν` for every `u ∈ domain`. -/
+  /-- **Euler identity** (differentiated logarithmic homogeneity):
+  `⟨u, ∇f(u)⟩ = -ν` on `domain`. -/
   euler : ∀ u ∈ domain, inner ℝ u (grad u) = -(ν : ℝ)
-  /-- **Gradient monotonicity.** Convexity of `f` implies the gradient
-  map is monotone on `domain`. -/
+  /-- **Gradient monotonicity** on `domain` (convexity of `f`). -/
   grad_monotone : ∀ u ∈ domain, ∀ v ∈ domain,
     0 ≤ inner ℝ (u - v) (grad u - grad v)
+  /-- **Logarithmic homogeneity of degree `-ν`**:
+  `f(t · x) = f(x) - ν · log t` for every `x ∈ domain` and `t > 0`.
+  Requires `t • x ∈ domain` (true when `domain` is the interior of a
+  cone: cones are closed under positive scalar multiplication and the
+  interior is too). -/
+  log_homog : ∀ x ∈ domain, ∀ t : ℝ, 0 < t →
+    f (t • x) = f x - (ν : ℝ) * Real.log t
 
 namespace LHSCB
 
 variable {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
 
 /-- **Sum of LHSCBs.** A `ν₁`-LHSCB plus a `ν₂`-LHSCB is a
-`(ν₁+ν₂)`-LHSCB on the intersection of their domains; Euler and
-gradient monotonicity are both additive. -/
+`(ν₁+ν₂)`-LHSCB on the intersection of their domains. -/
 def add {ν₁ ν₂ : ℕ} (f : LHSCB V ν₁) (g : LHSCB V ν₂) :
     LHSCB V (ν₁ + ν₂) where
   f := fun v => f.f v + g.f v
@@ -82,6 +97,13 @@ def add {ν₁ ν₂ : ℕ} (f : LHSCB V ν₁) (g : LHSCB V ν₂) :
         (f.grad u - f.grad v) + (g.grad u - g.grad v) := by abel
     rw [h, inner_add_right]
     linarith
+  log_homog := by
+    rintro x ⟨hx_f, hx_g⟩ t ht
+    show f.f (t • x) + g.f (t • x) =
+        f.f x + g.f x - ((ν₁ + ν₂ : ℕ) : ℝ) * Real.log t
+    rw [f.log_homog x hx_f t ht, g.log_homog x hx_g t ht]
+    push_cast
+    ring
 
 @[simp] theorem add_grad {ν₁ ν₂ : ℕ} (f : LHSCB V ν₁) (g : LHSCB V ν₂)
     (u : V) : (f.add g).grad u = f.grad u + g.grad u := rfl
