@@ -777,7 +777,18 @@ theorem phi_monotone (u : H X Y) (hu : u ∈ 𝓢.C_interior)
     (v : H X Y) (hv : v ∈ 𝓢.C_interior) :
     0 ≤ inner ℝ (u - v) (𝓢.φ u - 𝓢.φ v) := by
   rw [𝓢.phi_eq_F_grad u hu, 𝓢.phi_eq_F_grad v hv]
-  exact 𝓢.F_lhscb.grad_monotone u (𝓢.C_interior_subset_F_interior hu) v
+  -- `interior (K_f_lifted ∩ K_g_lifted) = Cplus ∩ y_proj⁻¹(interior K)` is
+  -- convex (preimage of convex via linear, intersected with half-space).
+  have h_conv : Convex ℝ (interior (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted)) := by
+    rw [interior_inter, 𝓢.interior_K_f_lifted, 𝓢.interior_K_g_lifted]
+    refine Convex.inter ?_ ?_
+    · exact (𝓢.K.convex.interior).linear_preimage
+        (IrnSetup.y_proj_linear : H X Y →L[ℝ] Y).toLinearMap
+    · -- Cplus = tau_proj ⁻¹' Ioi 0; convex via linear preimage.
+      have h_ioi_conv : Convex ℝ (Set.Ioi (0:ℝ)) := convex_Ioi 0
+      exact h_ioi_conv.linear_preimage
+        (IrnSetup.tau_proj_linear : H X Y →L[ℝ] ℝ).toLinearMap
+  exact 𝓢.F_lhscb.grad_monotone h_conv u (𝓢.C_interior_subset_F_interior hu) v
     (𝓢.C_interior_subset_F_interior hv)
 
 end IrnSetup

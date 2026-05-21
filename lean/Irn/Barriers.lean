@@ -303,20 +303,38 @@ theorem euler {K : Set V} {ν : ℕ} (f : LHSCB V K ν) :
     rw [InnerProductSpace.toDual_symm_apply]
   rw [real_inner_comm, h_riesz, h_eq]
 
-/-- **Gradient monotonicity** (theorem). Follows from
-`self_concordant` via positivity of `D²f` (forced by the squared SC
-bound: the cube of a negative would violate the nonnegativity of the
-LHS square) and the mean value theorem applied to
-`t ↦ ⟨u - v, ∇f((1-t) v + t u)⟩`.
+/-- **Hessian non-negativity from SC bound.** The squared SC bound
+forces `D²f(x)[h,h] ≥ 0` (the cube of a negative is negative, but
+the LHS is a square). -/
+lemma self_concordant_hessian_nonneg {K : Set V} {ν : ℕ} (f : LHSCB V K ν) :
+    ∀ x ∈ interior K, ∀ h : V,
+      0 ≤ iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => h) := by
+  intro x hx h
+  by_contra hneg
+  push_neg at hneg
+  have hsc := f.self_concordant x hx h
+  have h_cube : (iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => h)) ^ 3 < 0 :=
+    Odd.pow_neg (by decide : Odd 3) hneg
+  have h_sq : 0 ≤ (iteratedFDerivWithin ℝ 3 f.f (interior K) x (fun _ => h)) ^ 2 :=
+    sq_nonneg _
+  linarith
 
-Currently sorried. -/
-theorem grad_monotone {K : Set V} {ν : ℕ} (f : LHSCB V K ν) :
+/-- **Gradient monotonicity** (theorem). Convexity of `interior K`
+plus `D²f ≥ 0` (from `self_concordant`) imply that `t ↦ ⟨u-v, ∇f(v +
+t(u-v))⟩` is monotone on `[0, 1]`, hence
+`⟨u-v, ∇f(u) - ∇f(v)⟩ ≥ 0`.
+
+Currently sorried — proof outline below. The strategy is to define
+`φ(t) := f.f(v + t(u-v))` and use `monotoneOn_of_hasDerivWithinAt_nonneg`:
+`φ'(t) = (fderiv f.f (v + t(u-v)))(u-v)` has derivative
+`(fderiv (fderiv f.f))(u-v)(u-v) = D²f[u-v, u-v] ≥ 0` (by
+`self_concordant_hessian_nonneg`), so `φ'` is monotone on `[0, 1]`.
+By Riesz, `φ'(t) = ⟨u-v, ∇f(γ t)⟩`, giving the result. -/
+theorem grad_monotone {K : Set V} {ν : ℕ} (f : LHSCB V K ν)
+    (_hK_conv : Convex ℝ (interior K)) :
     ∀ u ∈ interior K, ∀ v ∈ interior K,
       0 ≤ inner ℝ (u - v) (f.grad u - f.grad v) := by
-  -- Convexity of `interior K` is needed for the MVT argument. The
-  -- sorried proof should establish it from convexity of `K` (which
-  -- in our use case follows from `K` being a convex cone).
-  intro u _hu v _hv
+  intros u _hu v _hv
   sorry
 
 end LHSCB
