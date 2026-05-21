@@ -13,6 +13,7 @@ Paper references:
 -/
 
 import Irn.Setting
+import Irn.Monotone
 import Mathlib.Analysis.Calculus.ContDiff.Defs
 
 namespace Irn
@@ -49,50 +50,100 @@ theorem centralPath_norm_sq {μ : ℝ} (hμ : 0 < μ) {u : H X Y}
       real_inner_self_eq_norm_sq] at key
   nlinarith [key, hμ]
 
+/-- `T_μ` is strictly monotone on `C_interior` for `μ > 0`. This is the
+key monotonicity fact: `T_μ = Q + μ•id + μ•φ`, where `Q` is monotone
+(`Q_monotone`), `μ•id` is strictly monotone (`μ > 0`), and `μ•φ` is
+monotone (`phi_monotone`). The sum (mono + strict + mono) is strictly
+monotone. -/
+theorem T_strictMonotoneOn (μ : ℝ) (hμ : 0 < μ) :
+    IsStrictMonotoneOn (𝓢.T μ) 𝓢.C_interior := by
+  intro u hu v hv huv
+  have h_expand : 𝓢.T μ u - 𝓢.T μ v =
+      (𝓢.Q u - 𝓢.Q v) + μ • (u - v) + μ • (𝓢.φ u - 𝓢.φ v) := by
+    unfold T; rw [smul_sub, smul_sub]; abel
+  rw [h_expand, inner_add_right, inner_add_right, inner_smul_right,
+      inner_smul_right, real_inner_self_eq_norm_sq]
+  have h_Q := 𝓢.Q_monotone u (𝓢.C_interior_subset_Cplus hu) v
+    (𝓢.C_interior_subset_Cplus hv)
+  have h_phi := 𝓢.phi_monotone u hu v hv
+  have h_norm_pos : 0 < ‖u - v‖ ^ 2 := by
+    have : 0 < ‖u - v‖ := norm_pos_iff.mpr (sub_ne_zero.mpr huv)
+    positivity
+  have h_mu_norm : 0 < μ * ‖u - v‖ ^ 2 := mul_pos hμ h_norm_pos
+  have h_mu_phi : 0 ≤ μ * inner ℝ (u - v) (𝓢.φ u - 𝓢.φ v) :=
+    mul_nonneg hμ.le h_phi
+  linarith
+
 /-- **Uniqueness of the central-path point.** Two central-path points
-at the same `μ > 0` are equal. Strict monotonicity of `T_μ` follows
-from `Q_monotone + φ_monotone + μ ⟨u-v, u-v⟩ ≥ μ ‖u-v‖² > 0` for u≠v. -/
+at the same `μ > 0` are equal. Immediate from strict monotonicity of
+`T_μ`: if `T_μ u = T_μ v = 0` and `u ≠ v`, then
+`0 < ⟨u-v, T_μ u - T_μ v⟩ = ⟨u-v, 0⟩ = 0`, contradiction. -/
 theorem unique_centralPath (μ : ℝ) (hμ : 0 < μ)
     {u v : H X Y} (hu : 𝓢.IsCentralPathPoint μ u)
     (hv : 𝓢.IsCentralPathPoint μ v) : u = v := by
   obtain ⟨hC_u, hT_u⟩ := hu
   obtain ⟨hC_v, hT_v⟩ := hv
-  -- T_μ u - T_μ v = 0 - 0 = 0, so ⟨u-v, T_μ u - T_μ v⟩ = 0.
-  have h_T_diff : 𝓢.T μ u - 𝓢.T μ v = 0 := by rw [hT_u, hT_v]; abel
-  have h_inner : inner ℝ (u - v) (𝓢.T μ u - 𝓢.T μ v) = 0 := by
-    rw [h_T_diff, inner_zero_right]
-  -- Expand T_μ u - T_μ v = (Q u - Q v) + μ•(u-v) + μ•(φ u - φ v).
-  have h_expand : 𝓢.T μ u - 𝓢.T μ v =
-      (𝓢.Q u - 𝓢.Q v) + μ • (u - v) + μ • (𝓢.φ u - 𝓢.φ v) := by
-    unfold T; rw [smul_sub, smul_sub]; abel
-  rw [h_expand] at h_inner
-  rw [inner_add_right, inner_add_right, inner_smul_right, inner_smul_right,
-      real_inner_self_eq_norm_sq] at h_inner
-  -- The three nonneg terms sum to 0 ⇒ each is 0, in particular μ ‖u-v‖² = 0.
-  have h_Q := 𝓢.Q_monotone u (𝓢.C_interior_subset_Cplus hC_u) v
-    (𝓢.C_interior_subset_Cplus hC_v)
-  have h_phi := 𝓢.phi_monotone u hC_u v hC_v
-  have h_norm_sq_nn : 0 ≤ ‖u - v‖ ^ 2 := sq_nonneg _
-  have h_norm_sq_zero : ‖u - v‖ ^ 2 = 0 := by nlinarith
-  have h_norm_zero : ‖u - v‖ = 0 := by
-    have := sq_eq_zero_iff.mp h_norm_sq_zero
-    exact this
-  exact sub_eq_zero.mp (norm_eq_zero.mp h_norm_zero)
+  by_contra huv
+  have h_strict := 𝓢.T_strictMonotoneOn μ hμ u hC_u v hC_v huv
+  rw [hT_u, hT_v, sub_self, inner_zero_right] at h_strict
+  exact lt_irrefl 0 h_strict
+
+/-- `T_μ` is continuous on `C_interior`. Used by `exists_unique_centralPath`
+via Minty. Sorried — composition of continuous pieces (Q has 1/τ, but
+`τ > 0` on `C_interior`; φ has `f.grad` continuous from `contDiff` plus
+the `(-1/τ) • e_τ` term again continuous on `C_interior`). -/
+theorem T_continuousOn (μ : ℝ) : ContinuousOn (𝓢.T μ) 𝓢.C_interior := sorry
+
+/-- `T_μ` is boundary-coercive on `C_interior` for `μ > 0`. Used by
+`exists_unique_centralPath` via Minty. Sorried — comes from `f_lhscb.barrier`
+and `g_lhscb.barrier` (both already proven): `φ(u) → ∞` as `u` approaches
+the frontier, and the `Q + μ•id` part stays bounded near a fixed frontier
+point, so `‖T_μ(u)‖ → ∞`. -/
+theorem T_coercive (μ : ℝ) (hμ : 0 < μ) :
+    ∀ x ∈ frontier 𝓢.C_interior,
+      Filter.Tendsto (fun u => ‖𝓢.T μ u‖) (nhdsWithin x 𝓢.C_interior)
+        Filter.atTop := sorry
+
+/-- `C_interior` is convex (intersection of `interior K_f_lifted` (convex
+via `Convex.linear_preimage`) and `Cplus = {τ > 0}` (convex via
+`convex_Ioi`)). -/
+theorem C_interior_convex : Convex ℝ 𝓢.C_interior := by
+  show Convex ℝ {u : H X Y | 𝓢.y_proj u ∈ interior (𝓢.K : Set Y) ∧
+                              0 < 𝓢.tau_proj u}
+  have h1 : Convex ℝ {u : H X Y | 𝓢.y_proj u ∈ interior (𝓢.K : Set Y)} :=
+    (𝓢.K.convex.interior).linear_preimage
+      (IrnSetup.y_proj_linear : H X Y →L[ℝ] Y).toLinearMap
+  have h2 : Convex ℝ {u : H X Y | 0 < 𝓢.tau_proj u} :=
+    (convex_Ioi (0:ℝ)).linear_preimage
+      (IrnSetup.tau_proj_linear : H X Y →L[ℝ] ℝ).toLinearMap
+  exact h1.inter h2
+
+/-- `C_interior` is open and non-empty (assuming the latter as a setup
+prerequisite — sorried, since non-emptiness depends on the specific
+`fBarrier` and `K`). -/
+theorem C_interior_nonempty : 𝓢.C_interior.Nonempty := sorry
+
+/-- `C_interior` is open. -/
+theorem C_interior_isOpen : IsOpen 𝓢.C_interior := by
+  show IsOpen {u : H X Y | 𝓢.y_proj u ∈ interior (𝓢.K : Set Y) ∧
+                            0 < 𝓢.tau_proj u}
+  have h1 : IsOpen {u : H X Y | 𝓢.y_proj u ∈ interior (𝓢.K : Set Y)} :=
+    isOpen_interior.preimage 𝓢.y_proj_continuous
+  have h2 : IsOpen {u : H X Y | 0 < 𝓢.tau_proj u} :=
+    isOpen_Ioi.preimage 𝓢.tau_proj_continuous
+  exact h1.inter h2
 
 /-- **Theorem 5 (Existence and uniqueness).** For every `μ > 0` there
-is a unique central-path point.
-
-Uniqueness is proved (see `unique_centralPath`). Existence is sorried —
-the standard proof uses topological/monotone-operator existence: `T_μ`
-is continuous on `C_interior`, strictly monotone (by `Q_monotone` +
-`phi_monotone` + the `μ • id` term), and coercive at the boundary (via
-the LHSCB barrier). By a Minty/Brouwer-style argument, `T_μ` has a
-zero in `C_interior`. -/
+is a unique central-path point. Existence by Minty's theorem applied to
+`T_μ` (strictly monotone, continuous, boundary-coercive on the open
+convex `C_interior`); uniqueness from strict monotonicity. -/
 theorem exists_unique_centralPath (μ : ℝ) (hμ : 0 < μ) :
     ∃! u : H X Y, 𝓢.IsCentralPathPoint μ u := by
-  have h_exists : ∃ u : H X Y, 𝓢.IsCentralPathPoint μ u := sorry
-  obtain ⟨u, hu⟩ := h_exists
-  exact ⟨u, hu, fun y hy => 𝓢.unique_centralPath μ hμ hy hu⟩
+  obtain ⟨u, ⟨hu_C, hu_T⟩, _⟩ :=
+    exists_unique_zero_of_strict_monotone_continuous_coercive
+      𝓢.C_interior_isOpen 𝓢.C_interior_convex 𝓢.C_interior_nonempty
+      (𝓢.T_continuousOn μ) (𝓢.T_strictMonotoneOn μ hμ) (𝓢.T_coercive μ hμ)
+  exact ⟨u, ⟨hu_C, hu_T⟩, fun y hy => 𝓢.unique_centralPath μ hμ hy ⟨hu_C, hu_T⟩⟩
 
 /-- The (well-defined, for `μ > 0`) central-path point at level `μ`. -/
 noncomputable def centralPathPoint (μ : ℝ) (hμ : 0 < μ) : H X Y :=
