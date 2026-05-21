@@ -321,21 +321,126 @@ lemma self_concordant_hessian_nonneg {K : Set V} {ν : ℕ} (f : LHSCB V K ν) :
 
 /-- **Gradient monotonicity** (theorem). Convexity of `interior K`
 plus `D²f ≥ 0` (from `self_concordant`) imply that `t ↦ ⟨u-v, ∇f(v +
-t(u-v))⟩` is monotone on `[0, 1]`, hence
-`⟨u-v, ∇f(u) - ∇f(v)⟩ ≥ 0`.
+t(u-v))⟩` is monotone on `[0, 1]`, hence `⟨u-v, ∇f(u) - ∇f(v)⟩ ≥ 0`.
 
-Currently sorried — proof outline below. The strategy is to define
-`φ(t) := f.f(v + t(u-v))` and use `monotoneOn_of_hasDerivWithinAt_nonneg`:
-`φ'(t) = (fderiv f.f (v + t(u-v)))(u-v)` has derivative
-`(fderiv (fderiv f.f))(u-v)(u-v) = D²f[u-v, u-v] ≥ 0` (by
-`self_concordant_hessian_nonneg`), so `φ'` is monotone on `[0, 1]`.
-By Riesz, `φ'(t) = ⟨u-v, ∇f(γ t)⟩`, giving the result. -/
+Proof strategy: define `ψ(t) := (fderiv f.f (v + t(u-v))) (u-v)`.
+By chain rule, `ψ'(t) = (fderiv (fderiv f.f) (γ t)) (u-v) (u-v)`,
+which by `iteratedFDerivWithin_two_apply` (on open `interior K`)
+equals `iteratedFDerivWithin 2 f.f (interior K) (γ t) (fun _ => u-v)`,
+nonneg by `self_concordant_hessian_nonneg`. Then
+`monotoneOn_of_hasDerivWithinAt_nonneg` gives `ψ` monotone on `[0,1]`,
+so `ψ(0) ≤ ψ(1)`. Riesz translates this to the inner-product form. -/
 theorem grad_monotone {K : Set V} {ν : ℕ} (f : LHSCB V K ν)
-    (_hK_conv : Convex ℝ (interior K)) :
+    (hK_conv : Convex ℝ (interior K)) :
     ∀ u ∈ interior K, ∀ v ∈ interior K,
       0 ≤ inner ℝ (u - v) (f.grad u - f.grad v) := by
-  intros u _hu v _hv
-  sorry
+  intros u hu v hv
+  set w : V := u - v with hw_def
+  set γ : ℝ → V := fun t => v + t • w with hγ_def
+  -- γ has derivative w everywhere and γ(0) = v, γ(1) = u.
+  have hγ_deriv : ∀ t : ℝ, HasDerivAt γ w t := fun t => by
+    have h := (hasDerivAt_const t v).add ((hasDerivAt_id t).smul_const w)
+    simpa using h
+  have hγ_cont : Continuous γ :=
+    continuous_const.add (continuous_id.smul continuous_const)
+  have hγ0 : γ 0 = v := by show v + (0:ℝ) • w = v; simp
+  have hγ1 : γ 1 = u := by
+    show v + (1:ℝ) • w = u
+    simp [w]
+  -- For t ∈ Icc 0 1, γ(t) ∈ interior K.
+  have hγ_mem : ∀ t ∈ Set.Icc (0:ℝ) 1, γ t ∈ interior K := by
+    intro t ⟨h0, h1⟩
+    have heq : γ t = (1 - t) • v + t • u := by
+      show v + t • (u - v) = (1 - t) • v + t • u
+      rw [smul_sub, sub_smul, one_smul]; abel
+    rw [heq]
+    exact hK_conv hv hu (by linarith) h0 (by linarith)
+  -- f.f is C³ on interior K, so fderiv f.f is C² there, hence differentiable.
+  have hf_C3 : ContDiffOn ℝ 3 f.f (interior K) := f.contDiff
+  have h_fderiv_eqOn : Set.EqOn (fderivWithin ℝ f.f (interior K)) (fderiv ℝ f.f)
+      (interior K) := fun y hy => fderivWithin_of_isOpen isOpen_interior hy
+  have h_fderiv_C2 : ContDiffOn ℝ 2 (fderiv ℝ f.f) (interior K) := by
+    have h1 : ContDiffOn ℝ 2 (fderivWithin ℝ f.f (interior K)) (interior K) := by
+      have := hf_C3.fderivWithin isOpen_interior.uniqueDiffOn (m := 2) (by norm_num)
+      simpa using this
+    exact h1.congr (fun y hy => (fderivWithin_of_isOpen isOpen_interior hy).symm)
+  have h_fderiv_diffAt : ∀ x ∈ interior K, DifferentiableAt ℝ (fderiv ℝ f.f) x :=
+    fun x hx => (h_fderiv_C2.differentiableOn (by norm_num)).differentiableAt
+      (isOpen_interior.mem_nhds hx)
+  -- ψ(t) := (fderiv ℝ f.f (γ t)) w.
+  set ψ : ℝ → ℝ := fun t => (fderiv ℝ f.f (γ t)) w with hψ_def
+  -- ψ continuous on Icc 0 1: composition of continuous things on the open set.
+  have hψ_cont : ContinuousOn ψ (Set.Icc 0 1) := by
+    have h_fderiv_cont : ContinuousOn (fderiv ℝ f.f) (interior K) :=
+      h_fderiv_C2.continuousOn
+    have h_comp_cont : ContinuousOn (fderiv ℝ f.f ∘ γ) (Set.Icc 0 1) :=
+      h_fderiv_cont.comp hγ_cont.continuousOn hγ_mem
+    have h_eval : Continuous (fun L : V →L[ℝ] ℝ => L w) :=
+      (ContinuousLinearMap.apply ℝ ℝ w).continuous
+    exact h_eval.comp_continuousOn h_comp_cont
+  -- For t ∈ Ioo 0 1, HasDerivAt ψ (Hessian quadratic form) t.
+  have hψ_deriv : ∀ t ∈ Set.Ioo (0:ℝ) 1,
+      HasDerivAt ψ ((fderiv ℝ (fderiv ℝ f.f) (γ t)) w w) t := by
+    intro t ht
+    have htmem : γ t ∈ interior K := hγ_mem t (Set.Ioo_subset_Icc_self ht)
+    -- HasFDerivAt of `fderiv f.f` at γ(t).
+    have h_fderiv_fderiv : HasFDerivAt (fderiv ℝ f.f)
+        (fderiv ℝ (fderiv ℝ f.f) (γ t)) (γ t) :=
+      (h_fderiv_diffAt (γ t) htmem).hasFDerivAt
+    -- HasDerivAt of (fderiv f.f ∘ γ) at t: chain rule.
+    have h_comp : HasDerivAt (fun s : ℝ => fderiv ℝ f.f (γ s))
+        ((fderiv ℝ (fderiv ℝ f.f) (γ t)) w) t :=
+      h_fderiv_fderiv.comp_hasDerivAt t (hγ_deriv t)
+    -- Apply CLM `eval w` to convert to HasDerivAt for ψ.
+    have h_eval_clm : HasFDerivAt (fun L : V →L[ℝ] ℝ => L w)
+        (ContinuousLinearMap.apply ℝ ℝ w) (fderiv ℝ f.f (γ t)) :=
+      (ContinuousLinearMap.apply ℝ ℝ w).hasFDerivAt
+    have := h_eval_clm.comp_hasDerivAt t h_comp
+    simpa [ψ] using this
+  -- The Hessian quadratic form is ≥ 0 (via the iteratedFDerivWithin identification).
+  have hψ_deriv_nonneg : ∀ t ∈ Set.Ioo (0:ℝ) 1,
+      0 ≤ (fderiv ℝ (fderiv ℝ f.f) (γ t)) w w := by
+    intro t ht
+    have htmem : γ t ∈ interior K := hγ_mem t (Set.Ioo_subset_Icc_self ht)
+    have h_hess_nn := f.self_concordant_hessian_nonneg (γ t) htmem w
+    -- Identify: iteratedFDerivWithin 2 f.f (interior K) (γ t) [w, w]
+    --         = iteratedFDeriv 2 f.f (γ t) [w, w]    (open set)
+    --         = (fderiv (fderiv f.f) (γ t)) w w     (iteratedFDeriv_two_apply)
+    have h_eq1 : iteratedFDerivWithin ℝ 2 f.f (interior K) (γ t) (fun _ => w) =
+        iteratedFDeriv ℝ 2 f.f (γ t) (fun _ => w) := by
+      congr 1
+      exact iteratedFDerivWithin_of_isOpen 2 isOpen_interior htmem
+    have h_eq2 : iteratedFDeriv ℝ 2 f.f (γ t) (fun _ => w) =
+        (fderiv ℝ (fderiv ℝ f.f) (γ t)) w w := by
+      rw [iteratedFDeriv_two_apply]
+    rw [← h_eq2, ← h_eq1]
+    exact h_hess_nn
+  -- Apply monotoneOn_of_hasDerivWithinAt_nonneg.
+  have hψ_mono : MonotoneOn ψ (Set.Icc 0 1) := by
+    apply monotoneOn_of_hasDerivWithinAt_nonneg (convex_Icc 0 1) hψ_cont
+    · intro t ht
+      rw [interior_Icc] at ht
+      exact (hψ_deriv t ht).hasDerivWithinAt
+    · intro t ht
+      rw [interior_Icc] at ht
+      exact hψ_deriv_nonneg t ht
+  -- ψ(0) ≤ ψ(1).
+  have h_psi_le : ψ 0 ≤ ψ 1 :=
+    hψ_mono ⟨le_refl _, by norm_num⟩ ⟨by norm_num, le_refl _⟩ (by norm_num)
+  -- Translate via Riesz: ψ(t) = ⟨f.grad (γ t), w⟩.
+  have h_riesz : ∀ x : V, (fderiv ℝ f.f x) w = inner ℝ (f.grad x) w := by
+    intro x
+    show (fderiv ℝ f.f x) w =
+      inner ℝ ((InnerProductSpace.toDual ℝ V).symm (fderiv ℝ f.f x)) w
+    rw [InnerProductSpace.toDual_symm_apply]
+  have h_psi_0 : ψ 0 = inner ℝ (f.grad v) w := by
+    show (fderiv ℝ f.f (γ 0)) w = _; rw [hγ0]; exact h_riesz v
+  have h_psi_1 : ψ 1 = inner ℝ (f.grad u) w := by
+    show (fderiv ℝ f.f (γ 1)) w = _; rw [hγ1]; exact h_riesz u
+  rw [h_psi_0, h_psi_1] at h_psi_le
+  rw [real_inner_comm w (f.grad u), real_inner_comm w (f.grad v)] at h_psi_le
+  rw [inner_sub_right]
+  linarith
 
 end LHSCB
 
