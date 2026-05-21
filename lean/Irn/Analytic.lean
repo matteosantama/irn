@@ -512,12 +512,57 @@ theorem inner_self_W_op_eq_W_quad (u : H X Y) (hu : u ∈ 𝓢.C_interior) (v : 
   show inner ℝ v v + 𝓢.hessianBilin u v v = inner ℝ v v + 𝓢.hessianBilin u v v
   rfl
 
+/-- The underlying CLM `μ W(u) + M` (without the equivalence packaging). -/
+noncomputable def hessian_plus_M_op (𝓢 : IrnSetup X Y) (μ : ℝ) (u : H X Y) :
+    H X Y →L[ℝ] H X Y :=
+  𝓢.hessian_h μ u + 𝓢.M_clm
+
+/-- The inner product `⟨v, (μ W + M) v⟩` lower bound on `C_interior`:
+`μ ‖v‖²` (using `W ⪰ I` and `inner_u_M ≥ 0`). -/
+lemma inner_self_hessian_plus_M_op_lower (μ : ℝ) (hμ : 0 < μ)
+    (u : H X Y) (hu : u ∈ 𝓢.C_interior) (v : H X Y) :
+    μ * ‖v‖ ^ 2 ≤ inner ℝ v (𝓢.hessian_plus_M_op μ u v) := by
+  show μ * ‖v‖ ^ 2 ≤ inner ℝ v (𝓢.hessian_h μ u v + 𝓢.M_clm v)
+  rw [inner_add_right]
+  have h_h : inner ℝ v (𝓢.hessian_h μ u v) = μ * 𝓢.W_quad u v := by
+    show inner ℝ v (μ • 𝓢.W_op u v) = _
+    rw [inner_smul_right, 𝓢.inner_self_W_op_eq_W_quad u hu]
+  have h_M : inner ℝ v (𝓢.M_clm v) = 𝓢.Px_bilinform (𝓢.x_proj v) (𝓢.x_proj v) := by
+    show inner ℝ v (𝓢.M_apply v) = _
+    exact 𝓢.inner_u_M v
+  rw [h_h, h_M]
+  have h_Px_nn : 0 ≤ 𝓢.Px_bilinform (𝓢.x_proj v) (𝓢.x_proj v) :=
+    𝓢.Px_bilinform_self_nonneg _
+  have h_W_ge : ‖v‖ ^ 2 ≤ 𝓢.W_quad u v := by
+    have := 𝓢.inner_self_le_W_quad u hu v
+    rwa [real_inner_self_eq_norm_sq] at this
+  nlinarith
+
+/-- `hessian_plus_M_op` is injective on `C_interior` for `μ > 0`. -/
+lemma hessian_plus_M_op_injective (μ : ℝ) (hμ : 0 < μ)
+    (u : H X Y) (hu : u ∈ 𝓢.C_interior) :
+    Function.Injective (𝓢.hessian_plus_M_op μ u) := by
+  intro v₁ v₂ hv
+  -- (T (v₁ - v₂)) = 0
+  have h_zero : 𝓢.hessian_plus_M_op μ u (v₁ - v₂) = 0 := by
+    rw [map_sub, hv, sub_self]
+  by_contra hne
+  have hv_ne : v₁ - v₂ ≠ 0 := sub_ne_zero.mpr hne
+  have h_lower := 𝓢.inner_self_hessian_plus_M_op_lower μ hμ u hu (v₁ - v₂)
+  rw [h_zero, inner_zero_right] at h_lower
+  have h_norm_pos : 0 < ‖v₁ - v₂‖ ^ 2 := by
+    have : 0 < ‖v₁ - v₂‖ := norm_pos_iff.mpr hv_ne
+    positivity
+  nlinarith
+
 /-- The continuous linear equivalence `H_k + M`. Invertible because its
 symmetric part is `μ W(u) ≻ 0` (positive definite for `μ > 0`,
-`u ∈ C_interior`). Currently sorried — needs injectivity argument
-(any `v` in kernel forces `μ ⟨v, W v⟩ + ⟨v, M v⟩ = μ ⟨v, W v⟩ = 0`
-since `⟨v, M v⟩ = 0`; then `⟨v, W v⟩ ≥ ‖v‖² = 0` ⇒ `v = 0`) plus the
-finite-dim `injective ⇒ bijective` step. -/
+`u ∈ C_interior`). Currently sorried — `hessian_plus_M_op_injective`
+provides the injectivity; combining with `LinearMap.injective_iff_surjective`
+in finite-dim gives bijectivity, hence a CLE. The wrapping into the
+existing unconditional API (which the downstream `exists_pos_root_quad`
+in `Resolvent.lean` consumes without the `u ∈ C_interior` hypothesis)
+requires API restructuring; deferred. -/
 noncomputable def hessian_plus_M (_ : IrnSetup X Y) :
     ℝ → H X Y → (H X Y ≃L[ℝ] H X Y) := sorry
 
