@@ -223,16 +223,18 @@ theorem inner_u_M (u : H X Y) :
 /-- The KKT operator `Q : H → H` from eq. (2.4):
 $$ Q(u) = M u - \frac{1}{\tau}\!\big(0,\,0,\,x^\top P x\big)
         = M u - \big(Px_{\mathrm{bilinform}}(x, x) / \tau\big) \cdot e_\tau. $$
-Defined on `Cplus` (the `τ > 0` region); outside `Cplus` we use Lean's
-division-by-zero-is-zero convention, so the definition extends. -/
-noncomputable def Q_apply (𝓟 : ProblemData X Y) (u : H X Y) : H X Y :=
+Defined only on `Cplus` (the `τ > 0` region) because the rational
+correction `Px(x, x)/τ` is undefined at `τ = 0`. The `hu : u ∈ Cplus`
+hypothesis is taken explicitly. -/
+noncomputable def Q_apply (𝓟 : ProblemData X Y) (u : H X Y)
+    (_hu : u ∈ 𝓟.Cplus) : H X Y :=
   𝓟.M_apply u -
     (𝓟.Px_bilinform (𝓟.x_proj u) (𝓟.x_proj u) / 𝓟.tau_proj u) • 𝓟.e_τ
 
 /-- **The `Q_eq` decomposition** — `Q u = M u - (Px(x,x)/τ) • e_τ` — is
 the definition itself. -/
-theorem Q_eq (u : H X Y) :
-    𝓟.Q_apply u =
+theorem Q_eq {u : H X Y} (hu : u ∈ 𝓟.Cplus) :
+    𝓟.Q_apply u hu =
       𝓟.M_apply u -
         (𝓟.Px_bilinform (𝓟.x_proj u) (𝓟.x_proj u) / 𝓟.tau_proj u) • 𝓟.e_τ :=
   rfl
@@ -241,10 +243,10 @@ theorem Q_eq (u : H X Y) :
 matrix part contributes `Px(x, x)` (via `inner_u_M`) and the rational
 correction contributes `-(Px(x, x)/τ) · τ = -Px(x, x)`, which cancels. -/
 theorem inner_u_Q {u : H X Y} (hu : u ∈ 𝓟.Cplus) :
-    inner ℝ u (𝓟.Q_apply u) = (0 : ℝ) := by
+    inner ℝ u (𝓟.Q_apply u hu) = (0 : ℝ) := by
   have hτ : 0 < 𝓟.tau_proj u := 𝓟.tau_proj_pos hu
   have hτ_ne : 𝓟.tau_proj u ≠ 0 := ne_of_gt hτ
-  rw [Q_eq, inner_sub_right, real_inner_smul_right,
+  rw [Q_eq hu, inner_sub_right, real_inner_smul_right,
       𝓟.inner_u_M, 𝓟.inner_u_e_tau]
   field_simp
   ring
