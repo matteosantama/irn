@@ -107,7 +107,7 @@ Strong monotonicity of `T` on an open set implies that the
 Fréchet derivative at each interior point is "positive definite":
 `⟨h, DT(u) h⟩ ≥ α ‖h‖²`.
 -/
-private theorem fderiv_inner_lower_bound
+theorem fderiv_inner_lower_bound
     {s : Set V} (hs_open : IsOpen s)
     {T : V → V} {α : ℝ} (_hα : 0 < α)
     (hT_mono : IsStronglyMonotoneOn T s α)
@@ -146,7 +146,7 @@ The derivative of a strongly monotone C¹ map is surjective
 at each interior point (positive-definite ⇒ injective ⇒
 surjective in finite dimensions).
 -/
-private theorem fderiv_range_eq_top [FiniteDimensional ℝ V]
+theorem fderiv_range_eq_top [FiniteDimensional ℝ V]
     {s : Set V} (hs_open : IsOpen s)
     {T : V → V} {α : ℝ} (hα : 0 < α)
     (hT_mono : IsStronglyMonotoneOn T s α)
@@ -159,7 +159,7 @@ private theorem fderiv_range_eq_top [FiniteDimensional ℝ V]
   have := fderiv_inner_lower_bound hs_open hα hT_mono hT_C1 u hu ( x - y ) ; simp_all +decide ;
   exact sub_eq_zero.mp ( norm_eq_zero.mp ( by contrapose! this; positivity ) )
 /-- The image `T '' s` is open (inverse function theorem). -/
-private theorem image_isOpen [FiniteDimensional ℝ V]
+theorem image_isOpen [FiniteDimensional ℝ V]
     {s : Set V} (hs_open : IsOpen s)
     {T : V → V} {α : ℝ} (hα : 0 < α)
     (hT_mono : IsStronglyMonotoneOn T s α)
@@ -180,7 +180,7 @@ The image `T '' s` is closed (strong monotonicity ⇒ Cauchy sequences
 in the image lift to Cauchy sequences in `s`, boundary coercivity keeps
 the limit inside `s`).
 -/
-private theorem image_isClosed [FiniteDimensional ℝ V]
+theorem image_isClosed [FiniteDimensional ℝ V]
     {s : Set V} (hs_open : IsOpen s)
     {T : V → V} (hT_cont : ContinuousOn T s)
     {α : ℝ} (hα : 0 < α)

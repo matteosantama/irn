@@ -456,15 +456,131 @@ theorem T_coercive (μ : ℝ) (hμ : 0 < μ) :
       refine h_sum.congr ?_; intro u; ring
     exact Filter.tendsto_atTop_mono' _ h_eventually_le h_diff_atTop
 
-/-- `T_μ` is `C¹` on `C_interior`. This is the regularity hypothesis
-needed by the corrected Minty-style existence theorem
-`exists_unique_zero_of_stronglyMonotone_C1_coercive`, which uses the
-inverse function theorem to show that the image of `T_μ` is open.
+/-! ### Smoothness helpers for `T_contDiffOn1` and `T_joint_contDiffAt`
 
-**Currently sorried** — follows from the joint-smoothness chain of
-`f_lhscb_grad_contDiffOn`, `phi_contDiffAt`, etc., specialised to
-degree `1` (downgrading from `𝓢.d - 1 ≥ 2`). -/
-theorem T_contDiffOn1 (μ : ℝ) : ContDiffOn ℝ 1 (𝓢.T μ) 𝓢.C_interior := sorry
+These intermediate lemmas establish `C^(d-1)` smoothness of the
+constituent pieces of `T = Q + μ•id + μ•φ` on `C_interior`. They feed
+both the `C¹` regularity hypothesis of the corrected Minty existence
+theorem and the joint smoothness needed by the IFT proof of
+`centralPathPoint_contDiff`. -/
+
+/-- `(𝓢.d - 1) + 1 = 𝓢.d` (in `ℕ∞ω`): the standard `tsub` identity
+specialised to our setting (`d ≥ 3 ⇒ 1 ≤ d`). -/
+lemma d_sub_one_add_one_eq :
+    ((𝓢.d - 1 : ℕ∞) : ℕ∞ω) + 1 = ((𝓢.d : ℕ∞) : ℕ∞ω) := by
+  have h1 : (1 : ℕ∞) ≤ 𝓢.d := le_trans (by decide) 𝓢.hd_ge
+  have hcancel : (𝓢.d - 1) + 1 = 𝓢.d := tsub_add_cancel_of_le h1
+  exact_mod_cast hcancel
+
+/-- `f_lhscb.grad` is `C^(d-1)` on `interior K_f_lifted`. Uses
+`ContDiffOn.fderivWithin` to drop one derivative from `f_lhscb.contDiff`,
+then composes with the Riesz isomorphism `(toDual ℝ H).symm` which is
+a continuous linear equiv (hence `C^∞`). -/
+theorem f_lhscb_grad_contDiffOn :
+    ContDiffOn ℝ (𝓢.d - 1) 𝓢.f_lhscb.grad (interior 𝓢.K_f_lifted) := by
+  have h_fderiv_within : ContDiffOn ℝ (𝓢.d - 1)
+      (fderivWithin ℝ 𝓢.f_lhscb.f (interior 𝓢.K_f_lifted))
+      (interior 𝓢.K_f_lifted) := by
+    refine 𝓢.f_lhscb.contDiff.fderivWithin isOpen_interior.uniqueDiffOn ?_
+    have h1 : (1 : ℕ∞ω) ≤ ((𝓢.d : ℕ∞) : ℕ∞ω) := by
+      have h : (1 : ℕ∞) ≤ 𝓢.d := le_trans (by decide) 𝓢.hd_ge
+      exact_mod_cast h
+    exact (tsub_add_cancel_of_le h1).le
+  have h_fderiv : ContDiffOn ℝ (𝓢.d - 1) (fderiv ℝ 𝓢.f_lhscb.f)
+      (interior 𝓢.K_f_lifted) :=
+    h_fderiv_within.congr
+      (fun y hy => (fderivWithin_of_isOpen isOpen_interior hy).symm)
+  show ContDiffOn ℝ (𝓢.d - 1) (fun u =>
+      (InnerProductSpace.toDual ℝ (H X Y)).symm (fderiv ℝ 𝓢.f_lhscb.f u))
+      (interior 𝓢.K_f_lifted)
+  have h_clm : ContDiff ℝ (𝓢.d - 1)
+      (InnerProductSpace.toDual ℝ (H X Y)).symm.toContinuousLinearEquiv :=
+    ContinuousLinearEquiv.contDiff _
+  exact h_clm.comp_contDiffOn h_fderiv
+
+theorem f_lhscb_grad_contDiffAt {u₀ : H X Y}
+    (hu₀ : u₀ ∈ interior 𝓢.K_f_lifted) :
+    ContDiffAt ℝ (𝓢.d - 1) 𝓢.f_lhscb.grad u₀ :=
+  (𝓢.f_lhscb_grad_contDiffOn _ hu₀).contDiffAt
+    (isOpen_interior.mem_nhds hu₀)
+
+/-- `(-1/τ_u) • e_τ` is `C^∞` at any `u` with `τ_u > 0`. -/
+theorem g_grad_contDiffAt {u₀ : H X Y} (hu₀ : u₀ ∈ 𝓢.Cplus) :
+    ContDiffAt ℝ (𝓢.d - 1)
+      (fun u : H X Y => (-1 / 𝓢.tau_proj u) • 𝓢.e_τ) u₀ := by
+  have hτ : 0 < 𝓢.tau_proj u₀ := hu₀
+  have h_tau_cd : ContDiffAt ℝ (𝓢.d - 1) 𝓢.tau_proj u₀ :=
+    (IrnSetup.tau_proj_linear : H X Y →L[ℝ] ℝ).contDiff.contDiffAt
+  have h_inv_cd : ContDiffAt ℝ (𝓢.d - 1)
+      (fun u : H X Y => -1 / 𝓢.tau_proj u) u₀ :=
+    (contDiffAt_const (c := (-1 : ℝ))).div h_tau_cd (ne_of_gt hτ)
+  exact h_inv_cd.smul_const 𝓢.e_τ
+
+/-- `φ` is `C^(d-1)` at any `u₀ ∈ C_interior`. -/
+theorem phi_contDiffAt {u₀ : H X Y} (hu₀ : u₀ ∈ 𝓢.C_interior) :
+    ContDiffAt ℝ (𝓢.d - 1) 𝓢.φ u₀ := by
+  show ContDiffAt ℝ (𝓢.d - 1)
+    (fun u => 𝓢.f_lhscb.grad u + (-1 / 𝓢.tau_proj u) • 𝓢.e_τ) u₀
+  exact (𝓢.f_lhscb_grad_contDiffAt
+    (𝓢.C_interior_subset_f_lhscb_interior hu₀)).add (𝓢.g_grad_contDiffAt hu₀.2)
+
+/-- `Q` is `C^(d-1)` at any `u₀ ∈ Cplus`. The proof uses
+`contDiff_inner` with explicit `𝕜 := ℝ` and `E := X` to side-step a
+`NormedSpace` typeclass elaboration ambiguity. -/
+theorem Q_contDiffAt {u₀ : H X Y} (hu₀ : u₀ ∈ 𝓢.Cplus) :
+    ContDiffAt ℝ (𝓢.d - 1) 𝓢.Q u₀ := by
+  have hτ : 0 < 𝓢.tau_proj u₀ := hu₀
+  show ContDiffAt ℝ (𝓢.d - 1)
+    (fun u : H X Y => 𝓢.M_apply u -
+      (𝓢.Px_bilinform (𝓢.x_proj u) (𝓢.x_proj u) / 𝓢.tau_proj u) • 𝓢.e_τ) u₀
+  refine ContDiffAt.sub ?_ ?_
+  · exact 𝓢.M_clm.contDiff.contDiffAt
+  · refine ContDiffAt.smul_const ?_ 𝓢.e_τ
+    have h_xp : ContDiffAt ℝ (𝓢.d - 1) 𝓢.x_proj u₀ :=
+      (IrnSetup.x_proj_linear : H X Y →L[ℝ] X).contDiff.contDiffAt
+    have h_tp : ContDiffAt ℝ (𝓢.d - 1) 𝓢.tau_proj u₀ :=
+      (IrnSetup.tau_proj_linear : H X Y →L[ℝ] ℝ).contDiff.contDiffAt
+    have h_P : ContDiffAt ℝ (𝓢.d - 1) (fun u : H X Y => 𝓢.P (𝓢.x_proj u)) u₀ :=
+      (𝓢.P.contDiff.contDiffAt).comp u₀ h_xp
+    have h_Pxbil : ContDiffAt ℝ (𝓢.d - 1)
+        (fun u : H X Y => 𝓢.Px_bilinform (𝓢.x_proj u) (𝓢.x_proj u)) u₀ := by
+      show ContDiffAt ℝ (𝓢.d - 1)
+        (fun u : H X Y => inner ℝ (𝓢.x_proj u) (𝓢.P (𝓢.x_proj u))) u₀
+      have h_inner_cd : ContDiff ℝ (𝓢.d - 1)
+          (fun p : X × X => inner ℝ p.1 p.2) :=
+        (isBoundedBilinearMap_inner (𝕜 := ℝ) (E := X)).contDiff
+      exact h_inner_cd.contDiffAt.comp u₀ (h_xp.prodMk h_P)
+    exact h_Pxbil.div h_tp (ne_of_gt hτ)
+
+/-- `T_μ` is `C^(d-1)` (in particular `C¹`) on `C_interior`. The
+regularity hypothesis used by the corrected Minty existence theorem
+and by the IFT-based smoothness of `centralPathMap`. -/
+theorem T_contDiffOn (μ : ℝ) :
+    ContDiffOn ℝ (𝓢.d - 1) (𝓢.T μ) 𝓢.C_interior := by
+  intro u₀ hu₀
+  refine ContDiffAt.contDiffWithinAt ?_
+  show ContDiffAt ℝ (𝓢.d - 1)
+    (fun u : H X Y => 𝓢.Q u + μ • u + μ • 𝓢.φ u) u₀
+  have h_Q : ContDiffAt ℝ (𝓢.d - 1) 𝓢.Q u₀ := 𝓢.Q_contDiffAt hu₀.2
+  have h_id : ContDiffAt ℝ (𝓢.d - 1) (fun u : H X Y => u) u₀ := contDiffAt_id
+  have h_phi : ContDiffAt ℝ (𝓢.d - 1) 𝓢.φ u₀ := 𝓢.phi_contDiffAt hu₀
+  have h_smulId : ContDiffAt ℝ (𝓢.d - 1) (fun u : H X Y => μ • u) u₀ :=
+    h_id.const_smul μ
+  have h_smulPhi : ContDiffAt ℝ (𝓢.d - 1) (fun u : H X Y => μ • 𝓢.φ u) u₀ :=
+    h_phi.const_smul μ
+  exact (h_Q.add h_smulId).add h_smulPhi
+
+/-- `T_μ` is `C¹` on `C_interior` (downgrade of `T_contDiffOn`). -/
+theorem T_contDiffOn1 (μ : ℝ) : ContDiffOn ℝ 1 (𝓢.T μ) 𝓢.C_interior := by
+  refine (𝓢.T_contDiffOn μ).of_le ?_
+  have h2 : (2 : ℕ∞) ≤ 𝓢.d - 1 := by
+    have h3 : (3 : ℕ∞) ≤ 𝓢.d := 𝓢.hd_ge
+    have h_sub : (3 : ℕ∞) - 1 ≤ 𝓢.d - 1 := tsub_le_tsub_right h3 1
+    have h_eq : (3 : ℕ∞) - 1 = 2 := by decide
+    rw [h_eq] at h_sub
+    exact h_sub
+  have h12' : (1 : ℕ∞) ≤ 𝓢.d - 1 := le_trans (by decide) h2
+  exact_mod_cast h12'
 
 /-- **Theorem 5 (Existence and uniqueness).** For every `μ > 0` there
 is a unique central-path point. Existence by the corrected Minty-style
@@ -526,92 +642,6 @@ The proof applies Mathlib's implicit function theorem
 noncomputable def T_joint (𝓢 : IrnSetup X Y) : ℝ × H X Y → H X Y :=
   fun p => 𝓢.T p.1 p.2
 
-/-! ### Smoothness helpers for `T_joint_contDiffAt`
-
-These intermediate lemmas establish smoothness of the constituent
-pieces of `T`. Each could in principle be promoted to `ContDiffOn`
-on the full open domain, but the pointwise `ContDiffAt` form is all
-that the IFT needs. -/
-
-/-- `(𝓢.d - 1) + 1 = 𝓢.d` (in `ℕ∞ω`): the standard `tsub` identity
-specialised to our setting (`d ≥ 3 ⇒ 1 ≤ d`). -/
-lemma d_sub_one_add_one_eq :
-    ((𝓢.d - 1 : ℕ∞) : ℕ∞ω) + 1 = ((𝓢.d : ℕ∞) : ℕ∞ω) := by
-  have h1 : (1 : ℕ∞) ≤ 𝓢.d := le_trans (by decide) 𝓢.hd_ge
-  have hcancel : (𝓢.d - 1) + 1 = 𝓢.d := tsub_add_cancel_of_le h1
-  exact_mod_cast hcancel
-
-/-- `f_lhscb.grad` is `C^(d-1)` on `interior K_f_lifted`. Uses
-`ContDiffOn.fderivWithin` to drop one derivative from `f_lhscb.contDiff`,
-then composes with the Riesz isomorphism `(toDual ℝ H).symm` which is
-a continuous linear equiv (hence `C^∞`).
-
-**The Riesz `.symm.contDiff` step is currently sorried** — needs the
-right Mathlib API to coerce `SemilinearIsometryEquiv ⋆[ℝ]` (with
-trivial star) into a `ContinuousLinearMap` for the chain rule. -/
-theorem f_lhscb_grad_contDiffOn :
-    ContDiffOn ℝ (𝓢.d - 1) 𝓢.f_lhscb.grad (interior 𝓢.K_f_lifted) := by
-  have h_fderiv_within : ContDiffOn ℝ (𝓢.d - 1)
-      (fderivWithin ℝ 𝓢.f_lhscb.f (interior 𝓢.K_f_lifted))
-      (interior 𝓢.K_f_lifted) := by
-    refine 𝓢.f_lhscb.contDiff.fderivWithin isOpen_interior.uniqueDiffOn ?_
-    -- `↑𝓢.d - 1 + 1 ≤ ↑𝓢.d` in `ℕ∞ω`: from `tsub_add_cancel_of_le`.
-    have h1 : (1 : ℕ∞ω) ≤ ((𝓢.d : ℕ∞) : ℕ∞ω) := by
-      have h : (1 : ℕ∞) ≤ 𝓢.d := le_trans (by decide) 𝓢.hd_ge
-      exact_mod_cast h
-    exact (tsub_add_cancel_of_le h1).le
-  have h_fderiv : ContDiffOn ℝ (𝓢.d - 1) (fderiv ℝ 𝓢.f_lhscb.f)
-      (interior 𝓢.K_f_lifted) :=
-    h_fderiv_within.congr
-      (fun y hy => (fderivWithin_of_isOpen isOpen_interior hy).symm)
-  -- `f_lhscb.grad u = (toDual).symm (fderiv f_lhscb.f u)`. The Riesz
-  -- inverse `(toDual).symm` is a continuous linear equiv, hence `C^∞`,
-  -- so composition preserves `C^(d-1)`.
-  show ContDiffOn ℝ (𝓢.d - 1) (fun u =>
-      (InnerProductSpace.toDual ℝ (H X Y)).symm (fderiv ℝ 𝓢.f_lhscb.f u))
-      (interior 𝓢.K_f_lifted)
-  -- View the Riesz inverse as a `ContinuousLinearMap` via its
-  -- `toContinuousLinearEquiv` (the `≃ₗᵢ⋆[ℝ]` collapses to `≃L[ℝ]`
-  -- because `starRingEnd ℝ = RingHom.id ℝ`).
-  have h_clm : ContDiff ℝ (𝓢.d - 1)
-      (InnerProductSpace.toDual ℝ (H X Y)).symm.toContinuousLinearEquiv :=
-    ContinuousLinearEquiv.contDiff _
-  exact h_clm.comp_contDiffOn h_fderiv
-
-theorem f_lhscb_grad_contDiffAt {u₀ : H X Y}
-    (hu₀ : u₀ ∈ interior 𝓢.K_f_lifted) :
-    ContDiffAt ℝ (𝓢.d - 1) 𝓢.f_lhscb.grad u₀ :=
-  (𝓢.f_lhscb_grad_contDiffOn _ hu₀).contDiffAt
-    (isOpen_interior.mem_nhds hu₀)
-
-/-- `(-1/τ_u) • e_τ` is `C^∞` at any `u` with `τ_u > 0`. -/
-theorem g_grad_contDiffAt {u₀ : H X Y} (hu₀ : u₀ ∈ 𝓢.Cplus) :
-    ContDiffAt ℝ (𝓢.d - 1)
-      (fun u : H X Y => (-1 / 𝓢.tau_proj u) • 𝓢.e_τ) u₀ := by
-  have hτ : 0 < 𝓢.tau_proj u₀ := hu₀
-  have h_tau_cd : ContDiffAt ℝ (𝓢.d - 1) 𝓢.tau_proj u₀ :=
-    (IrnSetup.tau_proj_linear : H X Y →L[ℝ] ℝ).contDiff.contDiffAt
-  have h_inv_cd : ContDiffAt ℝ (𝓢.d - 1)
-      (fun u : H X Y => -1 / 𝓢.tau_proj u) u₀ :=
-    (contDiffAt_const (c := (-1 : ℝ))).div h_tau_cd (ne_of_gt hτ)
-  exact h_inv_cd.smul contDiffAt_const
-
-/-- `φ` is `C^(d-1)` at any `u₀ ∈ C_interior`. -/
-theorem phi_contDiffAt {u₀ : H X Y} (hu₀ : u₀ ∈ 𝓢.C_interior) :
-    ContDiffAt ℝ (𝓢.d - 1) 𝓢.φ u₀ := by
-  show ContDiffAt ℝ (𝓢.d - 1)
-    (fun u => 𝓢.f_lhscb.grad u + (-1 / 𝓢.tau_proj u) • 𝓢.e_τ) u₀
-  exact (𝓢.f_lhscb_grad_contDiffAt
-    (𝓢.C_interior_subset_f_lhscb_interior hu₀)).add (𝓢.g_grad_contDiffAt hu₀.2)
-
-/-- `Q` is `C^∞` (hence `C^(d-1)`) at any `u₀ ∈ Cplus`.
-**Sketched but currently sorried** — the inner-product piece
-`(fun u => inner ℝ (x_proj u) (P (x_proj u)))` hits a `NormedSpace`
-typeclass elaboration issue when chained with `contDiff_inner`; a
-more careful `(𝕜 := ℝ)` / `(E := X)` annotation should suffice. -/
-theorem Q_contDiffAt {u₀ : H X Y} (hu₀ : u₀ ∈ 𝓢.Cplus) :
-    ContDiffAt ℝ (𝓢.d - 1) 𝓢.Q u₀ := sorry
-
 /-- **Joint smoothness of `T_joint`.** At any `(μ₀, u₀)` with `μ₀ > 0`
 and `u₀ ∈ C_interior`, `T_joint` is `C^(d-1)`. The smoothness is
 limited by `μ • F_lhscb.grad u` — `F_lhscb.grad` is `C^(d-1)` because
@@ -626,13 +656,29 @@ the Riesz isomorphism, which is `C^∞`). The other pieces (`Q`,
 T_joint p = Q p.2 + p.1 • p.2 + p.1 • φ p.2
 ```
 
-The composition with `Prod.snd` and the addition are routine. Lean's
-elaboration unfolds the `noncomputable def` `Q` to its `WithLp.toLp`
-form during `.comp` matching, requiring a `change` / `convert` step
-to coerce the goal types back. Currently sorried for that reason. -/
-theorem T_joint_contDiffAt {μ₀ : ℝ} (hμ₀ : 0 < μ₀)
+The proof composes the single-variable smoothness lemmas
+(`Q_contDiffAt`, `phi_contDiffAt`) with `Prod.snd` and uses bilinearity
+of scalar multiplication. -/
+theorem T_joint_contDiffAt {μ₀ : ℝ} (_hμ₀ : 0 < μ₀)
     {u₀ : H X Y} (hu₀ : u₀ ∈ 𝓢.C_interior) :
-    ContDiffAt ℝ (𝓢.d - 1) 𝓢.T_joint (μ₀, u₀) := sorry
+    ContDiffAt ℝ (𝓢.d - 1) 𝓢.T_joint (μ₀, u₀) := by
+  show ContDiffAt ℝ (𝓢.d - 1)
+    (fun p : ℝ × H X Y => 𝓢.Q p.2 + p.1 • p.2 + p.1 • 𝓢.φ p.2) (μ₀, u₀)
+  have h_fst : ContDiffAt ℝ (𝓢.d - 1) (Prod.fst : ℝ × H X Y → ℝ) (μ₀, u₀) :=
+    contDiffAt_fst
+  have h_snd : ContDiffAt ℝ (𝓢.d - 1)
+      (Prod.snd : ℝ × H X Y → H X Y) (μ₀, u₀) := contDiffAt_snd
+  have h_Q : ContDiffAt ℝ (𝓢.d - 1)
+      (fun p : ℝ × H X Y => 𝓢.Q p.2) (μ₀, u₀) :=
+    (𝓢.Q_contDiffAt hu₀.2).fun_comp (μ₀, u₀) h_snd
+  have h_phi : ContDiffAt ℝ (𝓢.d - 1)
+      (fun p : ℝ × H X Y => 𝓢.φ p.2) (μ₀, u₀) :=
+    (𝓢.phi_contDiffAt hu₀).fun_comp (μ₀, u₀) h_snd
+  have h_smulId : ContDiffAt ℝ (𝓢.d - 1)
+      (fun p : ℝ × H X Y => p.1 • p.2) (μ₀, u₀) := h_fst.smul h_snd
+  have h_smulPhi : ContDiffAt ℝ (𝓢.d - 1)
+      (fun p : ℝ × H X Y => p.1 • 𝓢.φ p.2) (μ₀, u₀) := h_fst.smul h_phi
+  exact (h_Q.add h_smulId).add h_smulPhi
 
 /-- **Invertibility of `D_u T_μ` at central-path points.** The partial
 derivative of `T_joint` in the `u`-direction at `(μ, u)` (with `μ > 0`
