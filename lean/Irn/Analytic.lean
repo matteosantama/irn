@@ -94,6 +94,146 @@ theorem hessianBilin_self_self (u : H X Y) (hu : u ∈ 𝓢.C_interior) :
   rw [𝓢.hessianBilin_apply_self u hu u, 𝓢.inner_u_phi u hu]
   ring
 
+/-- On `C_interior`, `hessianBilin u v w` agrees with the (curried)
+second Fréchet derivative `(fderiv (fderiv F_lhscb.f) u) v w`.
+Via `iteratedFDeriv_two_apply` on the open `interior`. -/
+theorem hessianBilin_eq_fderiv (u : H X Y) (hu : u ∈ 𝓢.C_interior)
+    (v w : H X Y) :
+    𝓢.hessianBilin u v w = (fderiv ℝ (fderiv ℝ 𝓢.F_lhscb.f) u) v w := by
+  have hu' : u ∈ interior (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted) :=
+    𝓢.C_interior_subset_F_interior hu
+  show iteratedFDerivWithin ℝ 2 𝓢.F_lhscb.f
+    (interior (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted)) u ![v, w] = _
+  rw [iteratedFDerivWithin_of_isOpen 2 isOpen_interior hu',
+      iteratedFDeriv_two_apply]
+  rfl
+
+/-- `hessianBilin u · ·` is bilinear (linear in each slot). -/
+theorem hessianBilin_add_left (u : H X Y) (hu : u ∈ 𝓢.C_interior)
+    (v₁ v₂ w : H X Y) :
+    𝓢.hessianBilin u (v₁ + v₂) w =
+      𝓢.hessianBilin u v₁ w + 𝓢.hessianBilin u v₂ w := by
+  rw [𝓢.hessianBilin_eq_fderiv u hu, 𝓢.hessianBilin_eq_fderiv u hu,
+      𝓢.hessianBilin_eq_fderiv u hu]
+  rw [map_add]
+  rfl
+
+theorem hessianBilin_smul_left (u : H X Y) (hu : u ∈ 𝓢.C_interior)
+    (r : ℝ) (v w : H X Y) :
+    𝓢.hessianBilin u (r • v) w = r * 𝓢.hessianBilin u v w := by
+  rw [𝓢.hessianBilin_eq_fderiv u hu, 𝓢.hessianBilin_eq_fderiv u hu]
+  rw [map_smul]
+  rfl
+
+theorem hessianBilin_add_right (u : H X Y) (hu : u ∈ 𝓢.C_interior)
+    (v w₁ w₂ : H X Y) :
+    𝓢.hessianBilin u v (w₁ + w₂) =
+      𝓢.hessianBilin u v w₁ + 𝓢.hessianBilin u v w₂ := by
+  rw [𝓢.hessianBilin_eq_fderiv u hu, 𝓢.hessianBilin_eq_fderiv u hu,
+      𝓢.hessianBilin_eq_fderiv u hu]
+  exact ContinuousLinearMap.map_add _ _ _
+
+theorem hessianBilin_smul_right (u : H X Y) (hu : u ∈ 𝓢.C_interior)
+    (r : ℝ) (v w : H X Y) :
+    𝓢.hessianBilin u v (r • w) = r * 𝓢.hessianBilin u v w := by
+  rw [𝓢.hessianBilin_eq_fderiv u hu, 𝓢.hessianBilin_eq_fderiv u hu]
+  exact ContinuousLinearMap.map_smul _ _ _
+
+/-- `hessianBilin u · ·` is symmetric: a consequence of
+`second_derivative_symmetric_of_eventually` for `F_lhscb.f`. -/
+theorem hessianBilin_symm (u : H X Y) (hu : u ∈ 𝓢.C_interior) (v w : H X Y) :
+    𝓢.hessianBilin u v w = 𝓢.hessianBilin u w v := by
+  rw [𝓢.hessianBilin_eq_fderiv u hu, 𝓢.hessianBilin_eq_fderiv u hu]
+  have hu' : u ∈ interior (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted) :=
+    𝓢.C_interior_subset_F_interior hu
+  have hf_C3 : ContDiffOn ℝ 3 𝓢.F_lhscb.f
+      (interior (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted)) := 𝓢.F_lhscb.contDiff
+  have h_ff_diff_eventually : ∀ᶠ y in nhds u,
+      HasFDerivAt 𝓢.F_lhscb.f (fderiv ℝ 𝓢.F_lhscb.f y) y := by
+    filter_upwards [isOpen_interior.mem_nhds hu'] with y hy
+    exact ((hf_C3.differentiableOn (by norm_num)).differentiableAt
+      (isOpen_interior.mem_nhds hy)).hasFDerivAt
+  have h_fderiv_C2 : ContDiffOn ℝ 2 (fderiv ℝ 𝓢.F_lhscb.f)
+      (interior (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted)) := by
+    have h1 : ContDiffOn ℝ 2
+        (fderivWithin ℝ 𝓢.F_lhscb.f (interior (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted)))
+        (interior (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted)) := by
+      have := hf_C3.fderivWithin isOpen_interior.uniqueDiffOn (m := 2) (by norm_num)
+      simpa using this
+    exact h1.congr (fun y hy => (fderivWithin_of_isOpen isOpen_interior hy).symm)
+  have h_fderiv_diffAt : DifferentiableAt ℝ (fderiv ℝ 𝓢.F_lhscb.f) u :=
+    (h_fderiv_C2.differentiableOn (by norm_num)).differentiableAt
+      (isOpen_interior.mem_nhds hu')
+  exact second_derivative_symmetric_of_eventually h_ff_diff_eventually
+    h_fderiv_diffAt.hasFDerivAt v w
+
+/-- **PSD Cauchy-Schwarz** for `hessianBilin`. On `C_interior`,
+`(hessianBilin u v w)² ≤ hessianBilin u v v · hessianBilin u w w`.
+Standard discriminant argument: `0 ≤ hessianBilin u (v - λw) (v - λw)` for all
+`λ`, hence the quadratic in λ has non-positive discriminant. -/
+theorem hessianBilin_CS (u : H X Y) (hu : u ∈ 𝓢.C_interior) (v w : H X Y) :
+    (𝓢.hessianBilin u v w) ^ 2 ≤
+      𝓢.hessianBilin u v v * 𝓢.hessianBilin u w w := by
+  -- Set a := hessianBilin u v v, b := hessianBilin u v w, c := hessianBilin u w w.
+  -- Hypothesis: ∀ λ, 0 ≤ a - 2λb + λ²c. We want b² ≤ ac.
+  set a := 𝓢.hessianBilin u v v with ha_def
+  set b := 𝓢.hessianBilin u v w with hb_def
+  set c := 𝓢.hessianBilin u w w with hc_def
+  -- Expansion: hessianBilin u (v - λw) (v - λw) = a - 2λb + λ²c.
+  have h_expand : ∀ lam : ℝ, 𝓢.hessianBilin u (v - lam • w) (v - lam • w) =
+      a - 2 * lam * b + lam^2 * c := by
+    intro lam
+    have h_sub : v - lam • w = v + (-lam) • w := by rw [neg_smul, sub_eq_add_neg]
+    rw [h_sub, 𝓢.hessianBilin_add_left u hu,
+        𝓢.hessianBilin_add_right u hu, 𝓢.hessianBilin_add_right u hu,
+        𝓢.hessianBilin_smul_right u hu, 𝓢.hessianBilin_smul_right u hu,
+        𝓢.hessianBilin_smul_left u hu, 𝓢.hessianBilin_smul_left u hu,
+        𝓢.hessianBilin_symm u hu w v]
+    ring
+  -- For all lam, the quadratic a - 2λb + λ²c ≥ 0.
+  have h_quad_nn : ∀ lam : ℝ, 0 ≤ a - 2 * lam * b + lam^2 * c := by
+    intro lam
+    rw [← h_expand lam]
+    exact 𝓢.hessianBilin_self_nonneg u hu _
+  -- Case split on c.
+  by_cases hc_zero : c = 0
+  · -- c = 0: then a - 2λb ≥ 0 for all λ, hence b = 0.
+    have h_b_zero : b = 0 := by
+      by_contra hb_ne
+      -- Pick lam so that 2λb > a.
+      rcases lt_or_gt_of_ne hb_ne with hb_neg | hb_pos
+      · -- b < 0: pick large positive lam to make 2λb very negative, hence -2λb very positive...
+        -- We need a - 2λb < 0. Need 2λb > a. For b < 0, pick lam < 0 large in magnitude.
+        have := h_quad_nn ((a + 1) / (2 * b))
+        rw [hc_zero] at this
+        have h_2b : (2 * b) ≠ 0 := by linarith
+        have : a - 2 * ((a + 1) / (2 * b)) * b + ((a + 1) / (2 * b))^2 * 0 ≥ 0 := by linarith
+        simp at this
+        field_simp at this
+        linarith
+      · -- b > 0: similar with positive lam.
+        have := h_quad_nn ((a + 1) / (2 * b))
+        rw [hc_zero] at this
+        have h_2b : (2 * b) ≠ 0 := by linarith
+        have : a - 2 * ((a + 1) / (2 * b)) * b + ((a + 1) / (2 * b))^2 * 0 ≥ 0 := by linarith
+        simp at this
+        field_simp at this
+        linarith
+    rw [h_b_zero, hc_zero]; simp
+  · -- c ≠ 0. Since 0 ≤ hessianBilin u w w = c, c > 0.
+    have hc_nn : 0 ≤ c := 𝓢.hessianBilin_self_nonneg u hu w
+    have hc_pos : 0 < c := lt_of_le_of_ne hc_nn (Ne.symm hc_zero)
+    -- Pick λ = b / c.
+    have hquad := h_quad_nn (b / c)
+    -- Multiply by c > 0: 0 ≤ (a - 2(b/c)b + (b/c)² c) · c = a·c - b².
+    have h_mult : 0 ≤ (a - 2 * (b / c) * b + (b / c) ^ 2 * c) * c :=
+      mul_nonneg hquad hc_pos.le
+    have h_simp : (a - 2 * (b / c) * b + (b / c) ^ 2 * c) * c = a * c - b ^ 2 := by
+      have : c ≠ 0 := hc_zero
+      field_simp
+      ring
+    linarith
+
 /-- The `W`-quadratic form `⟨v, W(u) v⟩ = ‖v‖² + ∇²F^*(u)(v, v)`,
 where `W(u) = I + ∇²F^*(u)`. Always `≥ ‖v‖²` since the Hessian is PSD. -/
 noncomputable def W_quad (u v : H X Y) : ℝ :=
@@ -269,16 +409,62 @@ theorem normWinv_triangle (u : H X Y) (hu : u ∈ 𝓢.C_interior)
 
 /-- **LHSCB gradient bound** (paper §3.2):
 `‖φ(u)‖²_{W(u)⁻¹} ≤ ν + 1`, hence `‖φ(u)‖_{W(u)⁻¹} ≤ √(ν+1)`. The
-τ-block contributes at most 1 (from the `g = -log τ` part), giving
-the `+1` correction.
-
-Currently sorried — the placeholder `normWinv u v = ‖v‖` does NOT
-satisfy this bound in general (the bound requires the strict
-`W(u)⁻¹` weighting). The eventual proof uses
-`LHSCB.hessian_fderiv_apply_self_inner`: setting `h = -y` and applying
-the Euler identity gives `‖∇f‖²_{(∇²f)⁻¹} = ν` for the y-block. -/
+proof uses the chain
+  `⟨φ u, t⟩² = (hessianBilin u u t)²        [hessianBilin_apply_self]
+            ≤ hessianBilin u u u · hessianBilin u t t  [hessianBilin_CS]
+            = (ν + 1) · hessianBilin u t t   [hessianBilin_self_self]
+            ≤ (ν + 1) · W_quad u t           [W_quad ≥ hessianBilin]`
+hence `⟨φ u, t⟩² / W_quad u t ≤ ν + 1` after division, and the iSup
+preserves this. -/
 theorem normWinv_phi_bound : ∀ u ∈ 𝓢.C_interior,
-    𝓢.normWinv u (𝓢.φ u) ≤ Real.sqrt ((𝓢.ν : ℝ) + 1) := sorry
+    𝓢.normWinv u (𝓢.φ u) ≤ Real.sqrt ((𝓢.ν : ℝ) + 1) := by
+  intro u hu
+  -- Pointwise bound on each ratio.
+  have h_pt : ∀ t : H X Y,
+      (inner ℝ (𝓢.φ u) t) ^ 2 / 𝓢.W_quad u t ≤ (𝓢.ν : ℝ) + 1 := by
+    intro t
+    have hWq_nn : 0 ≤ 𝓢.W_quad u t := by
+      have := 𝓢.inner_self_le_W_quad u hu t
+      linarith [@real_inner_self_nonneg _ _ _ t]
+    have hH_tt_nn : 0 ≤ 𝓢.hessianBilin u t t := 𝓢.hessianBilin_self_nonneg u hu t
+    have hH_tt_le : 𝓢.hessianBilin u t t ≤ 𝓢.W_quad u t := by
+      show 𝓢.hessianBilin u t t ≤ inner ℝ t t + 𝓢.hessianBilin u t t
+      linarith [@real_inner_self_nonneg _ _ _ t]
+    -- ⟨φ u, t⟩ = -hessianBilin u u t.
+    have h_inner_eq : inner ℝ (𝓢.φ u) t = -𝓢.hessianBilin u u t := by
+      rw [real_inner_comm, 𝓢.hessianBilin_apply_self u hu t]
+      ring
+    have h_sq_eq : (inner ℝ (𝓢.φ u) t) ^ 2 = (𝓢.hessianBilin u u t) ^ 2 := by
+      rw [h_inner_eq, neg_pow_two]
+    have h_CS : (𝓢.hessianBilin u u t) ^ 2 ≤
+        𝓢.hessianBilin u u u * 𝓢.hessianBilin u t t :=
+      𝓢.hessianBilin_CS u hu u t
+    have h_self_self : 𝓢.hessianBilin u u u = (𝓢.ν : ℝ) + 1 :=
+      𝓢.hessianBilin_self_self u hu
+    have h_main : (inner ℝ (𝓢.φ u) t) ^ 2 ≤ ((𝓢.ν : ℝ) + 1) * 𝓢.W_quad u t := by
+      calc (inner ℝ (𝓢.φ u) t) ^ 2
+          = (𝓢.hessianBilin u u t) ^ 2 := h_sq_eq
+        _ ≤ 𝓢.hessianBilin u u u * 𝓢.hessianBilin u t t := h_CS
+        _ = ((𝓢.ν : ℝ) + 1) * 𝓢.hessianBilin u t t := by rw [h_self_self]
+        _ ≤ ((𝓢.ν : ℝ) + 1) * 𝓢.W_quad u t := by
+            apply mul_le_mul_of_nonneg_left hH_tt_le
+            have : (0 : ℝ) ≤ (𝓢.ν : ℝ) := Nat.cast_nonneg _
+            linarith
+    by_cases hWq_zero : 𝓢.W_quad u t = 0
+    · rw [hWq_zero, div_zero]
+      have : (0 : ℝ) ≤ (𝓢.ν : ℝ) := Nat.cast_nonneg _
+      linarith
+    · have hWq_pos : 0 < 𝓢.W_quad u t := lt_of_le_of_ne hWq_nn (Ne.symm hWq_zero)
+      rw [div_le_iff₀ hWq_pos]
+      exact h_main
+  -- Conclude via ciSup and sqrt.
+  have h_sq_bound : 𝓢.normWinv_sq u (𝓢.φ u) ≤ (𝓢.ν : ℝ) + 1 := by
+    unfold normWinv_sq
+    exact ciSup_le h_pt
+  unfold normWinv
+  have h_nu1_nn : (0 : ℝ) ≤ (𝓢.ν : ℝ) + 1 := by
+    have : (0 : ℝ) ≤ (𝓢.ν : ℝ) := Nat.cast_nonneg _; linarith
+  exact Real.sqrt_le_sqrt h_sq_bound
 
 /-! ### Hessian preconditioner -/
 
