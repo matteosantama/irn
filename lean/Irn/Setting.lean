@@ -54,12 +54,6 @@ structure IrnSetup (H : Type*)
   /-- The barrier-gradient map (zero on `x`, `∇f*(y)` on `y`,
   `∇g*(τ) = -1/τ` on `τ`). -/
   φ : H → H
-  /-- **Proposition 1.** `Q` is monotone on `Cplus`. -/
-  Q_monotone : ∀ u ∈ Cplus, ∀ v ∈ Cplus,
-    0 ≤ inner ℝ (u - v) (Q u - Q v)
-  /-- Euler-type identity used in the proof of Proposition 3 (sphericity):
-  `⟨u, Q(u)⟩ = 0`. -/
-  inner_u_Q : ∀ u ∈ Cplus, inner ℝ u (Q u) = (0 : ℝ)
   /-- The `W(u)⁻¹`-weighted norm `‖·‖_{W(u)⁻¹}`, where
   `W(u) = I + ∇²F*(u)`. Carried as a field to sidestep the
   linear-operator-inverse machinery; its required algebraic and
@@ -83,8 +77,6 @@ structure IrnSetup (H : Type*)
   M : H →L[ℝ] H
   /-- The τ-direction unit vector in `H = ℝⁿ × ℝᵐ × ℝ`. -/
   e_τ : H
-  /-- The rational correction `q(u) = x⊤Px/τ`. -/
-  q : H → ℝ
   /-- The τ-component projection. -/
   tau_proj : H → ℝ
   /-- `tau_proj u > 0` on `Cplus`. -/
@@ -128,6 +120,25 @@ structure IrnSetup (H : Type*)
   Px_bilinform : H →L[ℝ] H →L[ℝ] ℝ
   /-- `B_P` is symmetric. -/
   Px_symm : ∀ u v, Px_bilinform u v = Px_bilinform v u
+  /-- **Euler identity for the linear part of `Q`.** The skew off-diagonal
+  blocks of `M` cancel pairwise in `⟨u, M u⟩`, leaving only the primal
+  quadratic `x⊤Px = Px_bilinform(u, u)`. -/
+  inner_u_M : ∀ u : H, inner ℝ u (M u) = Px_bilinform u u
+  /-- **Structural form of `Q`.** Combines the matrix decomposition
+  `Q u = M u - q(u) • e_τ` with the rational correction
+  `q(u) = x⊤Px / τ = Px_bilinform(u, u) / tau_proj(u)` (eq. (2.4)). -/
+  Q_eq : ∀ u ∈ Cplus,
+    Q u = M u - (Px_bilinform u u / tau_proj u) • e_τ
+  /-- **τ-rescaled PSD identity for `P`.** Since `Px(u, v) = x_u⊤ P x_v`
+  with `P ⪰ 0`, the rescaled quadratic form
+  `(τ_v x_u - τ_u x_v)⊤ P (τ_v x_u - τ_u x_v) ≥ 0` is just PSD-ness of
+  `P` after a τ-rescaling. This single algebraic fact (expanded as a
+  polynomial in `Px(·,·)` and `tau_proj`) drives the monotonicity of
+  `Q` on `Cplus`. -/
+  Px_quad_form_psd : ∀ u v : H,
+    0 ≤ tau_proj v ^ 2 * Px_bilinform u u
+        - 2 * tau_proj u * tau_proj v * Px_bilinform u v
+        + tau_proj u ^ 2 * Px_bilinform v v
   /-- The continuous linear equivalence `H_k + M`. The matrix `H_k + M`
   is invertible because its symmetric part is positive definite. -/
   hessian_plus_M : ℝ → H → (H ≃L[ℝ] H)
@@ -215,6 +226,79 @@ theorem r_sq : 𝓢.r ^ 2 = (𝓢.ν : ℝ) + 1 := by
 theorem r_pos : 0 < 𝓢.r := by
   unfold IrnSetup.r
   exact Real.sqrt_pos.mpr (by positivity)
+
+/-- **Euler-type identity for `Q`.** `⟨u, Q(u)⟩ = 0` on `Cplus`. The
+matrix part contributes `Px(u, u)` (skew off-diagonals cancel) and the
+rational correction contributes `-(Px(u, u)/τ) · τ = -Px(u, u)`, which
+cancels. -/
+theorem inner_u_Q (u : H) (hu : u ∈ 𝓢.Cplus) :
+    inner ℝ u (𝓢.Q u) = (0 : ℝ) := by
+  have hτ : 0 < 𝓢.tau_proj u := 𝓢.tau_proj_pos u hu
+  have hτ_ne : 𝓢.tau_proj u ≠ 0 := ne_of_gt hτ
+  rw [𝓢.Q_eq u hu, inner_sub_right, inner_smul_right, 𝓢.inner_u_M,
+      𝓢.inner_u_e_tau]
+  field_simp
+  ring
+
+/-- **Proposition 1 (Monotonicity of `Q`).** Direct calculation gives
+`⟨u₁ - u₂, Q(u₁) - Q(u₂)⟩ = τ₁τ₂(z₁ - z₂)⊤ P (z₁ - z₂) ≥ 0`. The
+τ-rescaling is captured by `Px_quad_form_psd`. -/
+theorem Q_monotone (u : H) (hu : u ∈ 𝓢.Cplus) (v : H) (hv : v ∈ 𝓢.Cplus) :
+    0 ≤ inner ℝ (u - v) (𝓢.Q u - 𝓢.Q v) := by
+  have hτu : 0 < 𝓢.tau_proj u := 𝓢.tau_proj_pos u hu
+  have hτv : 0 < 𝓢.tau_proj v := 𝓢.tau_proj_pos v hv
+  have hτu_ne : 𝓢.tau_proj u ≠ 0 := ne_of_gt hτu
+  have hτv_ne : 𝓢.tau_proj v ≠ 0 := ne_of_gt hτv
+  have hτuv : 0 < 𝓢.tau_proj u * 𝓢.tau_proj v := mul_pos hτu hτv
+  rw [𝓢.Q_eq u hu, 𝓢.Q_eq v hv]
+  -- Regroup the difference as `M(u - v) - (q(u) - q(v)) • e_τ`.
+  have h_arrange :
+      𝓢.M u - (𝓢.Px_bilinform u u / 𝓢.tau_proj u) • 𝓢.e_τ -
+        (𝓢.M v - (𝓢.Px_bilinform v v / 𝓢.tau_proj v) • 𝓢.e_τ) =
+      𝓢.M (u - v) -
+        ((𝓢.Px_bilinform u u / 𝓢.tau_proj u) -
+          (𝓢.Px_bilinform v v / 𝓢.tau_proj v)) • 𝓢.e_τ := by
+    rw [map_sub 𝓢.M]
+    module
+  rw [h_arrange, inner_sub_right, inner_smul_right, 𝓢.inner_u_M (u - v)]
+  -- Expand `Px(u - v, u - v)` bilinearly.
+  have h_Px_expand :
+      𝓢.Px_bilinform (u - v) (u - v) =
+        𝓢.Px_bilinform u u - 2 * 𝓢.Px_bilinform u v + 𝓢.Px_bilinform v v := by
+    have h1 : 𝓢.Px_bilinform (u - v) = 𝓢.Px_bilinform u - 𝓢.Px_bilinform v :=
+      map_sub _ _ _
+    rw [h1]
+    simp only [ContinuousLinearMap.sub_apply]
+    rw [show (𝓢.Px_bilinform u) (u - v) =
+              𝓢.Px_bilinform u u - 𝓢.Px_bilinform u v from map_sub _ _ _,
+        show (𝓢.Px_bilinform v) (u - v) =
+              𝓢.Px_bilinform v u - 𝓢.Px_bilinform v v from map_sub _ _ _,
+        𝓢.Px_symm v u]
+    ring
+  rw [h_Px_expand]
+  -- `⟨u - v, e_τ⟩ = τ_u - τ_v`.
+  have h_inner_etau : inner ℝ (u - v) 𝓢.e_τ = 𝓢.tau_proj u - 𝓢.tau_proj v := by
+    rw [inner_sub_left, 𝓢.inner_u_e_tau, 𝓢.inner_u_e_tau]
+  rw [h_inner_etau]
+  -- Rewrite as `(τ-rescaled PSD form) / (τ_u τ_v)` and apply `Px_quad_form_psd`.
+  have h_psd :
+      0 ≤ 𝓢.tau_proj v ^ 2 * 𝓢.Px_bilinform u u -
+          2 * 𝓢.tau_proj u * 𝓢.tau_proj v * 𝓢.Px_bilinform u v +
+          𝓢.tau_proj u ^ 2 * 𝓢.Px_bilinform v v :=
+    𝓢.Px_quad_form_psd u v
+  have h_id :
+      𝓢.Px_bilinform u u - 2 * 𝓢.Px_bilinform u v + 𝓢.Px_bilinform v v -
+          (𝓢.Px_bilinform u u / 𝓢.tau_proj u -
+            𝓢.Px_bilinform v v / 𝓢.tau_proj v) *
+              (𝓢.tau_proj u - 𝓢.tau_proj v) =
+        (𝓢.tau_proj v ^ 2 * 𝓢.Px_bilinform u u -
+          2 * 𝓢.tau_proj u * 𝓢.tau_proj v * 𝓢.Px_bilinform u v +
+          𝓢.tau_proj u ^ 2 * 𝓢.Px_bilinform v v) /
+          (𝓢.tau_proj u * 𝓢.tau_proj v) := by
+    field_simp
+    ring
+  rw [h_id]
+  exact div_nonneg h_psd (le_of_lt hτuv)
 
 /-- The concrete `1`-LHSCB `g(τ) = -log τ` lifted to `H`. The gradient
 is `(-1/tau_proj u) • e_τ`; the Euler identity `⟨u, ∇g(u)⟩ = -1` uses
