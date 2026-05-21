@@ -162,29 +162,6 @@ theorem T_continuousOn (μ : ℝ) : ContinuousOn (𝓢.T μ) 𝓢.C_interior := 
   · exact (continuous_const.smul continuous_id).continuousOn
   · exact (continuousOn_const).smul 𝓢.phi_continuousOn
 
-/-- `T_μ` is boundary-coercive on `C_interior` for `μ > 0`.
-
-**Case A (`tau_proj x = 0`):** The τ-component of `T_μ u` is
-`M_apply.τ + μτ − (Px(x,x) + μ)/τ`. As `τ → 0+`, this `→ -∞` (the
-`-(Px+μ)/τ` term dominates since `Px ≥ 0` and `μ > 0`). Hence
-`|τ-component of T_μ u| → ∞`, and `‖T_μ u‖ ≥ |τ-component|`.
-
-**Case B (`tau_proj x > 0`, hence `y_proj x ∈ frontier K`):** Apply
-`F_lhscb.grad_norm_tendsto_atTop` (or equivalently, the y-block via
-`fBarrier.grad_norm_tendsto_atTop`) to get `‖μ • F_lhscb.grad u‖ → ∞`.
-Combined with `‖Q u + μ u‖` bounded near `x` (since `τ` stays positive
-and all linear/quadratic pieces are continuous), reverse triangle
-gives `‖T_μ u‖ ≥ μ‖φ u‖ − ‖Q u + μu‖ → ∞`.
-
-Currently sorried — the formal case-split + bookkeeping for the
-`nhdsWithin` filter compositions and the explicit component blow-ups
-is ~150 lines of `Filter.Tendsto` arithmetic on top of the helpers
-already in place. -/
-theorem T_coercive (μ : ℝ) (hμ : 0 < μ) :
-    ∀ x ∈ frontier 𝓢.C_interior,
-      Filter.Tendsto (fun u => ‖𝓢.T μ u‖) (nhdsWithin x 𝓢.C_interior)
-        Filter.atTop := sorry
-
 /-- `C_interior` is convex (intersection of `interior K_f_lifted` (convex
 via `Convex.linear_preimage`) and `Cplus = {τ > 0}` (convex via
 `convex_Ioi`)). -/
@@ -218,6 +195,262 @@ theorem C_interior_isOpen : IsOpen 𝓢.C_interior := by
   have h2 : IsOpen {u : H X Y | 0 < 𝓢.tau_proj u} :=
     isOpen_Ioi.preimage 𝓢.tau_proj_continuous
   exact h1.inter h2
+
+/-- `‖e_τ‖ = 1`. The τ-direction unit vector is a unit vector. -/
+lemma e_tau_norm : ‖(𝓢.e_τ : H X Y)‖ = 1 := by
+  have h_sq : ‖(𝓢.e_τ : H X Y)‖ ^ 2 = 1 := by
+    rw [← real_inner_self_eq_norm_sq, 𝓢.inner_u_e_tau]
+    show 𝓢.e_τ.snd.snd = 1
+    rfl
+  have h_nn : 0 ≤ ‖(𝓢.e_τ : H X Y)‖ := norm_nonneg _
+  nlinarith [h_sq, h_nn]
+
+/-- The τ-component of `f_lhscb.grad u` is zero: `f_lhscb.f` depends
+only on the y-block (`f_lhscb.f u = fBarrier.f (y_proj u)`), so its
+gradient lifts as `(0, ∇fBarrier(y_proj u), 0)`. -/
+lemma inner_f_lhscb_grad_e_tau (u : H X Y) (hu : u ∈ interior 𝓢.K_f_lifted) :
+    inner ℝ (𝓢.f_lhscb.grad u) 𝓢.e_τ = (0 : ℝ) := by
+  show inner ℝ ((InnerProductSpace.toDual ℝ (H X Y)).symm
+        (fderiv ℝ 𝓢.f_lhscb.f u)) 𝓢.e_τ = 0
+  rw [InnerProductSpace.toDual_symm_apply]
+  -- Chain rule: f_lhscb.f = fBarrier.f ∘ y_proj_linear.
+  have hy_int : 𝓢.y_proj u ∈ interior (𝓢.K : Set Y) := by
+    rw [𝓢.interior_K_f_lifted] at hu; exact hu
+  have h_fb_diffAt : DifferentiableAt ℝ 𝓢.fBarrier.f (𝓢.y_proj u) :=
+    (𝓢.fBarrier.contDiff.differentiableOn (by norm_num)).differentiableAt
+      (isOpen_interior.mem_nhds hy_int)
+  have h_yp_hd : HasFDerivAt (fun v : H X Y => 𝓢.y_proj v)
+      (IrnSetup.y_proj_linear : H X Y →L[ℝ] Y) u :=
+    (IrnSetup.y_proj_linear : H X Y →L[ℝ] Y).hasFDerivAt
+  have h_comp : HasFDerivAt 𝓢.f_lhscb.f
+      ((fderiv ℝ 𝓢.fBarrier.f (𝓢.y_proj u)).comp
+        (IrnSetup.y_proj_linear : H X Y →L[ℝ] Y)) u :=
+    h_fb_diffAt.hasFDerivAt.comp u h_yp_hd
+  rw [h_comp.fderiv]
+  show (fderiv ℝ 𝓢.fBarrier.f (𝓢.y_proj u))
+        ((IrnSetup.y_proj_linear : H X Y →L[ℝ] Y) 𝓢.e_τ) = 0
+  have h_yp_eτ : (IrnSetup.y_proj_linear : H X Y →L[ℝ] Y) 𝓢.e_τ = 0 := by
+    show 𝓢.y_proj 𝓢.e_τ = 0
+    rfl
+  rw [h_yp_eτ, ContinuousLinearMap.map_zero]
+
+/-- `T_μ` is boundary-coercive on `C_interior` for `μ > 0`.
+
+**Case A (`tau_proj x = 0`):** The τ-component of `T_μ u` is
+`M_apply.τ + μτ − (Px(x,x) + μ)/τ`. As `τ → 0+`, this `→ -∞` (the
+`-(Px+μ)/τ` term dominates since `Px ≥ 0` and `μ > 0`). Hence
+`|τ-component of T_μ u| → ∞`, and `‖T_μ u‖ ≥ |τ-component|`.
+
+**Case B (`tau_proj x > 0`, hence `y_proj x ∈ frontier K`):** Apply
+`f_lhscb.grad_norm_tendsto_atTop` to get `‖μ • f_lhscb.grad u‖ → ∞`.
+Combined with `R u := Q u + μu − (μ/τ)•e_τ` continuous (hence bounded)
+near `x` (since `τ` stays positive), reverse triangle on
+`T u = R u + μ • f_lhscb.grad u` gives `‖T u‖ ≥ μ‖∇f‖ − ‖R u‖ → ∞`. -/
+theorem T_coercive (μ : ℝ) (hμ : 0 < μ) :
+    ∀ x ∈ frontier 𝓢.C_interior,
+      Filter.Tendsto (fun u => ‖𝓢.T μ u‖) (nhdsWithin x 𝓢.C_interior)
+        Filter.atTop := by
+  intro x hx
+  have h_etau_norm := 𝓢.e_tau_norm
+  -- `x ∈ closure C_interior` and `x ∉ C_interior` (since `C_interior` is open).
+  have h_x_cl : x ∈ closure 𝓢.C_interior := hx.1
+  have h_x_notC : x ∉ 𝓢.C_interior := by
+    have h_int : interior 𝓢.C_interior = 𝓢.C_interior :=
+      𝓢.C_interior_isOpen.interior_eq
+    have := hx.2
+    rwa [h_int] at this
+  -- `tau_proj x ≥ 0` (from `closure {τ > 0} ⊆ {τ ≥ 0}`).
+  have h_tau_x_nn : 0 ≤ 𝓢.tau_proj x := by
+    have h_subset : closure 𝓢.C_interior ⊆ {u | 0 ≤ 𝓢.tau_proj u} := by
+      refine closure_minimal ?_ ?_
+      · intro u hu; exact le_of_lt hu.2
+      · exact isClosed_Ici.preimage 𝓢.tau_proj_continuous
+    exact h_subset h_x_cl
+  -- Continuity of `tau_proj ∘ M_apply`.
+  have h_M_cont : Continuous (fun u : H X Y => 𝓢.tau_proj (𝓢.M_apply u)) :=
+    𝓢.tau_proj_continuous.comp 𝓢.M_clm.continuous
+  by_cases h_tau_zero : 𝓢.tau_proj x = 0
+  · -- **CASE A:** τ_x = 0. The τ-component of `T_μ u` tends to `-∞`.
+    have h_tau_to_zero_pos :
+        Filter.Tendsto 𝓢.tau_proj (nhdsWithin x 𝓢.C_interior)
+          (nhdsWithin 0 (Set.Ioi 0)) := by
+      rw [tendsto_nhdsWithin_iff]
+      refine ⟨?_, ?_⟩
+      · have h := 𝓢.tau_proj_continuous.tendsto x
+        rw [h_tau_zero] at h
+        exact h.mono_left nhdsWithin_le_nhds
+      · filter_upwards [self_mem_nhdsWithin] with u hu; exact hu.2
+    -- `μ / τ_u → +∞`.
+    have h_mu_div : Filter.Tendsto (fun u : H X Y => μ / 𝓢.tau_proj u)
+        (nhdsWithin x 𝓢.C_interior) Filter.atTop := by
+      have h_R : Filter.Tendsto (fun τ : ℝ => μ / τ)
+          (nhdsWithin (0 : ℝ) (Set.Ioi 0)) Filter.atTop := by
+        have h_inv : Filter.Tendsto (fun τ : ℝ => τ⁻¹)
+            (nhdsWithin (0 : ℝ) (Set.Ioi 0)) Filter.atTop :=
+          tendsto_inv_nhdsGT_zero
+        have h_mul := h_inv.const_mul_atTop hμ
+        refine h_mul.congr ?_
+        intro τ; show μ * τ⁻¹ = μ / τ; ring
+      exact h_R.comp h_tau_to_zero_pos
+    -- The bounded part `-μ τ_u - tau_proj M_u` tends to a constant.
+    have h_bdd_tendsto : Filter.Tendsto
+        (fun u : H X Y => -μ * 𝓢.tau_proj u - 𝓢.tau_proj (𝓢.M_apply u))
+        (nhdsWithin x 𝓢.C_interior)
+        (nhds (-μ * 𝓢.tau_proj x - 𝓢.tau_proj (𝓢.M_apply x))) := by
+      refine (Continuous.tendsto ?_ x).mono_left nhdsWithin_le_nhds
+      exact (continuous_const.mul 𝓢.tau_proj_continuous).sub h_M_cont
+    -- Combine: `μ/τ_u + (-μ τ_u - tau_proj M_u) → +∞`.
+    have h_lower_atTop : Filter.Tendsto
+        (fun u : H X Y =>
+          μ / 𝓢.tau_proj u - μ * 𝓢.tau_proj u - 𝓢.tau_proj (𝓢.M_apply u))
+        (nhdsWithin x 𝓢.C_interior) Filter.atTop := by
+      have h_sum := h_mu_div.atTop_add h_bdd_tendsto
+      refine h_sum.congr ?_; intro u; ring
+    -- Eventually: `lower ≤ ‖T_μ u‖`.
+    have h_eventually_le : ∀ᶠ u in nhdsWithin x 𝓢.C_interior,
+        μ / 𝓢.tau_proj u - μ * 𝓢.tau_proj u - 𝓢.tau_proj (𝓢.M_apply u) ≤
+          ‖𝓢.T μ u‖ := by
+      filter_upwards [self_mem_nhdsWithin] with u hu
+      have hτu : 0 < 𝓢.tau_proj u := hu.2
+      have hτu_ne : 𝓢.tau_proj u ≠ 0 := ne_of_gt hτu
+      -- `⟨T_μ u, e_τ⟩` explicit formula.
+      have h_T_etau : inner ℝ (𝓢.T μ u) 𝓢.e_τ =
+          𝓢.tau_proj (𝓢.M_apply u) -
+            𝓢.Px_bilinform (𝓢.x_proj u) (𝓢.x_proj u) / 𝓢.tau_proj u +
+            μ * 𝓢.tau_proj u - μ / 𝓢.tau_proj u := by
+        show inner ℝ (𝓢.Q u + μ • u + μ • 𝓢.φ u) 𝓢.e_τ = _
+        rw [inner_add_left, inner_add_left, real_inner_smul_left,
+            real_inner_smul_left]
+        have h_tau_etau : 𝓢.tau_proj 𝓢.e_τ = (1 : ℝ) := rfl
+        have h_Q_etau : inner ℝ (𝓢.Q u) 𝓢.e_τ =
+            𝓢.tau_proj (𝓢.M_apply u) -
+              𝓢.Px_bilinform (𝓢.x_proj u) (𝓢.x_proj u) / 𝓢.tau_proj u := by
+          show inner ℝ
+              (𝓢.M_apply u -
+                (𝓢.Px_bilinform (𝓢.x_proj u) (𝓢.x_proj u) / 𝓢.tau_proj u) •
+                  𝓢.e_τ) 𝓢.e_τ = _
+          rw [inner_sub_left, real_inner_smul_left, 𝓢.inner_u_e_tau,
+              𝓢.inner_u_e_tau, h_tau_etau]
+          ring
+        have h_phi_etau : inner ℝ (𝓢.φ u) 𝓢.e_τ = -1 / 𝓢.tau_proj u := by
+          show inner ℝ
+              (𝓢.f_lhscb.grad u + (-1 / 𝓢.tau_proj u) • 𝓢.e_τ) 𝓢.e_τ = _
+          rw [inner_add_left, real_inner_smul_left,
+              𝓢.inner_f_lhscb_grad_e_tau u
+                (𝓢.C_interior_subset_f_lhscb_interior hu),
+              𝓢.inner_u_e_tau, h_tau_etau]
+          ring
+        rw [h_Q_etau, 𝓢.inner_u_e_tau, h_phi_etau]
+        ring
+      have h_Px_nn : 0 ≤ 𝓢.Px_bilinform (𝓢.x_proj u) (𝓢.x_proj u) :=
+        𝓢.Px_bilinform_self_nonneg _
+      have h_Px_div_nn :
+          0 ≤ 𝓢.Px_bilinform (𝓢.x_proj u) (𝓢.x_proj u) / 𝓢.tau_proj u :=
+        div_nonneg h_Px_nn hτu.le
+      have h_cs : |inner ℝ (𝓢.T μ u) 𝓢.e_τ| ≤ ‖𝓢.T μ u‖ * ‖𝓢.e_τ‖ :=
+        abs_real_inner_le_norm _ _
+      rw [h_etau_norm, mul_one] at h_cs
+      have h_neg_le : -inner ℝ (𝓢.T μ u) 𝓢.e_τ ≤ ‖𝓢.T μ u‖ := by
+        have := abs_le.mp h_cs; linarith
+      linarith [h_T_etau, h_Px_div_nn, h_neg_le]
+    exact Filter.tendsto_atTop_mono' _ h_eventually_le h_lower_atTop
+  · -- **CASE B:** τ_x > 0, so `y_proj x ∈ frontier K`.
+    have h_tau_x_pos : 0 < 𝓢.tau_proj x :=
+      lt_of_le_of_ne h_tau_x_nn (Ne.symm h_tau_zero)
+    -- `y_proj x ∈ frontier K`.
+    have h_yp_x_cl : 𝓢.y_proj x ∈ closure (𝓢.K : Set Y) := by
+      have h_subset : closure 𝓢.C_interior ⊆ 𝓢.y_proj ⁻¹' closure (𝓢.K : Set Y) := by
+        refine closure_minimal ?_ ?_
+        · intro u hu
+          exact subset_closure (interior_subset hu.1)
+        · exact isClosed_closure.preimage 𝓢.y_proj_continuous
+      exact h_subset h_x_cl
+    have h_yp_x_in_K : 𝓢.y_proj x ∈ (𝓢.K : Set Y) := by
+      have h_K_closed : IsClosed (𝓢.K : Set Y) := 𝓢.K.isClosed
+      rwa [h_K_closed.closure_eq] at h_yp_x_cl
+    have h_yp_x_not_int : 𝓢.y_proj x ∉ interior (𝓢.K : Set Y) := fun h_in =>
+      h_x_notC ⟨h_in, h_tau_x_pos⟩
+    have h_x_in_Kf : x ∈ 𝓢.K_f_lifted := h_yp_x_in_K
+    have h_x_not_int_Kf : x ∉ interior 𝓢.K_f_lifted := by
+      rw [𝓢.interior_K_f_lifted]; exact h_yp_x_not_int
+    have h_x_frontier_Kf : x ∈ frontier 𝓢.K_f_lifted :=
+      ⟨subset_closure h_x_in_Kf, h_x_not_int_Kf⟩
+    have h_Kf_int_conv : Convex ℝ (interior 𝓢.K_f_lifted) := by
+      rw [𝓢.interior_K_f_lifted]
+      exact (𝓢.K.convex.interior).linear_preimage
+        (IrnSetup.y_proj_linear : H X Y →L[ℝ] Y).toLinearMap
+    have h_Kf_int_nonempty : (interior 𝓢.K_f_lifted).Nonempty := by
+      obtain ⟨u₀, hu₀⟩ := 𝓢.C_interior_nonempty
+      exact ⟨u₀, 𝓢.C_interior_subset_f_lhscb_interior hu₀⟩
+    have h_grad_atTop : Filter.Tendsto (fun u => ‖𝓢.f_lhscb.grad u‖)
+        (nhdsWithin x (interior 𝓢.K_f_lifted)) Filter.atTop :=
+      𝓢.f_lhscb.grad_norm_tendsto_atTop h_Kf_int_conv h_Kf_int_nonempty x
+        h_x_frontier_Kf
+    have h_grad_atTop_C : Filter.Tendsto (fun u => ‖𝓢.f_lhscb.grad u‖)
+        (nhdsWithin x 𝓢.C_interior) Filter.atTop :=
+      h_grad_atTop.mono_left
+        (nhdsWithin_mono x 𝓢.C_interior_subset_f_lhscb_interior)
+    have h_mu_grad : Filter.Tendsto (fun u => μ * ‖𝓢.f_lhscb.grad u‖)
+        (nhdsWithin x 𝓢.C_interior) Filter.atTop :=
+      h_grad_atTop_C.const_mul_atTop hμ
+    -- `R u := Q u + μ•u - (μ/τ_u)•e_τ` so that `T_μ u = R u + μ•f_lhscb.grad u`.
+    set R : H X Y → H X Y := fun u =>
+      𝓢.Q u + μ • u - (μ / 𝓢.tau_proj u) • 𝓢.e_τ with hR_def
+    have h_T_eq : ∀ u : H X Y, 𝓢.T μ u = R u + μ • 𝓢.f_lhscb.grad u := by
+      intro u
+      show 𝓢.Q u + μ • u + μ • 𝓢.φ u =
+          (𝓢.Q u + μ • u - (μ / 𝓢.tau_proj u) • 𝓢.e_τ) + μ • 𝓢.f_lhscb.grad u
+      show 𝓢.Q u + μ • u +
+            μ • (𝓢.f_lhscb.grad u + (-1 / 𝓢.tau_proj u) • 𝓢.e_τ) = _
+      rw [smul_add, smul_smul]
+      have h_arith : μ * (-1 / 𝓢.tau_proj u) = -(μ / 𝓢.tau_proj u) := by ring
+      rw [h_arith, neg_smul]
+      abel
+    -- `R` is continuous at `x`.
+    have h_R_cont : ContinuousAt R x := by
+      refine ContinuousAt.sub ?_ ?_
+      · refine ContinuousAt.add ?_ ?_
+        · show ContinuousAt
+              (fun u => 𝓢.M_apply u -
+                (𝓢.Px_bilinform (𝓢.x_proj u) (𝓢.x_proj u) / 𝓢.tau_proj u) •
+                  𝓢.e_τ) x
+          refine ContinuousAt.sub 𝓢.M_clm.continuous.continuousAt ?_
+          refine ContinuousAt.smul ?_ continuousAt_const
+          refine ContinuousAt.div ?_ 𝓢.tau_proj_continuous.continuousAt
+            (ne_of_gt h_tau_x_pos)
+          show ContinuousAt
+              (fun u => inner ℝ (𝓢.x_proj u) (𝓢.P (𝓢.x_proj u))) x
+          have h_xproj : Continuous 𝓢.x_proj := by
+            show Continuous fun u : H X Y => u.fst; fun_prop
+          exact (Continuous.inner h_xproj
+            (𝓢.P.continuous.comp h_xproj)).continuousAt
+        · exact continuousAt_const.smul continuousAt_id
+      · refine ContinuousAt.smul ?_ continuousAt_const
+        exact ContinuousAt.div continuousAt_const
+          𝓢.tau_proj_continuous.continuousAt (ne_of_gt h_tau_x_pos)
+    have h_R_norm_tendsto : Filter.Tendsto (fun u => ‖R u‖)
+        (nhdsWithin x 𝓢.C_interior) (nhds ‖R x‖) :=
+      h_R_cont.norm.tendsto.mono_left nhdsWithin_le_nhds
+    -- Lower bound: `μ ‖f_lhscb.grad u‖ - ‖R u‖ ≤ ‖T_μ u‖`.
+    have h_eventually_le : ∀ᶠ u in nhdsWithin x 𝓢.C_interior,
+        μ * ‖𝓢.f_lhscb.grad u‖ - ‖R u‖ ≤ ‖𝓢.T μ u‖ := by
+      filter_upwards with u
+      have h_grad_eq : μ • 𝓢.f_lhscb.grad u = 𝓢.T μ u - R u := by
+        rw [h_T_eq u]; abel
+      have h_le : ‖μ • 𝓢.f_lhscb.grad u‖ ≤ ‖𝓢.T μ u‖ + ‖R u‖ := by
+        rw [h_grad_eq]; exact norm_sub_le _ _
+      have h_norm_smul : ‖μ • 𝓢.f_lhscb.grad u‖ = μ * ‖𝓢.f_lhscb.grad u‖ := by
+        rw [norm_smul, Real.norm_of_nonneg hμ.le]
+      linarith [h_le, h_norm_smul]
+    -- `μ ‖f_lhscb.grad u‖ - ‖R u‖ → +∞`.
+    have h_diff_atTop : Filter.Tendsto
+        (fun u => μ * ‖𝓢.f_lhscb.grad u‖ - ‖R u‖)
+        (nhdsWithin x 𝓢.C_interior) Filter.atTop := by
+      have h_neg : Filter.Tendsto (fun u => -‖R u‖)
+          (nhdsWithin x 𝓢.C_interior) (nhds (-‖R x‖)) := h_R_norm_tendsto.neg
+      have h_sum := h_mu_grad.atTop_add h_neg
+      refine h_sum.congr ?_; intro u; ring
+    exact Filter.tendsto_atTop_mono' _ h_eventually_le h_diff_atTop
 
 /-- **Theorem 5 (Existence and uniqueness).** For every `μ > 0` there
 is a unique central-path point. Existence by Minty's theorem applied to
