@@ -110,6 +110,28 @@ def tau_proj (_ : ProblemData X Y) (u : H X Y) : ℝ := u.snd.snd
 def e_τ (_ : ProblemData X Y) : H X Y :=
   WithLp.toLp 2 ((0 : X), WithLp.toLp 2 ((0 : Y), (1 : ℝ)))
 
+/-- The τ-projection packaged as a continuous linear functional on `H`.
+Equals `WithLp.sndL ∘ WithLp.sndL` (taking the second component twice). -/
+noncomputable def tau_proj_linear : H X Y →L[ℝ] ℝ :=
+  (WithLp.sndL 2 ℝ Y ℝ).comp (WithLp.sndL 2 ℝ X (WithLp 2 (Y × ℝ)))
+
+@[simp] theorem tau_proj_linear_apply (𝓟 : ProblemData X Y) (u : H X Y) :
+    tau_proj_linear u = 𝓟.tau_proj u := rfl
+
+/-- The X-projection packaged as a continuous linear map. -/
+noncomputable def x_proj_linear : H X Y →L[ℝ] X :=
+  WithLp.fstL 2 ℝ X (WithLp 2 (Y × ℝ))
+
+@[simp] theorem x_proj_linear_apply (𝓟 : ProblemData X Y) (u : H X Y) :
+    x_proj_linear u = 𝓟.x_proj u := rfl
+
+/-- The Y-projection packaged as a continuous linear map. -/
+noncomputable def y_proj_linear : H X Y →L[ℝ] Y :=
+  (WithLp.fstL 2 ℝ Y ℝ).comp (WithLp.sndL 2 ℝ X (WithLp 2 (Y × ℝ)))
+
+@[simp] theorem y_proj_linear_apply (𝓟 : ProblemData X Y) (u : H X Y) :
+    y_proj_linear u = 𝓟.y_proj u := rfl
+
 /-- The KKT-feasible cone `C = X × K × ℝ_+`. -/
 def C (𝓟 : ProblemData X Y) : Set (H X Y) :=
   {u | 𝓟.y_proj u ∈ 𝓟.K ∧ 0 ≤ 𝓟.tau_proj u}
@@ -191,6 +213,17 @@ theorem Px_quad_form_psd (xu xv : X) (τu τv : ℝ) :
     ring
   linarith [h_psd, h_expand]
 
+/-- The primal bilinear form on `H` packaged as a continuous bilinear
+map: `Px_bilinform_clm u v = ⟨x_proj u, P (x_proj v)⟩`. Built by
+composing `innerSL ℝ` with `x_proj_linear` on both sides (and `P` on
+the right). -/
+noncomputable def Px_bilinform_clm (𝓟 : ProblemData X Y) :
+    H X Y →L[ℝ] H X Y →L[ℝ] ℝ :=
+  (innerSL ℝ).bilinearComp x_proj_linear (𝓟.P.comp x_proj_linear)
+
+@[simp] theorem Px_bilinform_clm_apply (𝓟 : ProblemData X Y) (u v : H X Y) :
+    𝓟.Px_bilinform_clm u v = 𝓟.Px_bilinform (𝓟.x_proj u) (𝓟.x_proj v) := rfl
+
 /-- The block-matrix KKT operator `M : H → H` from the homogeneous
 embedding eq. (2.4):
 $$ M(x, y, \tau) = \big(\, Px + A^\top y + c\,\tau,\;\; -A x + b\,\tau,
@@ -210,6 +243,37 @@ noncomputable def M_apply (𝓟 : ProblemData X Y) (u : H X Y) : H X Y :=
     WithLp.toLp 2 (
       -𝓟.A (𝓟.x_proj u) + 𝓟.tau_proj u • 𝓟.b,
       -inner ℝ 𝓟.c (𝓟.x_proj u) - inner ℝ 𝓟.b (𝓟.y_proj u)))
+
+/-- The block-matrix KKT operator `M` packaged as a continuous linear
+map `H →L[ℝ] H`. Built from the same five pieces as `M_apply`
+(`P`, `A`, `A.adjoint`, `b`, `c`) using Mathlib's CLM combinators
+(`.comp`, `+`, `.smulRight`, `.prod`, and the WithLp prod equivalence).
+The `M_clm_apply` lemma below shows this coincides with `M_apply`. -/
+noncomputable def M_clm (𝓟 : ProblemData X Y) :
+    H X Y →L[ℝ] H X Y :=
+  let x_clm : H X Y →L[ℝ] X := x_proj_linear
+  let y_clm : H X Y →L[ℝ] Y := y_proj_linear
+  let τ_clm : H X Y →L[ℝ] ℝ := tau_proj_linear
+  -- Block 1 (X-output): P x + A† y + τ • c.
+  let block1 : H X Y →L[ℝ] X :=
+    𝓟.P.comp x_clm + (ContinuousLinearMap.adjoint 𝓟.A).comp y_clm +
+      τ_clm.smulRight 𝓟.c
+  -- Block 2 (Y-output): -A x + τ • b.
+  let block2 : H X Y →L[ℝ] Y :=
+    -(𝓟.A.comp x_clm) + τ_clm.smulRight 𝓟.b
+  -- Block 3 (ℝ-output): -⟨c, x⟩ - ⟨b, y⟩.
+  let block3 : H X Y →L[ℝ] ℝ :=
+    -(innerSL ℝ 𝓟.c).comp x_clm - (innerSL ℝ 𝓟.b).comp y_clm
+  -- Pair block2 and block3 into (Y × ℝ), then wrap with WithLp.toLp.
+  let block23_lp : H X Y →L[ℝ] WithLp 2 (Y × ℝ) :=
+    (WithLp.prodContinuousLinearEquiv 2 ℝ Y ℝ).symm.toContinuousLinearMap.comp
+      (block2.prod block3)
+  -- Pair block1 with block23_lp, then wrap.
+  (WithLp.prodContinuousLinearEquiv 2 ℝ X (WithLp 2 (Y × ℝ))).symm.toContinuousLinearMap.comp
+    (block1.prod block23_lp)
+
+@[simp] theorem M_clm_apply (𝓟 : ProblemData X Y) (u : H X Y) :
+    𝓟.M_clm u = 𝓟.M_apply u := rfl
 
 /-- **Euler-type identity for `M`.** `⟨u, M u⟩ = ⟨x, P x⟩`: the skew
 off-diagonal blocks cancel pairwise (the `A`/`A†` pair, the `c` pair,
