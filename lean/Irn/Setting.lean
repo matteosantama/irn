@@ -707,10 +707,39 @@ theorem C_interior_subset_F_interior :
 (Fréchet-based) gradient of `g_lhscb` on `C_interior = {τ > 0}`
 agrees with the explicit `(-1/τ) • e_τ`. Proof uses the chain rule
 for `fderiv (-Real.log ∘ tau_proj_linear)` plus the fact that
-`tau_proj_linear` is its own derivative. Sorried. -/
-theorem g_lhscb_grad_apply (u : H X Y) (_hu : u ∈ 𝓢.C_interior) :
+`tau_proj_linear` is its own derivative and that `e_τ` is the
+Riesz vector of `tau_proj_linear`. -/
+theorem g_lhscb_grad_apply (u : H X Y) (hu : u ∈ 𝓢.C_interior) :
     𝓢.g_lhscb.grad u = (-1 / 𝓢.tau_proj u) • 𝓢.e_τ := by
-  sorry
+  have hτ : 0 < 𝓢.tau_proj u := hu.2
+  have hτ_ne : 𝓢.tau_proj u ≠ 0 := ne_of_gt hτ
+  -- Apply `toDual` to both sides; `(toDual).symm` cancels on LHS.
+  apply (InnerProductSpace.toDual ℝ (H X Y)).injective
+  show (InnerProductSpace.toDual ℝ (H X Y)) ((InnerProductSpace.toDual ℝ (H X Y)).symm
+        (fderiv ℝ (fun v => -Real.log (𝓢.tau_proj v)) u))
+       = (InnerProductSpace.toDual ℝ (H X Y)) ((-1 / 𝓢.tau_proj u) • 𝓢.e_τ)
+  rw [LinearIsometryEquiv.apply_symm_apply]
+  -- Compute fderiv via chain rule: log ∘ tau_proj_linear.
+  have h_tau_fd : HasFDerivAt (fun v : H X Y => 𝓢.tau_proj v)
+      (IrnSetup.tau_proj_linear : H X Y →L[ℝ] ℝ) u :=
+    (IrnSetup.tau_proj_linear : H X Y →L[ℝ] ℝ).hasFDerivAt
+  have h_log_fd : HasFDerivAt Real.log
+      (ContinuousLinearMap.smulRight (1 : ℝ →L[ℝ] ℝ) (𝓢.tau_proj u)⁻¹) (𝓢.tau_proj u) :=
+    (Real.hasDerivAt_log hτ_ne).hasFDerivAt
+  have h_neg : HasFDerivAt (fun v => -Real.log (𝓢.tau_proj v))
+      (-((ContinuousLinearMap.smulRight (1 : ℝ →L[ℝ] ℝ) (𝓢.tau_proj u)⁻¹).comp
+        (IrnSetup.tau_proj_linear : H X Y →L[ℝ] ℝ))) u :=
+    (h_log_fd.comp u h_tau_fd).neg
+  rw [h_neg.fderiv]
+  -- Now: -((smulRight 1 (1/τ)).comp tau_proj_linear) = toDual ((-1/τ) • e_τ).
+  -- Both sides are CLMs `H →L[ℝ] ℝ`; compare pointwise.
+  ext v
+  simp only [ContinuousLinearMap.neg_apply, ContinuousLinearMap.comp_apply,
+    ContinuousLinearMap.smulRight_apply, ContinuousLinearMap.one_apply,
+    InnerProductSpace.toDual_apply_apply, inner_smul_left, conj_trivial,
+    𝓢.tau_proj_linear_apply]
+  rw [real_inner_comm, 𝓢.inner_u_e_tau, smul_eq_mul]
+  field_simp
 
 /-- The IRN setup's `φ` equals the combined LHSCB gradient on
 `C_interior`. -/

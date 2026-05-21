@@ -126,19 +126,25 @@ noncomputable def add {K₁ K₂ : Set V} {ν₁ ν₂ : ℕ}
     sorry
 
 /-- **Derived gradient of a sum.** `(f.add g).grad x = f.grad x +
-g.grad x` on `int(K₁ ∩ K₂)`. Follows from `fderiv.add` (Mathlib's
-`fderiv_add` requires `DifferentiableAt`, which comes from each
-`contDiff` at points in the respective interiors) and linearity of
-Riesz representation.
-
-Sorried — the derivation is mechanical but requires assembling
-several Mathlib pieces (`HasFDerivAt.add`, `LinearIsometryEquiv.map_add`
-on `toDual.symm`). -/
+g.grad x` on `int(K₁ ∩ K₂)`. Follows from `fderiv_fun_add` (Mathlib)
+applied to the differentiable functions `f.f` and `g.f` (each
+differentiable on its respective interior, from `contDiff`), plus
+additivity of `toDual.symm`. -/
 theorem add_grad {K₁ K₂ : Set V} {ν₁ ν₂ : ℕ}
     (f : LHSCB V K₁ ν₁) (g : LHSCB V K₂ ν₂)
-    {u : V} (_hu : u ∈ interior K₁ ∩ interior K₂) :
+    {u : V} (hu : u ∈ interior K₁ ∩ interior K₂) :
     (f.add g).grad u = f.grad u + g.grad u := by
-  sorry
+  obtain ⟨hu₁, hu₂⟩ := hu
+  have hdiff₁ : DifferentiableAt ℝ f.f u :=
+    (f.contDiff.differentiableOn (by norm_num)).differentiableAt
+      (isOpen_interior.mem_nhds hu₁)
+  have hdiff₂ : DifferentiableAt ℝ g.f u :=
+    (g.contDiff.differentiableOn (by norm_num)).differentiableAt
+      (isOpen_interior.mem_nhds hu₂)
+  show (InnerProductSpace.toDual ℝ V).symm
+      (fderiv ℝ (fun v => f.f v + g.f v) u) = _
+  rw [fderiv_fun_add hdiff₁ hdiff₂, map_add]
+  rfl
 
 /-- **Strict convexity** of an LHSCB on `int(K)`, captured by strict
 gradient monotonicity: `⟨u - v, ∇f(u) - ∇f(v)⟩ > 0` whenever `u ≠ v`.
