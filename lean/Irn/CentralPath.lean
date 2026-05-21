@@ -511,14 +511,100 @@ The proof applies Mathlib's implicit function theorem
 noncomputable def T_joint (𝓢 : IrnSetup X Y) : ℝ × H X Y → H X Y :=
   fun p => 𝓢.T p.1 p.2
 
+/-! ### Smoothness helpers for `T_joint_contDiffAt`
+
+These intermediate lemmas establish smoothness of the constituent
+pieces of `T`. Each could in principle be promoted to `ContDiffOn`
+on the full open domain, but the pointwise `ContDiffAt` form is all
+that the IFT needs. -/
+
+/-- `(𝓢.d - 1) + 1 = 𝓢.d` (in `ℕ∞ω`): the standard `tsub` identity
+specialised to our setting (`d ≥ 3 ⇒ 1 ≤ d`). -/
+lemma d_sub_one_add_one_eq :
+    ((𝓢.d - 1 : ℕ∞) : ℕ∞ω) + 1 = ((𝓢.d : ℕ∞) : ℕ∞ω) := by
+  have h1 : (1 : ℕ∞) ≤ 𝓢.d := le_trans (by decide) 𝓢.hd_ge
+  have hcancel : (𝓢.d - 1) + 1 = 𝓢.d := tsub_add_cancel_of_le h1
+  exact_mod_cast hcancel
+
+/-- `f_lhscb.grad` is `C^(d-1)` on `interior K_f_lifted`. Uses
+`ContDiffOn.fderivWithin` to drop one derivative from `f_lhscb.contDiff`,
+then composes with the Riesz isomorphism `(toDual ℝ H).symm` which is
+a continuous linear equiv (hence `C^∞`).
+
+**The Riesz `.symm.contDiff` step is currently sorried** — needs the
+right Mathlib API to coerce `SemilinearIsometryEquiv ⋆[ℝ]` (with
+trivial star) into a `ContinuousLinearMap` for the chain rule. -/
+theorem f_lhscb_grad_contDiffOn :
+    ContDiffOn ℝ (𝓢.d - 1) 𝓢.f_lhscb.grad (interior 𝓢.K_f_lifted) := by
+  have h_fderiv_within : ContDiffOn ℝ (𝓢.d - 1)
+      (fderivWithin ℝ 𝓢.f_lhscb.f (interior 𝓢.K_f_lifted))
+      (interior 𝓢.K_f_lifted) := by
+    refine 𝓢.f_lhscb.contDiff.fderivWithin isOpen_interior.uniqueDiffOn ?_
+    -- `↑𝓢.d - 1 + 1 ≤ ↑𝓢.d` in `ℕ∞ω`: from `tsub_add_cancel_of_le`.
+    have h1 : (1 : ℕ∞ω) ≤ ((𝓢.d : ℕ∞) : ℕ∞ω) := by
+      have h : (1 : ℕ∞) ≤ 𝓢.d := le_trans (by decide) 𝓢.hd_ge
+      exact_mod_cast h
+    exact (tsub_add_cancel_of_le h1).le
+  have h_fderiv : ContDiffOn ℝ (𝓢.d - 1) (fderiv ℝ 𝓢.f_lhscb.f)
+      (interior 𝓢.K_f_lifted) :=
+    h_fderiv_within.congr
+      (fun y hy => (fderivWithin_of_isOpen isOpen_interior hy).symm)
+  -- `f_lhscb.grad u = (toDual).symm (fderiv f_lhscb.f u)`. The Riesz
+  -- inverse `(toDual).symm` is a continuous linear equiv, hence `C^∞`,
+  -- so composition preserves `C^(d-1)`.
+  sorry
+
+theorem f_lhscb_grad_contDiffAt {u₀ : H X Y}
+    (hu₀ : u₀ ∈ interior 𝓢.K_f_lifted) :
+    ContDiffAt ℝ (𝓢.d - 1) 𝓢.f_lhscb.grad u₀ :=
+  (𝓢.f_lhscb_grad_contDiffOn _ hu₀).contDiffAt
+    (isOpen_interior.mem_nhds hu₀)
+
+/-- `(-1/τ_u) • e_τ` is `C^∞` at any `u` with `τ_u > 0`. -/
+theorem g_grad_contDiffAt {u₀ : H X Y} (hu₀ : u₀ ∈ 𝓢.Cplus) :
+    ContDiffAt ℝ (𝓢.d - 1)
+      (fun u : H X Y => (-1 / 𝓢.tau_proj u) • 𝓢.e_τ) u₀ := by
+  have hτ : 0 < 𝓢.tau_proj u₀ := hu₀
+  have h_tau_cd : ContDiffAt ℝ (𝓢.d - 1) 𝓢.tau_proj u₀ :=
+    (IrnSetup.tau_proj_linear : H X Y →L[ℝ] ℝ).contDiff.contDiffAt
+  have h_inv_cd : ContDiffAt ℝ (𝓢.d - 1)
+      (fun u : H X Y => -1 / 𝓢.tau_proj u) u₀ :=
+    (contDiffAt_const (c := (-1 : ℝ))).div h_tau_cd (ne_of_gt hτ)
+  exact h_inv_cd.smul contDiffAt_const
+
+/-- `φ` is `C^(d-1)` at any `u₀ ∈ C_interior`. -/
+theorem phi_contDiffAt {u₀ : H X Y} (hu₀ : u₀ ∈ 𝓢.C_interior) :
+    ContDiffAt ℝ (𝓢.d - 1) 𝓢.φ u₀ := by
+  show ContDiffAt ℝ (𝓢.d - 1)
+    (fun u => 𝓢.f_lhscb.grad u + (-1 / 𝓢.tau_proj u) • 𝓢.e_τ) u₀
+  exact (𝓢.f_lhscb_grad_contDiffAt
+    (𝓢.C_interior_subset_f_lhscb_interior hu₀)).add (𝓢.g_grad_contDiffAt hu₀.2)
+
+/-- `Q` is `C^∞` (hence `C^(d-1)`) at any `u₀ ∈ Cplus`.
+**Mechanical via composition of CLMs and the smooth rational term**;
+left sorried due to fiddly typeclass unification on the inner product
+and CLM composition. -/
+theorem Q_contDiffAt {u₀ : H X Y} (hu₀ : u₀ ∈ 𝓢.Cplus) :
+    ContDiffAt ℝ (𝓢.d - 1) 𝓢.Q u₀ := sorry
+
 /-- **Joint smoothness of `T_joint`.** At any `(μ₀, u₀)` with `μ₀ > 0`
 and `u₀ ∈ C_interior`, `T_joint` is `C^(d-1)`. The smoothness is
 limited by `μ • F_lhscb.grad u` — `F_lhscb.grad` is `C^(d-1)` because
 `F_lhscb.f` is `C^d` and the gradient is one derivative of `f` (via
 the Riesz isomorphism, which is `C^∞`). The other pieces (`Q`,
-`μ•u`) are `C^∞` on `Cplus × ℝ`.
+`μ•u`) are `C^∞`.
 
-**Currently sorried.** Mechanical via composition of smooth maps. -/
+**Sketch:** assemble from the three helpers `Q_contDiffAt`,
+`phi_contDiffAt`, and bilinearity of scalar multiplication.
+
+```
+T_joint p = Q p.2 + p.1 • p.2 + p.1 • φ p.2
+```
+
+The composition with `Prod.snd` and the addition are routine. Lean's
+elaboration unfolds the `noncomputable def` `Q` to its `WithLp.toLp`
+form during `.comp` matching, requiring a `change` / `convert` step
+to coerce the goal types back. Currently sorried for that reason. -/
 theorem T_joint_contDiffAt {μ₀ : ℝ} (hμ₀ : 0 < μ₀)
     {u₀ : H X Y} (hu₀ : u₀ ∈ 𝓢.C_interior) :
     ContDiffAt ℝ (𝓢.d - 1) 𝓢.T_joint (μ₀, u₀) := sorry
