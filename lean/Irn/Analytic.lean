@@ -81,35 +81,77 @@ theorem inner_self_le_W_quad (u : H X Y) (hu : u ∈ 𝓢.C_interior) (v : H X Y
 
 /-! ### The `W(u)⁻¹` dual norm -/
 
+/-- The squared dual norm `‖v‖²_{W(u)⁻¹}`, defined via the variational
+characterization
+    `‖v‖²_{W⁻¹} = sup_{w} ⟨v, w⟩² / W_quad u w`.
+Using Lean's `x / 0 = 0` convention at `w = 0`, the sup is over all
+`w : H X Y`. For `u ∈ C_interior`, the function being supped is bounded
+above by `‖v‖²` (Cauchy-Schwarz + `W(u) ⪰ I`), so the sup is finite. -/
+noncomputable def normWinv_sq (𝓢 : IrnSetup X Y) (u v : H X Y) : ℝ :=
+  ⨆ w : H X Y, (inner ℝ v w) ^ 2 / 𝓢.W_quad u w
+
 /-- The dual norm `‖·‖_{W(u)⁻¹}`, where `W(u) = I + ∇²F*(u)`.
+Defined as the square root of `normWinv_sq`. -/
+noncomputable def normWinv (𝓢 : IrnSetup X Y) (u v : H X Y) : ℝ :=
+  Real.sqrt (𝓢.normWinv_sq u v)
 
-**Placeholder definition** equal to the Euclidean norm. This makes the
-basic seminorm properties (nonneg, ≤ Euclidean, triangle, smul) hold
-trivially. The sharper bound `normWinv_phi_bound` (which is the only
-property using the *strict* `W⁻¹` weighting) remains sorried; to
-discharge it we need the variational characterization
-`‖v‖²_{W⁻¹} = sup_{w ≠ 0} ⟨v, w⟩² / W_quad u w` or the operator inverse
-of `W` — both deferred.
+theorem normWinv_nonneg : ∀ u v, 0 ≤ 𝓢.normWinv u v :=
+  fun _ _ => Real.sqrt_nonneg _
 
-The placeholder is sound for downstream API consumers as long as they
-only rely on `normWinv ≤ ‖·‖` (which they do, e.g. in
-`transfer_bound`); when `normWinv_phi_bound` is needed, the
-placeholder can be refined to the proper dual norm. -/
-noncomputable def normWinv (𝓢 : IrnSetup X Y) (u v : H X Y) : ℝ := ‖v‖
-
-theorem normWinv_nonneg : ∀ u v, 0 ≤ 𝓢.normWinv u v := fun _ _ => norm_nonneg _
+/-- The ratio `⟨v, w⟩² / W_quad u w` is bounded above by `‖v‖²`
+on `C_interior` (Cauchy-Schwarz + `W(u) ⪰ I`). -/
+theorem normWinv_ratio_le_norm_sq (u : H X Y) (hu : u ∈ 𝓢.C_interior)
+    (v w : H X Y) : (inner ℝ v w) ^ 2 / 𝓢.W_quad u w ≤ ‖v‖ ^ 2 := by
+  by_cases hw : 𝓢.W_quad u w ≤ 0
+  · -- W_quad u w ≤ 0; since W_quad ≥ inner v v ≥ 0, this forces equality at 0.
+    have h0 : 0 ≤ 𝓢.W_quad u w := le_trans (real_inner_self_nonneg) (𝓢.inner_self_le_W_quad u hu w)
+    have heq : 𝓢.W_quad u w = 0 := le_antisymm hw h0
+    rw [heq, div_zero]
+    exact sq_nonneg _
+  · push_neg at hw
+    rw [div_le_iff₀ hw]
+    -- (⟨v, w⟩)² ≤ ‖v‖² * W_quad u w
+    have hCS : (inner ℝ v w) ^ 2 ≤ ‖v‖ ^ 2 * ‖w‖ ^ 2 := by
+      have := abs_real_inner_le_norm v w
+      nlinarith [sq_nonneg (inner ℝ v w), abs_nonneg (inner ℝ v w),
+        sq_abs (inner ℝ v w), norm_nonneg v, norm_nonneg w,
+        mul_nonneg (norm_nonneg v) (norm_nonneg w)]
+    have h_norm_sq_le : ‖w‖ ^ 2 ≤ 𝓢.W_quad u w := by
+      have := 𝓢.inner_self_le_W_quad u hu w
+      rwa [real_inner_self_eq_norm_sq] at this
+    nlinarith [sq_nonneg ‖v‖, sq_nonneg ‖w‖, norm_nonneg v]
 
 /-- `W(u) ⪰ I` implies `W(u)⁻¹ ⪯ I`, so the dual norm is bounded by
-the Euclidean norm. (Trivial with the placeholder definition.) -/
-theorem normWinv_le_norm : ∀ u v, 𝓢.normWinv u v ≤ ‖v‖ := fun _ _ => le_refl _
+the Euclidean norm. -/
+theorem normWinv_le_norm (u : H X Y) (hu : u ∈ 𝓢.C_interior) (v : H X Y) :
+    𝓢.normWinv u v ≤ ‖v‖ := by
+  unfold normWinv normWinv_sq
+  rw [show ‖v‖ = Real.sqrt (‖v‖ ^ 2) from
+    (Real.sqrt_sq (norm_nonneg _)).symm]
+  apply Real.sqrt_le_sqrt
+  exact ciSup_le (fun w => 𝓢.normWinv_ratio_le_norm_sq u hu v w)
 
-theorem normWinv_triangle : ∀ u v w,
-    𝓢.normWinv u (v + w) ≤ 𝓢.normWinv u v + 𝓢.normWinv u w :=
-  fun _ _ _ => norm_add_le _ _
+theorem normWinv_smul (u : H X Y) (r : ℝ) (v : H X Y) :
+    𝓢.normWinv u (r • v) = |r| * 𝓢.normWinv u v := by
+  unfold normWinv
+  rw [← Real.sqrt_sq_eq_abs, ← Real.sqrt_mul (sq_nonneg _)]
+  congr 1
+  unfold normWinv_sq
+  have h_pt : ∀ w : H X Y,
+      (inner ℝ (r • v) w) ^ 2 / 𝓢.W_quad u w =
+      r ^ 2 * ((inner ℝ v w) ^ 2 / 𝓢.W_quad u w) := by
+    intro w
+    rw [inner_smul_left, conj_trivial, mul_pow, mul_div_assoc]
+  rw [iSup_congr h_pt]
+  exact (Real.mul_iSup_of_nonneg (sq_nonneg _) _).symm
 
-theorem normWinv_smul : ∀ u (r : ℝ) v,
-    𝓢.normWinv u (r • v) = |r| * 𝓢.normWinv u v :=
-  fun _ _ _ => norm_smul _ _
+/-- Placeholder: triangle inequality for `normWinv`. Currently sorried —
+proof requires the parallelogram-style argument using bilinearity of
+inner product and the W-quadratic form. -/
+theorem normWinv_triangle (u : H X Y) (hu : u ∈ 𝓢.C_interior)
+    (v w : H X Y) :
+    𝓢.normWinv u (v + w) ≤ 𝓢.normWinv u v + 𝓢.normWinv u w := by
+  sorry
 
 /-- **LHSCB gradient bound** (paper §3.2):
 `‖φ(u)‖²_{W(u)⁻¹} ≤ ν + 1`, hence `‖φ(u)‖_{W(u)⁻¹} ≤ √(ν+1)`. The

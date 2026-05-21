@@ -129,10 +129,10 @@ theorem transfer_bound {u : H X Y}
     𝓢.normWinv u (𝓢.φ u + u) ≤ 2 * Real.sqrt ((𝓢.ν : ℝ) + 1) := by
   have h_tri : 𝓢.normWinv u (𝓢.φ u + u) ≤
       𝓢.normWinv u (𝓢.φ u) + 𝓢.normWinv u u :=
-    𝓢.normWinv_triangle u (𝓢.φ u) u
+    𝓢.normWinv_triangle u hC (𝓢.φ u) u
   have h_phi : 𝓢.normWinv u (𝓢.φ u) ≤ Real.sqrt ((𝓢.ν : ℝ) + 1) :=
     𝓢.normWinv_phi_bound u hC
-  have h_u : 𝓢.normWinv u u ≤ ‖u‖ := 𝓢.normWinv_le_norm u u
+  have h_u : 𝓢.normWinv u u ≤ ‖u‖ := 𝓢.normWinv_le_norm u hC u
   have h_u_eq : ‖u‖ = Real.sqrt ((𝓢.ν : ℝ) + 1) := by
     have h_norm : ‖u‖ = 𝓢.r := hS
     unfold r at h_norm
@@ -158,7 +158,7 @@ theorem proximity_transfer
       𝓢.normWinv u (𝓢.tildeT μ u) +
         (1 - σ) * μ * 𝓢.normWinv u (𝓢.φ u + u) := by
     rw [sub_eq_add_neg, ← neg_smul]
-    have h_tri := 𝓢.normWinv_triangle u (𝓢.tildeT μ u)
+    have h_tri := 𝓢.normWinv_triangle u hC (𝓢.tildeT μ u)
       ((-((1 - σ) * μ)) • (𝓢.φ u + u))
     rw [𝓢.normWinv_smul, abs_neg, abs_of_nonneg h_1sub_μ_nn] at h_tri
     exact h_tri
