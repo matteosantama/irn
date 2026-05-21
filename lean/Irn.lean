@@ -14,9 +14,13 @@ The submodules track the structure of `paper/standalone.tex`:
 * `Irn.CentralPath`    — paper §2.2–§3.2 (`T_μ`, existence, smoothness)
 * `Irn.Analytic`       — Hessian preconditioner, `W⁻¹` dual norm,
                                           Minty resolvent existence
-* `Irn.Sphere`         — paper §3.1–§3.3 (sphere, tangency, error bound)
+* `Irn.Sphere`         — paper §3.1–§3.3, §7.1 (sphere, tangency, error
+                                          bound, geodesic exp_u)
 * `Irn.Resolvent`      — paper §4        (closed-form resolvent)
-* `Irn.RJN`            — paper §5        (Riemannian Josephy–Newton)
+* `Irn.RJN`            — paper §5        (Riemannian Josephy–Newton,
+                                          Variant A scaffold)
+* `Irn.VariantC`       — paper §5.3, §5.6 (Variant C step and
+                                          Theorem 11 specialised)
 * `Irn.PathFollowing`  — paper §6        (path-following complexity)
 -/
 
@@ -28,4 +32,5 @@ import Irn.Analytic
 import Irn.Sphere
 import Irn.Resolvent
 import Irn.RJN
+import Irn.VariantC
 import Irn.PathFollowing
