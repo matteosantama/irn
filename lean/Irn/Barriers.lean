@@ -4,31 +4,29 @@
 Logarithmically homogeneous self-concordant barriers (LHSCB) and the
 conjugate barrier-gradient maps `F*`, `G*`, `φ`.
 
-This pass exposes the LHSCB consequences the rest of the formalisation
-needs, plus a sum operation. The barrier function `f` and its gradient
-`grad` are defined on all of `V`, but only their values on the open
-`domain` (intended to be the interior of an associated convex cone)
-are constrained and meaningful.
+An `LHSCB V K ν` is a `ν`-LHSCB on the (convex) cone `K ⊆ V`. The
+barrier function `f` and its gradient `grad` are defined on all of
+`V`, but only their values on `interior K` are constrained and
+meaningful — outside the interior the values are arbitrary (typically
+junk).
 
 Recorded properties:
 
-* `euler` — `⟨u, ∇f(u)⟩ = -ν` on `domain` (the differentiated form of
+* `euler` — `⟨u, ∇f(u)⟩ = -ν` on `int(K)` (differentiated form of
   log-homogeneity);
 * `grad_monotone` — convexity of `f`, as gradient monotonicity;
-* `log_homog` — `f(λ x) = f(x) - ν log λ` for `x ∈ domain` and `λ > 0`
-  (the log-homogeneity from which `euler` is derivable);
-* `LHSCB.add` — the sum of a `ν₁`-LHSCB and a `ν₂`-LHSCB is a
-  `(ν₁+ν₂)`-LHSCB on the intersection of their domains.
+* `log_homog` — `f(t x) = f(x) - ν log t` for `x ∈ int(K)` and `t > 0`;
+* `barrier` — `f(x) → +∞` as `x` approaches `∂K = frontier K` from
+  inside.
+
+* `LHSCB.add` — the sum of a `ν₁`-LHSCB on `K₁` and a `ν₂`-LHSCB on
+  `K₂` is a `(ν₁+ν₂)`-LHSCB on `K₁ ∩ K₂`. Uses `interior_inter`.
 
 **Deferred to future commits:**
 
-* `K : Set V` as a structural parameter (the convex cone of which
-  `domain` is the interior). Currently we carry only `domain` and its
-  openness; the cone is implicit.
-* Strict convexity on `domain` (captured by a separate predicate
-  `LHSCB.IsStrict`; not always satisfied by lifted barriers).
-* The barrier property `f(x) → +∞` at `∂K` (requires knowing `K`).
-* The third-derivative self-concordance bound (requires Mathlib's
+* Strict convexity on `int(K)` (captured by a separate predicate
+  `LHSCB.IsStrict`; not satisfied by lifted barriers).
+* The third-derivative self-concordance bound (needs Mathlib's
   higher-order Frechet derivative API).
 
 Paper references:
@@ -44,72 +42,77 @@ namespace Irn
 
 open scoped InnerProductSpace
 
-/-- An abstract `ν`-LHSCB on a real inner product space `V`. The
-domain (an open set) is intended to be the interior of an associated
-convex cone; the constraints are imposed only there. -/
+/-- An abstract `ν`-LHSCB on a real inner product space `V` with
+respect to the (convex) cone `K ⊆ V`. -/
 structure LHSCB (V : Type*)
-    [NormedAddCommGroup V] [InnerProductSpace ℝ V] (ν : ℕ) where
+    [NormedAddCommGroup V] [InnerProductSpace ℝ V]
+    (K : Set V) (ν : ℕ) where
   /-- The barrier function. -/
   f : V → ℝ
   /-- The gradient `∇f`. -/
   grad : V → V
-  /-- The (open) barrier domain — intended to be `interior K` for the
-  associated cone `K`. -/
-  domain : Set V
-  /-- The domain is open. -/
-  domain_open : IsOpen domain
-  /-- **Euler identity** (differentiated logarithmic homogeneity):
-  `⟨u, ∇f(u)⟩ = -ν` on `domain`. -/
-  euler : ∀ u ∈ domain, inner ℝ u (grad u) = -(ν : ℝ)
-  /-- **Gradient monotonicity** on `domain` (convexity of `f`). -/
-  grad_monotone : ∀ u ∈ domain, ∀ v ∈ domain,
+  /-- **Euler identity**: `⟨u, ∇f(u)⟩ = -ν` on `int(K)`. -/
+  euler : ∀ u ∈ interior K, inner ℝ u (grad u) = -(ν : ℝ)
+  /-- **Gradient monotonicity** on `int(K)`. -/
+  grad_monotone : ∀ u ∈ interior K, ∀ v ∈ interior K,
     0 ≤ inner ℝ (u - v) (grad u - grad v)
   /-- **Logarithmic homogeneity of degree `-ν`**:
-  `f(t · x) = f(x) - ν · log t` for every `x ∈ domain` and `t > 0`.
-  Requires `t • x ∈ domain` (true when `domain` is the interior of a
-  cone: cones are closed under positive scalar multiplication and the
-  interior is too). -/
-  log_homog : ∀ x ∈ domain, ∀ t : ℝ, 0 < t →
+  `f(t · x) = f(x) - ν · log t` for `x ∈ int(K)` and `t > 0`. -/
+  log_homog : ∀ x ∈ interior K, ∀ t : ℝ, 0 < t →
     f (t • x) = f x - (ν : ℝ) * Real.log t
+  /-- **Barrier property**: `f(x) → +∞` as `x` approaches `∂K` from
+  inside. -/
+  barrier : ∀ x ∈ frontier K,
+    Filter.Tendsto f (nhdsWithin x (interior K)) Filter.atTop
 
 namespace LHSCB
 
 variable {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
 
-/-- **Sum of LHSCBs.** A `ν₁`-LHSCB plus a `ν₂`-LHSCB is a
-`(ν₁+ν₂)`-LHSCB on the intersection of their domains. -/
-def add {ν₁ ν₂ : ℕ} (f : LHSCB V ν₁) (g : LHSCB V ν₂) :
-    LHSCB V (ν₁ + ν₂) where
+/-- **Sum of LHSCBs.** A `ν₁`-LHSCB on `K₁` plus a `ν₂`-LHSCB on `K₂`
+is a `(ν₁+ν₂)`-LHSCB on `K₁ ∩ K₂`. -/
+noncomputable def add {K₁ K₂ : Set V} {ν₁ ν₂ : ℕ}
+    (f : LHSCB V K₁ ν₁) (g : LHSCB V K₂ ν₂) :
+    LHSCB V (K₁ ∩ K₂) (ν₁ + ν₂) where
   f := fun v => f.f v + g.f v
   grad := fun v => f.grad v + g.grad v
-  domain := f.domain ∩ g.domain
-  domain_open := f.domain_open.inter g.domain_open
   euler := by
-    rintro u ⟨hu_f, hu_g⟩
-    rw [inner_add_right, f.euler u hu_f, g.euler u hu_g]
+    rintro u hu
+    have hu' : u ∈ interior K₁ ∩ interior K₂ := by
+      rw [interior_inter] at hu; exact hu
+    rw [inner_add_right, f.euler u hu'.1, g.euler u hu'.2]
     push_cast
     ring
   grad_monotone := by
-    rintro u ⟨hu_f, hu_g⟩ v ⟨hv_f, hv_g⟩
-    have hf := f.grad_monotone u hu_f v hv_f
-    have hg := g.grad_monotone u hu_g v hv_g
+    rintro u hu v hv
+    have hu' : u ∈ interior K₁ ∩ interior K₂ := by
+      rw [interior_inter] at hu; exact hu
+    have hv' : v ∈ interior K₁ ∩ interior K₂ := by
+      rw [interior_inter] at hv; exact hv
+    have hf := f.grad_monotone u hu'.1 v hv'.1
+    have hg := g.grad_monotone u hu'.2 v hv'.2
     have h : (f.grad u + g.grad u) - (f.grad v + g.grad v) =
         (f.grad u - f.grad v) + (g.grad u - g.grad v) := by abel
     rw [h, inner_add_right]
     linarith
   log_homog := by
-    rintro x ⟨hx_f, hx_g⟩ t ht
-    show f.f (t • x) + g.f (t • x) =
-        f.f x + g.f x - ((ν₁ + ν₂ : ℕ) : ℝ) * Real.log t
-    rw [f.log_homog x hx_f t ht, g.log_homog x hx_g t ht]
-    push_cast
+    rintro x hx t ht
+    have hx' : x ∈ interior K₁ ∩ interior K₂ := by
+      rw [interior_inter] at hx; exact hx
+    rw [show ((ν₁ + ν₂ : ℕ) : ℝ) = (ν₁ : ℝ) + (ν₂ : ℝ) from by push_cast; ring,
+        f.log_homog x hx'.1 t ht, g.log_homog x hx'.2 t ht]
     ring
+  barrier := by
+    -- The general claim — `f + g → ∞` near every boundary point of
+    -- `K₁ ∩ K₂` — requires a case split on whether the point is on
+    -- `frontier K₁` or `frontier K₂` and depends on each barrier
+    -- being bounded below where the other diverges. Deferred.
+    intros x _
+    sorry
 
-@[simp] theorem add_grad {ν₁ ν₂ : ℕ} (f : LHSCB V ν₁) (g : LHSCB V ν₂)
-    (u : V) : (f.add g).grad u = f.grad u + g.grad u := rfl
-
-@[simp] theorem add_domain {ν₁ ν₂ : ℕ} (f : LHSCB V ν₁) (g : LHSCB V ν₂) :
-    (f.add g).domain = f.domain ∩ g.domain := rfl
+@[simp] theorem add_grad {K₁ K₂ : Set V} {ν₁ ν₂ : ℕ}
+    (f : LHSCB V K₁ ν₁) (g : LHSCB V K₂ ν₂) (u : V) :
+    (f.add g).grad u = f.grad u + g.grad u := rfl
 
 end LHSCB
 

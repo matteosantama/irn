@@ -70,12 +70,9 @@ structure IrnSetup (X : Type*) (Y : Type*)
   closure, addition closure, and topological closedness in a single
   type, with `SetLike` providing the natural `y ∈ K` membership. -/
   K : ProperCone ℝ Y
-  /-- A `ν`-LHSCB for `K`. -/
-  fBarrier : LHSCB Y ν
-  /-- The barrier domain is the (topological) interior of `K`. An LHSCB
-  is by definition only defined on the interior of its cone, since the
-  barrier blows up on the boundary. -/
-  fBarrier_domain_eq_interior : fBarrier.domain = interior (K : Set Y)
+  /-- A `ν`-LHSCB for the cone `K`. The barrier is finite on
+  `interior (K : Set Y)`. -/
+  fBarrier : LHSCB Y (K : Set Y) ν
 
 namespace IrnSetup
 
@@ -345,34 +342,48 @@ lemma y_proj_continuous : Continuous 𝓢.y_proj := by
   unfold y_proj
   fun_prop
 
+/-- The lifted cone for `f_lhscb` on `H`: `y_proj⁻¹(K)`. Closed since
+`y_proj` is continuous and `K` is closed (as a `ProperCone`). Its
+interior is `y_proj⁻¹(interior K)` because `y_proj` is a surjective
+continuous linear map between finite-dimensional spaces, hence an
+open map (open mapping theorem). -/
+def K_f_lifted (𝓢 : IrnSetup X Y) : Set (H X Y) :=
+  𝓢.y_proj ⁻¹' (𝓢.K : Set Y)
+
+/-- `interior (K_f_lifted) = y_proj⁻¹(interior K)`. Follows from
+`y_proj` being a surjective continuous linear map on finite-dim
+spaces (hence an open map). -/
+theorem interior_K_f_lifted :
+    interior 𝓢.K_f_lifted = 𝓢.y_proj ⁻¹' (interior (𝓢.K : Set Y)) := by
+  -- y_proj is a surjective continuous linear map; by the open mapping
+  -- theorem for finite-dim spaces, it's an open map. For open
+  -- continuous surjective maps, interior commutes with preimage.
+  sorry
+
 /-- **Lift of `fBarrier` to `H`.** The user's `ν`-LHSCB `f` on `Y` extends
-to a `ν`-LHSCB `f_lhscb` on `H = X × Y × ℝ` by acting only on the y-block:
-`f_lift(x, y, τ) := f(y)`, with gradient `(0, ∇f(y), 0)`, and domain
-`y_proj⁻¹(int K)` (the preimage of the cone interior — open since
-`y_proj` is continuous). The Euler identity and gradient monotonicity
-transport from `fBarrier`. -/
-noncomputable def f_lhscb : LHSCB (H X Y) 𝓢.ν where
+to a `ν`-LHSCB `f_lhscb` on `H = X × Y × ℝ` (with respect to the
+lifted cone `K_f_lifted = y_proj⁻¹(K)`) by acting only on the y-block:
+`f_lift(x, y, τ) := f(y)`, with gradient `(0, ∇f(y), 0)`. The Euler
+identity, gradient monotonicity, and log-homogeneity transport from
+`fBarrier`. -/
+noncomputable def f_lhscb : LHSCB (H X Y) 𝓢.K_f_lifted 𝓢.ν where
   f u := 𝓢.fBarrier.f (𝓢.y_proj u)
   grad u := WithLp.toLp 2 ((0 : X),
     WithLp.toLp 2 (𝓢.fBarrier.grad (𝓢.y_proj u), (0 : ℝ)))
-  domain := {u | 𝓢.y_proj u ∈ 𝓢.fBarrier.domain}
-  domain_open :=
-    𝓢.y_proj_continuous.isOpen_preimage _ 𝓢.fBarrier.domain_open
   euler := by
     intros u hu
+    rw [𝓢.interior_K_f_lifted] at hu
     rw [𝓢.inner_u_lifted_y]
     exact 𝓢.fBarrier.euler (𝓢.y_proj u) hu
   grad_monotone := by
     intros u hu v hv
+    rw [𝓢.interior_K_f_lifted] at hu hv
     rw [inner_sub_right, 𝓢.inner_u_lifted_y, 𝓢.inner_u_lifted_y,
         ← inner_sub_right, 𝓢.y_proj_sub]
     exact 𝓢.fBarrier.grad_monotone (𝓢.y_proj u) hu (𝓢.y_proj v) hv
   log_homog := by
-    -- Lifted f: f_lift(u) = fBarrier.f(y_proj u). Smul commutes with
-    -- y_proj (linearity), so f_lift(t • u) = fBarrier.f(t • y_proj u),
-    -- which by fBarrier.log_homog equals fBarrier.f(y_proj u) - ν log t
-    -- = f_lift(u) - ν log t.
     intros u hu t ht
+    rw [𝓢.interior_K_f_lifted] at hu
     show 𝓢.fBarrier.f (𝓢.y_proj (t • u)) =
       𝓢.fBarrier.f (𝓢.y_proj u) - (𝓢.ν : ℝ) * Real.log t
     have h_proj : 𝓢.y_proj (t • u) = t • 𝓢.y_proj u := by
@@ -380,6 +391,13 @@ noncomputable def f_lhscb : LHSCB (H X Y) 𝓢.ν where
       simp
     rw [h_proj]
     exact 𝓢.fBarrier.log_homog (𝓢.y_proj u) hu t ht
+  barrier := by
+    -- `f_lift → ∞` at `frontier K_f_lifted = y_proj⁻¹(frontier K)`
+    -- (where the last equality uses the open-map property of
+    -- `y_proj`). Follows from `fBarrier.barrier` via continuity of
+    -- `y_proj`. Deferred.
+    intros x _
+    sorry
 
 /-- **Totalised `Q`.** A version of `Q_apply` extended to all of `H`
 (using Lean's division-by-zero-is-zero convention outside `Cplus`).
@@ -409,12 +427,11 @@ division-by-zero-is-zero convention applies outside `Cplus`). -/
 noncomputable def φ (𝓢 : IrnSetup X Y) (u : H X Y) : H X Y :=
   𝓢.f_lhscb.grad u + (-1 / 𝓢.tau_proj u) • 𝓢.e_τ
 
-/-- `C_interior` is in the lifted f-barrier domain: if `y_proj u ∈
-int K` then `u ∈ f_lhscb.domain`. -/
-theorem C_interior_subset_f_lhscb_domain :
-    𝓢.C_interior ⊆ 𝓢.f_lhscb.domain := fun u hu => by
-  show 𝓢.y_proj u ∈ 𝓢.fBarrier.domain
-  rw [𝓢.fBarrier_domain_eq_interior]
+/-- `C_interior` is in the lifted f-barrier interior: if `y_proj u ∈
+int K` then `u ∈ interior K_f_lifted`. -/
+theorem C_interior_subset_f_lhscb_interior :
+    𝓢.C_interior ⊆ interior 𝓢.K_f_lifted := fun u hu => by
+  rw [𝓢.interior_K_f_lifted]
   exact hu.1
 
 /-! ### Sphere radius and derived norm facts -/
@@ -529,16 +546,29 @@ theorem Q_monotone (u : H X Y) (hu : u ∈ 𝓢.Cplus)
 
 /-! ### The combined `(ν+1)`-LHSCB `F = f + g` -/
 
-/-- The concrete `1`-LHSCB `g(τ) = -log τ` lifted to `H`. The gradient
+/-- The lifted cone for `g_lhscb`: `tau_proj⁻¹([0, ∞)) = {u | 0 ≤
+tau_proj u}`. Its interior is `Cplus = {u | 0 < tau_proj u}` (via the
+open mapping for `tau_proj_linear`). -/
+def K_g_lifted (𝓢 : IrnSetup X Y) : Set (H X Y) :=
+  {u | 0 ≤ 𝓢.tau_proj u}
+
+theorem interior_K_g_lifted : interior 𝓢.K_g_lifted = 𝓢.Cplus := by
+  -- `K_g_lifted = tau_proj_linear ⁻¹' (Set.Ici 0)`. Its interior is
+  -- `tau_proj_linear ⁻¹' (Set.Ioi 0) = Cplus` because
+  -- `tau_proj_linear` is a surjective continuous linear functional
+  -- (hence an open map), and `interior (Set.Ici 0) = Set.Ioi 0`.
+  sorry
+
+/-- The concrete `1`-LHSCB `g(τ) = -log τ` lifted to `H` with respect
+to the lifted cone `K_g_lifted = {u | 0 ≤ tau_proj u}`. The gradient
 is `(-1/tau_proj u) • e_τ`; Euler uses `inner_u_e_tau`; monotonicity
 uses `(τ_u - τ_v)² / (τ_u τ_v) ≥ 0`. -/
-noncomputable def g_lhscb : LHSCB (H X Y) 1 where
+noncomputable def g_lhscb : LHSCB (H X Y) 𝓢.K_g_lifted 1 where
   f := fun u => -Real.log (𝓢.tau_proj u)
   grad := fun u => (-1 / 𝓢.tau_proj u) • 𝓢.e_τ
-  domain := 𝓢.Cplus
-  domain_open := 𝓢.Cplus_open
   euler := by
     intros u hu
+    rw [𝓢.interior_K_g_lifted] at hu
     have hτ : 0 < 𝓢.tau_proj u := 𝓢.tau_proj_pos hu
     have hτ_ne : 𝓢.tau_proj u ≠ 0 := ne_of_gt hτ
     rw [inner_smul_right, 𝓢.inner_u_e_tau]
@@ -546,6 +576,7 @@ noncomputable def g_lhscb : LHSCB (H X Y) 1 where
     field_simp
   grad_monotone := by
     intros u hu v hv
+    rw [𝓢.interior_K_g_lifted] at hu hv
     have hτu : 0 < 𝓢.tau_proj u := 𝓢.tau_proj_pos hu
     have hτv : 0 < 𝓢.tau_proj v := 𝓢.tau_proj_pos hv
     have hτu_ne : 𝓢.tau_proj u ≠ 0 := ne_of_gt hτu
@@ -569,9 +600,8 @@ noncomputable def g_lhscb : LHSCB (H X Y) 1 where
     rw [h_factor]
     positivity
   log_homog := by
-    -- g(t • u) = -log(tau_proj (t • u)) = -log(t * tau_proj u)
-    --         = -log t - log(tau_proj u) = g(u) - 1 * log t.
     intros u hu t ht
+    rw [𝓢.interior_K_g_lifted] at hu
     have hτ : 0 < 𝓢.tau_proj u := 𝓢.tau_proj_pos hu
     have h_proj : 𝓢.tau_proj (t • u) = t * 𝓢.tau_proj u := by
       unfold tau_proj
@@ -581,15 +611,25 @@ noncomputable def g_lhscb : LHSCB (H X Y) 1 where
     rw [h_proj, Real.log_mul (ne_of_gt ht) (ne_of_gt hτ)]
     push_cast
     ring
+  barrier := by
+    -- g → ∞ at τ = 0 (the frontier of K_g_lifted = {0 ≤ tau_proj u}
+    -- is {tau_proj u = 0}). Deferred — needs `Real.tendsto_log_atBot`
+    -- composed with the τ-projection.
+    intros x _
+    sorry
 
-/-- The combined `(ν+1)`-LHSCB `F = f + g` driving the IRN central path. -/
-noncomputable def F_lhscb : LHSCB (H X Y) (𝓢.ν + 1) :=
+/-- The combined `(ν+1)`-LHSCB `F = f + g` driving the IRN central path.
+Cone: `K_f_lifted ∩ K_g_lifted`, whose interior is `C_interior`. -/
+noncomputable def F_lhscb :
+    LHSCB (H X Y) (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted) (𝓢.ν + 1) :=
   𝓢.f_lhscb.add 𝓢.g_lhscb
 
-/-- `C_interior ⊆ F_lhscb.domain = f_lhscb.domain ∩ Cplus`. -/
-theorem C_interior_subset_F_domain : 𝓢.C_interior ⊆ 𝓢.F_lhscb.domain :=
-  fun _ hu =>
-    ⟨𝓢.C_interior_subset_f_lhscb_domain hu, 𝓢.C_interior_subset_Cplus hu⟩
+/-- `C_interior` equals `interior (K_f_lifted ∩ K_g_lifted)` — the
+domain of `F_lhscb`. -/
+theorem C_interior_subset_F_interior :
+    𝓢.C_interior ⊆ interior (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted) := fun u hu => by
+  rw [interior_inter, 𝓢.interior_K_f_lifted, 𝓢.interior_K_g_lifted]
+  exact ⟨hu.1, hu.2⟩
 
 /-- The IRN setup's `φ` equals the combined LHSCB gradient on
 `C_interior`. -/
@@ -604,18 +644,17 @@ theorem phi_eq_F_grad (u : H X Y) (_hu : u ∈ 𝓢.C_interior) :
 theorem inner_u_phi (u : H X Y) (hu : u ∈ 𝓢.C_interior) :
     inner ℝ u (𝓢.φ u) = -((𝓢.ν : ℝ) + 1) := by
   rw [𝓢.phi_eq_F_grad u hu,
-    𝓢.F_lhscb.euler u (𝓢.C_interior_subset_F_domain hu)]
+    𝓢.F_lhscb.euler u (𝓢.C_interior_subset_F_interior hu)]
   push_cast
   ring
 
-/-- **Monotonicity of `φ`** on `C_interior`. The gradient of a convex
-function is monotone; here `F = f + g` is convex. -/
+/-- **Monotonicity of `φ`** on `C_interior`. -/
 theorem phi_monotone (u : H X Y) (hu : u ∈ 𝓢.C_interior)
     (v : H X Y) (hv : v ∈ 𝓢.C_interior) :
     0 ≤ inner ℝ (u - v) (𝓢.φ u - 𝓢.φ v) := by
   rw [𝓢.phi_eq_F_grad u hu, 𝓢.phi_eq_F_grad v hv]
-  exact 𝓢.F_lhscb.grad_monotone u (𝓢.C_interior_subset_F_domain hu) v
-    (𝓢.C_interior_subset_F_domain hv)
+  exact 𝓢.F_lhscb.grad_monotone u (𝓢.C_interior_subset_F_interior hu) v
+    (𝓢.C_interior_subset_F_interior hv)
 
 end IrnSetup
 
