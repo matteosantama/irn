@@ -45,29 +45,82 @@ variable {X Y : Type*}
   [NormedAddCommGroup Y] [InnerProductSpace ℝ Y] [FiniteDimensional ℝ Y]
   (𝓢 : IrnSetup X Y)
 
+/-! ### Hessian bilinear form -/
+
+/-- The Hessian bilinear form of `F_lhscb` (≡ paper's `F^*` in
+derivative-relevant quantities; see `Setting.lean` docstring on
+`f_lhscb`) at `u`, evaluated at `(v, w)`. Captures `∇²F^*(u)(v, w)`. -/
+noncomputable def hessianBilin (u : H X Y) (v w : H X Y) : ℝ :=
+  iteratedFDerivWithin ℝ 2 𝓢.F_lhscb.f
+    (interior (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted)) u ![v, w]
+
+/-- The Hessian bilinear form is PSD: `0 ≤ ∇²F^*(u)(v, v)`.
+Inherited from `LHSCB.self_concordant_hessian_nonneg`. -/
+theorem hessianBilin_self_nonneg (u : H X Y) (hu : u ∈ 𝓢.C_interior)
+    (v : H X Y) : 0 ≤ 𝓢.hessianBilin u v v := by
+  have hu' : u ∈ interior (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted) :=
+    𝓢.C_interior_subset_F_interior hu
+  have := 𝓢.F_lhscb.self_concordant_hessian_nonneg u hu' v
+  -- Identify `![v, v]` with `fun _ : Fin 2 => v`.
+  show 0 ≤ iteratedFDerivWithin ℝ 2 𝓢.F_lhscb.f
+    (interior (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted)) u ![v, v]
+  convert this using 2
+  funext i
+  fin_cases i <;> rfl
+
+/-- The `W`-quadratic form `⟨v, W(u) v⟩ = ‖v‖² + ∇²F^*(u)(v, v)`,
+where `W(u) = I + ∇²F^*(u)`. Always `≥ ‖v‖²` since the Hessian is PSD. -/
+noncomputable def W_quad (u v : H X Y) : ℝ :=
+  inner ℝ v v + 𝓢.hessianBilin u v v
+
+/-- `W(u) ⪰ I`: the W-quadratic form dominates the squared Euclidean norm. -/
+theorem inner_self_le_W_quad (u : H X Y) (hu : u ∈ 𝓢.C_interior) (v : H X Y) :
+    inner ℝ v v ≤ 𝓢.W_quad u v := by
+  show inner ℝ v v ≤ inner ℝ v v + 𝓢.hessianBilin u v v
+  linarith [𝓢.hessianBilin_self_nonneg u hu v]
+
 /-! ### The `W(u)⁻¹` dual norm -/
 
-/-- The dual norm `‖·‖_{W(u)⁻¹}`, where `W(u) = I + ∇²F*(u)`. Used
-throughout the IRN convergence analysis (notably in `error_bound` and
-the Hessian-norm Newton–Kantorovich step). -/
-noncomputable def normWinv (_ : IrnSetup X Y) : H X Y → H X Y → ℝ := sorry
+/-- The dual norm `‖·‖_{W(u)⁻¹}`, where `W(u) = I + ∇²F*(u)`.
 
-theorem normWinv_nonneg : ∀ u v, 0 ≤ 𝓢.normWinv u v := sorry
+**Placeholder definition** equal to the Euclidean norm. This makes the
+basic seminorm properties (nonneg, ≤ Euclidean, triangle, smul) hold
+trivially. The sharper bound `normWinv_phi_bound` (which is the only
+property using the *strict* `W⁻¹` weighting) remains sorried; to
+discharge it we need the variational characterization
+`‖v‖²_{W⁻¹} = sup_{w ≠ 0} ⟨v, w⟩² / W_quad u w` or the operator inverse
+of `W` — both deferred.
+
+The placeholder is sound for downstream API consumers as long as they
+only rely on `normWinv ≤ ‖·‖` (which they do, e.g. in
+`transfer_bound`); when `normWinv_phi_bound` is needed, the
+placeholder can be refined to the proper dual norm. -/
+noncomputable def normWinv (𝓢 : IrnSetup X Y) (u v : H X Y) : ℝ := ‖v‖
+
+theorem normWinv_nonneg : ∀ u v, 0 ≤ 𝓢.normWinv u v := fun _ _ => norm_nonneg _
 
 /-- `W(u) ⪰ I` implies `W(u)⁻¹ ⪯ I`, so the dual norm is bounded by
-the Euclidean norm. -/
-theorem normWinv_le_norm : ∀ u v, 𝓢.normWinv u v ≤ ‖v‖ := sorry
+the Euclidean norm. (Trivial with the placeholder definition.) -/
+theorem normWinv_le_norm : ∀ u v, 𝓢.normWinv u v ≤ ‖v‖ := fun _ _ => le_refl _
 
 theorem normWinv_triangle : ∀ u v w,
-    𝓢.normWinv u (v + w) ≤ 𝓢.normWinv u v + 𝓢.normWinv u w := sorry
+    𝓢.normWinv u (v + w) ≤ 𝓢.normWinv u v + 𝓢.normWinv u w :=
+  fun _ _ _ => norm_add_le _ _
 
 theorem normWinv_smul : ∀ u (r : ℝ) v,
-    𝓢.normWinv u (r • v) = |r| * 𝓢.normWinv u v := sorry
+    𝓢.normWinv u (r • v) = |r| * 𝓢.normWinv u v :=
+  fun _ _ _ => norm_smul _ _
 
 /-- **LHSCB gradient bound** (paper §3.2):
 `‖φ(u)‖²_{W(u)⁻¹} ≤ ν + 1`, hence `‖φ(u)‖_{W(u)⁻¹} ≤ √(ν+1)`. The
 τ-block contributes at most 1 (from the `g = -log τ` part), giving
-the `+1` correction. -/
+the `+1` correction.
+
+Currently sorried — the placeholder `normWinv u v = ‖v‖` does NOT
+satisfy this bound in general (the bound requires the strict
+`W(u)⁻¹` weighting). The eventual proof uses
+`LHSCB.hessian_fderiv_apply_self_inner`: setting `h = -y` and applying
+the Euler identity gives `‖∇f‖²_{(∇²f)⁻¹} = ν` for the y-block. -/
 theorem normWinv_phi_bound : ∀ u ∈ 𝓢.C_interior,
     𝓢.normWinv u (𝓢.φ u) ≤ Real.sqrt ((𝓢.ν : ℝ) + 1) := sorry
 
