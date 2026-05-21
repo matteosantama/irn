@@ -36,6 +36,7 @@ Paper references:
 -/
 
 import Irn.Setting
+import Irn.CentralPath
 
 namespace Irn
 namespace IrnSetup
@@ -627,6 +628,26 @@ theorem hessian_h_equiv_eq (μ : ℝ) (hμ : 0 < μ) (u : H X Y)
 
 /-! ### Auxiliary: positive root of a quadratic -/
 
+/-- For a quadratic `a x² + b x + c` with `a > 0` and `c < 0`, any two
+positive roots agree (Vieta: `θ₁ θ₂ = c/a < 0`, so not both positive). -/
+private lemma quad_pos_root_unique {a b c : ℝ} (ha : 0 < a) (hc : c < 0)
+    {θ₁ θ₂ : ℝ} (hθ₁ : 0 < θ₁) (h_eq₁ : a * θ₁ ^ 2 + b * θ₁ + c = 0)
+    (hθ₂ : 0 < θ₂) (h_eq₂ : a * θ₂ ^ 2 + b * θ₂ + c = 0) : θ₁ = θ₂ := by
+  by_contra h_ne
+  -- Subtracting: a(θ₁² - θ₂²) + b(θ₁ - θ₂) = 0,
+  -- factor as (θ₁ - θ₂)(a(θ₁ + θ₂) + b) = 0.
+  have h_factor : (θ₁ - θ₂) * (a * (θ₁ + θ₂) + b) = 0 := by nlinarith
+  have h_diff_ne : θ₁ - θ₂ ≠ 0 := sub_ne_zero.mpr h_ne
+  have h_sum : a * (θ₁ + θ₂) + b = 0 := by
+    rcases mul_eq_zero.mp h_factor with h | h
+    · exact absurd h h_diff_ne
+    · exact h
+  -- Substitute b = -a(θ₁ + θ₂) into the original quadratic:
+  -- a θ₁² - a(θ₁ + θ₂) θ₁ + c = 0 ⟹ -a θ₁ θ₂ + c = 0 ⟹ a θ₁ θ₂ = c.
+  have h_prod : a * (θ₁ * θ₂) = c := by nlinarith
+  have h_pos : 0 < a * (θ₁ * θ₂) := mul_pos ha (mul_pos hθ₁ hθ₂)
+  linarith
+
 /-- A quadratic `a x² + b x + c` with `a > 0` and `c < 0` always has a
 positive root, by the intermediate value theorem. -/
 private lemma quad_has_pos_root (a b c : ℝ) (ha : 0 < a) (hc : c < 0) :
@@ -802,6 +823,20 @@ related to the scalar `θ` from the resolvent, but since only the
 vanishing at central-path points and local continuity are needed
 downstream, the constant-zero definition suffices. -/
 noncomputable def rjnLambda (_ : IrnSetup X Y) (_ : ℝ) (_ : H X Y) : ℝ := 0
+
+/-- **Fixed-point property.** The central-path point `u*(μ)` is a
+fixed point of `rjnStep μ`. This is the key sanity check for the
+definition of `rjnStep`: at `u_k = u*`, the Newton equation
+`(H_k + M) u = H_k z + θ e_τ` with `z = u* - H_k⁻¹ h(u*)` admits
+`u = u*` and `θ = (Px* + μ)/τ*` as a solution (both the vector and
+scalar equations hold at this point).
+
+**Sorried** — requires uniqueness of the resolvent (i.e., the scalar
+quadratic has a unique positive root), which holds since
+`α θ² + β θ + γ = 0` with `α > 0`, `γ < 0` has Vieta product
+`θ₁ θ₂ = γ/α < 0`, so at most one positive root. -/
+theorem rjnStep_fixed_point (μ : ℝ) (hμ : 0 < μ) :
+    𝓢.rjnStep μ (𝓢.centralPathPoint μ hμ) = 𝓢.centralPathPoint μ hμ := sorry
 
 /-- **Proposition 11 (Existence of `λ_k`).** `rjnLambda μ` evaluates to
 `0` at central-path points. -/
