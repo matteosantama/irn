@@ -4,17 +4,19 @@
 Logarithmically homogeneous self-concordant barriers (LHSCB) and the
 conjugate barrier-gradient maps `F*`, `G*`, `φ`.
 
-This pass exposes only the three LHSCB consequences the rest of the
-formalisation actually needs:
+This pass exposes only the LHSCB consequences the rest of the
+formalisation actually needs, plus a sum operation:
 
 * the Euler identity `⟨u, ∇f(u)⟩ = -ν` (logarithmic homogeneity of
   degree `-ν`),
 * gradient monotonicity (convexity of `f`),
-* the LHSCB gradient bound `‖∇f(u)‖_dual ≤ √ν` in an abstract dual
-  norm (intended to be `‖·‖_{(Hess f)⁻¹}` or a preconditioned variant
-  such as the IRN weighting `W = I + ∇²f`).
+* `LHSCB.add`: the sum of a `ν₁`-LHSCB and a `ν₂`-LHSCB is a
+  `(ν₁+ν₂)`-LHSCB on the intersection of their domains.
 
-Smoothness and the third-derivative self-concordance bound are deferred.
+Smoothness, the third-derivative self-concordance bound, and the
+`(Hess f)⁻¹`-dual-norm gradient bound are deferred — the dual-norm
+bound applies to the IRN setup's combined `F = f + g` only and is
+carried at the `IrnSetup` level since it does not decompose.
 
 Paper references:
 * Definition 2 (`ν`-LHSCB)
@@ -28,15 +30,11 @@ namespace Irn
 
 open scoped InnerProductSpace
 
-/-- An abstract `ν`-LHSCB on a finite-dimensional real inner product
-space. We record only the gradient, the domain, and the three Euler /
-convexity / dual-norm consequences that the IRN analysis actually
-consumes. The barrier function `f` itself is kept around so that
-downstream refinements can attach a concrete potential.
-
-The `dualNorm` field is intended to be `‖·‖_{(Hess f)⁻¹}` (or the
-preconditioned `‖·‖_{(I + Hess f)⁻¹}` used by the IRN method); we keep
-it abstract so an instance can choose either. -/
+/-- An abstract `ν`-LHSCB on a real inner product space. We record
+only the gradient, the domain, and the two Euler / convexity
+consequences that the IRN analysis consumes through sums. The barrier
+function `f` itself is kept around so a concrete instance can attach a
+potential. -/
 structure LHSCB (V : Type*)
     [NormedAddCommGroup V] [InnerProductSpace ℝ V] (ν : ℕ) where
   /-- The barrier function. -/
@@ -52,14 +50,39 @@ structure LHSCB (V : Type*)
   map is monotone on `domain`. -/
   grad_monotone : ∀ u ∈ domain, ∀ v ∈ domain,
     0 ≤ inner ℝ (u - v) (grad u - grad v)
-  /-- Auxiliary dual norm `‖·‖_{(Hess f)⁻¹}` (or a preconditioned
-  variant). Kept abstract to accommodate the IRN `W = I + Hess F`
-  weighting. -/
-  dualNorm : V → V → ℝ
-  /-- **LHSCB gradient bound.** `‖∇f(u)‖_dual ≤ √ν` on the domain.
-  In the unpreconditioned case (`dualNorm = ‖·‖_{(Hess f)⁻¹}`) this is
-  the classical bound; with `W = I + Hess f` preconditioning, `W⁻¹ ⪯
-  (Hess f)⁻¹` makes the W-norm no larger, so the bound transports. -/
-  dualNorm_grad_bound : ∀ u ∈ domain, dualNorm u (grad u) ≤ Real.sqrt (ν : ℝ)
+
+namespace LHSCB
+
+variable {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
+
+/-- **Sum of LHSCBs.** A `ν₁`-LHSCB plus a `ν₂`-LHSCB is a
+`(ν₁+ν₂)`-LHSCB on the intersection of their domains; Euler and
+gradient monotonicity are both additive. -/
+def add {ν₁ ν₂ : ℕ} (f : LHSCB V ν₁) (g : LHSCB V ν₂) :
+    LHSCB V (ν₁ + ν₂) where
+  f := fun v => f.f v + g.f v
+  grad := fun v => f.grad v + g.grad v
+  domain := f.domain ∩ g.domain
+  euler := by
+    rintro u ⟨hu_f, hu_g⟩
+    rw [inner_add_right, f.euler u hu_f, g.euler u hu_g]
+    push_cast
+    ring
+  grad_monotone := by
+    rintro u ⟨hu_f, hu_g⟩ v ⟨hv_f, hv_g⟩
+    have hf := f.grad_monotone u hu_f v hv_f
+    have hg := g.grad_monotone u hu_g v hv_g
+    have h : (f.grad u + g.grad u) - (f.grad v + g.grad v) =
+        (f.grad u - f.grad v) + (g.grad u - g.grad v) := by abel
+    rw [h, inner_add_right]
+    linarith
+
+@[simp] theorem add_grad {ν₁ ν₂ : ℕ} (f : LHSCB V ν₁) (g : LHSCB V ν₂)
+    (u : V) : (f.add g).grad u = f.grad u + g.grad u := rfl
+
+@[simp] theorem add_domain {ν₁ ν₂ : ℕ} (f : LHSCB V ν₁) (g : LHSCB V ν₂) :
+    (f.add g).domain = f.domain ∩ g.domain := rfl
+
+end LHSCB
 
 end Irn

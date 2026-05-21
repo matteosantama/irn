@@ -18,6 +18,7 @@ Paper references:
 
 import Mathlib.Analysis.InnerProductSpace.Basic
 import Mathlib.Analysis.Calculus.ContDiff.Defs
+import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import Mathlib.Topology.Algebra.Module.FiniteDimension
 import Irn.Barriers
 
@@ -59,25 +60,11 @@ structure IrnSetup (H : Type*)
   /-- Euler-type identity used in the proof of Proposition 3 (sphericity):
   `⟨u, Q(u)⟩ = 0`. -/
   inner_u_Q : ∀ u ∈ Cplus, inner ℝ u (Q u) = (0 : ℝ)
-  /-- The combined `(ν+1)`-LHSCB `F = f + g`, where `f` is the
-  user-supplied `ν`-LHSCB on `K*` and `g(τ) = -log τ` is the standard
-  `1`-LHSCB on `ℝ_++`. The paper's `φ = ∇F*` factors through this
-  bundle via `phi_eq_grad`; the three φ-consequences used downstream
-  (Euler, monotonicity, dual-norm bound) are derived as theorems below
-  rather than carried as separate `IrnSetup` fields. -/
-  F_lhscb : LHSCB H (ν + 1)
-  /-- The IRN setup's φ is the LHSCB gradient on `C`. -/
-  phi_eq_grad : ∀ u ∈ C, φ u = F_lhscb.grad u
-  /-- The barrier is finite on `C`. -/
-  C_subset_domain : C ⊆ F_lhscb.domain
   /-- The `W(u)⁻¹`-weighted norm `‖·‖_{W(u)⁻¹}`, where
   `W(u) = I + ∇²F*(u)`. Carried as a field to sidestep the
   linear-operator-inverse machinery; its required algebraic and
   bound properties are recorded below. -/
   normWinv : H → H → ℝ
-  /-- `normWinv` agrees with the LHSCB dual norm, so the LHSCB
-  gradient bound transports to `‖φ(u)‖_{W(u)⁻¹} ≤ √(ν+1)`. -/
-  normWinv_eq_dualNorm : ∀ u v, normWinv u v = F_lhscb.dualNorm u v
   /-- `normWinv` is nonnegative. -/
   normWinv_nonneg : ∀ u v, 0 ≤ normWinv u v
   /-- `W(u) ⪰ I` implies `W(u)⁻¹ ⪯ I`, so the dual norm is bounded
@@ -102,6 +89,26 @@ structure IrnSetup (H : Type*)
   tau_proj : H → ℝ
   /-- `tau_proj u > 0` on `Cplus`. -/
   tau_proj_pos : ∀ u ∈ Cplus, 0 < tau_proj u
+  /-- `e_τ` is dual to `tau_proj`: `⟨u, e_τ⟩ = tau_proj u`. With the
+  standard inner product on `H = ℝⁿ × ℝᵐ × ℝ` and `e_τ` the unit
+  τ-vector, this identifies the τ-component with the τ-inner-product. -/
+  inner_u_e_tau : ∀ u : H, inner ℝ u e_τ = tau_proj u
+  /-- The user-supplied `ν`-LHSCB `f` on `K*`, lifted to a `ν`-LHSCB on
+  `H` (extended trivially to the `x` and `τ` blocks). The combined
+  `(ν+1)`-LHSCB `F = f + g` with `g(τ) = -log τ` is derived as
+  `IrnSetup.F_lhscb` below. -/
+  f_lhscb : LHSCB H ν
+  /-- The user's barrier is finite on `C`. -/
+  C_subset_f_domain : C ⊆ f_lhscb.domain
+  /-- The IRN setup's `φ = ∇F*` decomposes as `∇f* + ∇g*` where
+  `g(τ) = -log τ` gives `∇g*(τ) = -1/τ`. The g-component lifts to
+  `(-1/tau_proj u) • e_τ` on `H`. -/
+  phi_eq_grad : ∀ u ∈ C,
+    φ u = f_lhscb.grad u + (-1 / tau_proj u) • e_τ
+  /-- LHSCB gradient identity: `‖φ(u)‖²_{W(u)⁻¹} ≤ ν + 1`, hence
+  `‖φ(u)‖_{W(u)⁻¹} ≤ √(ν+1)`. Specific to the combined `F = f + g`
+  Hessian; does not decompose from the parts. -/
+  normWinv_phi_bound : ∀ u ∈ C, normWinv u (φ u) ≤ Real.sqrt ((ν : ℝ) + 1)
   -- The Riemannian Josephy–Newton corrector.
   /-- The Hessian preconditioner `H_k = ∇h(u_k) = μI + μ∇²F*(u_k)`. -/
   hessian_h : ℝ → H → H →L[ℝ] H
@@ -209,12 +216,66 @@ theorem r_pos : 0 < 𝓢.r := by
   unfold IrnSetup.r
   exact Real.sqrt_pos.mpr (by positivity)
 
+/-- The concrete `1`-LHSCB `g(τ) = -log τ` lifted to `H`. The gradient
+is `(-1/tau_proj u) • e_τ`; the Euler identity `⟨u, ∇g(u)⟩ = -1` uses
+`inner_u_e_tau`; monotonicity uses `(τ_u - τ_v)² / (τ_u τ_v) ≥ 0`. -/
+noncomputable def g_lhscb : LHSCB H 1 where
+  f := fun u => -Real.log (𝓢.tau_proj u)
+  grad := fun u => (-1 / 𝓢.tau_proj u) • 𝓢.e_τ
+  domain := 𝓢.Cplus
+  euler := by
+    intros u hu
+    have hτ : 0 < 𝓢.tau_proj u := 𝓢.tau_proj_pos u hu
+    have hτ_ne : 𝓢.tau_proj u ≠ 0 := ne_of_gt hτ
+    rw [inner_smul_right, 𝓢.inner_u_e_tau]
+    push_cast
+    field_simp
+  grad_monotone := by
+    intros u hu v hv
+    have hτu : 0 < 𝓢.tau_proj u := 𝓢.tau_proj_pos u hu
+    have hτv : 0 < 𝓢.tau_proj v := 𝓢.tau_proj_pos v hv
+    have hτu_ne : 𝓢.tau_proj u ≠ 0 := ne_of_gt hτu
+    have hτv_ne : 𝓢.tau_proj v ≠ 0 := ne_of_gt hτv
+    have h_sub_smul :
+        (-1 / 𝓢.tau_proj u) • 𝓢.e_τ - (-1 / 𝓢.tau_proj v) • 𝓢.e_τ =
+        ((-1 / 𝓢.tau_proj u) - (-1 / 𝓢.tau_proj v)) • 𝓢.e_τ := by
+      rw [sub_smul]
+    rw [h_sub_smul, inner_smul_right]
+    have h_inner :
+        inner ℝ (u - v) 𝓢.e_τ = 𝓢.tau_proj u - 𝓢.tau_proj v := by
+      rw [inner_sub_left, 𝓢.inner_u_e_tau, 𝓢.inner_u_e_tau]
+    rw [h_inner]
+    have h_factor :
+        ((-1 / 𝓢.tau_proj u) - (-1 / 𝓢.tau_proj v)) *
+            (𝓢.tau_proj u - 𝓢.tau_proj v) =
+        (𝓢.tau_proj u - 𝓢.tau_proj v) ^ 2 /
+            (𝓢.tau_proj u * 𝓢.tau_proj v) := by
+      field_simp
+      ring
+    rw [h_factor]
+    positivity
+
+/-- The combined `(ν+1)`-LHSCB `F = f + g` driving the IRN central path. -/
+noncomputable def F_lhscb : LHSCB H (𝓢.ν + 1) :=
+  𝓢.f_lhscb.add 𝓢.g_lhscb
+
+/-- `C ⊆ F_lhscb.domain = f_lhscb.domain ∩ Cplus`. -/
+theorem C_subset_F_domain : 𝓢.C ⊆ 𝓢.F_lhscb.domain := fun _ hu =>
+  ⟨𝓢.C_subset_f_domain hu, 𝓢.C_subset_Cplus hu⟩
+
+/-- The IRN setup's `φ` equals the combined LHSCB gradient on `C`. -/
+theorem phi_eq_F_grad (u : H) (hu : u ∈ 𝓢.C) :
+    𝓢.φ u = 𝓢.F_lhscb.grad u := by
+  show 𝓢.φ u = (𝓢.f_lhscb.add 𝓢.g_lhscb).grad u
+  rw [LHSCB.add_grad]
+  exact 𝓢.phi_eq_grad u hu
+
 /-- **Euler-type identity for `φ`** (Proposition 3 proof):
 `⟨u, φ(u)⟩ = -(ν+1)`. Derived from the LHSCB Euler identity for
 `F = f + g` (a `(ν+1)`-LHSCB). -/
 theorem inner_u_phi (u : H) (hu : u ∈ 𝓢.C) :
     inner ℝ u (𝓢.φ u) = -((𝓢.ν : ℝ) + 1) := by
-  rw [𝓢.phi_eq_grad u hu, 𝓢.F_lhscb.euler u (𝓢.C_subset_domain hu)]
+  rw [𝓢.phi_eq_F_grad u hu, 𝓢.F_lhscb.euler u (𝓢.C_subset_F_domain hu)]
   push_cast
   ring
 
@@ -222,17 +283,9 @@ theorem inner_u_phi (u : H) (hu : u ∈ 𝓢.C) :
 is monotone; here `F = f + g` is convex. -/
 theorem phi_monotone (u : H) (hu : u ∈ 𝓢.C) (v : H) (hv : v ∈ 𝓢.C) :
     0 ≤ inner ℝ (u - v) (𝓢.φ u - 𝓢.φ v) := by
-  rw [𝓢.phi_eq_grad u hu, 𝓢.phi_eq_grad v hv]
-  exact 𝓢.F_lhscb.grad_monotone u (𝓢.C_subset_domain hu) v (𝓢.C_subset_domain hv)
-
-/-- **LHSCB gradient bound** in the IRN dual norm:
-`‖φ(u)‖_{W(u)⁻¹} ≤ √(ν+1)`. -/
-theorem normWinv_phi_bound (u : H) (hu : u ∈ 𝓢.C) :
-    𝓢.normWinv u (𝓢.φ u) ≤ Real.sqrt ((𝓢.ν : ℝ) + 1) := by
-  rw [𝓢.normWinv_eq_dualNorm, 𝓢.phi_eq_grad u hu]
-  have h := 𝓢.F_lhscb.dualNorm_grad_bound u (𝓢.C_subset_domain hu)
-  push_cast at h
-  exact h
+  rw [𝓢.phi_eq_F_grad u hu, 𝓢.phi_eq_F_grad v hv]
+  exact 𝓢.F_lhscb.grad_monotone u (𝓢.C_subset_F_domain hu) v
+    (𝓢.C_subset_F_domain hv)
 
 end IrnSetup
 
