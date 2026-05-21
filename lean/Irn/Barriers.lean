@@ -119,12 +119,65 @@ noncomputable def add {K₁ K₂ : Set V} {ν₁ ν₂ : ℕ}
         f.log_homog x hx'.1 t ht, g.log_homog x hx'.2 t ht]
     ring
   barrier := by
-    -- Case-split on whether the frontier point lies in `frontier K₁`
-    -- or `frontier K₂`. Requires each barrier being bounded below on
-    -- the other cone's interior (from convexity via the derived
-    -- `grad_monotone`). Deferred.
-    intros x _
-    sorry
+    intros x hx
+    -- Case-split on whether `x ∈ interior K_i` for each `i`. The
+    -- relevant filter is `nhdsWithin x (interior (K₁ ∩ K₂)) =
+    -- nhdsWithin x (interior K₁ ∩ interior K₂)`.
+    rw [interior_inter]
+    have hx_cl : x ∈ closure (K₁ ∩ K₂) := frontier_subset_closure hx
+    have hx_not_int : x ∉ interior K₁ ∩ interior K₂ := by
+      rw [← interior_inter]; exact hx.2
+    have hx_cl₁ : x ∈ closure K₁ :=
+      closure_mono Set.inter_subset_left hx_cl
+    have hx_cl₂ : x ∈ closure K₂ :=
+      closure_mono Set.inter_subset_right hx_cl
+    have h_inter_sub₁ : interior K₁ ∩ interior K₂ ⊆ interior K₁ :=
+      Set.inter_subset_left
+    have h_inter_sub₂ : interior K₁ ∩ interior K₂ ⊆ interior K₂ :=
+      Set.inter_subset_right
+    by_cases h₁ : x ∈ interior K₁
+    · -- x ∈ interior K₁, so x ∉ interior K₂, hence x ∈ frontier K₂.
+      have h₂ : x ∉ interior K₂ := fun hI₂ => hx_not_int ⟨h₁, hI₂⟩
+      have hx_fr₂ : x ∈ frontier K₂ := ⟨hx_cl₂, h₂⟩
+      have h_g : Filter.Tendsto g.f
+          (nhdsWithin x (interior K₁ ∩ interior K₂)) Filter.atTop :=
+        (g.barrier x hx_fr₂).mono_left (nhdsWithin_mono _ h_inter_sub₂)
+      -- f.f is continuous at x (differentiable from contDiff).
+      have h_f_cont : Filter.Tendsto f.f
+          (nhdsWithin x (interior K₁ ∩ interior K₂)) (nhds (f.f x)) := by
+        have h_diff : DifferentiableAt ℝ f.f x :=
+          (f.contDiff.differentiableOn (by norm_num)).differentiableAt
+            (isOpen_interior.mem_nhds h₁)
+        exact h_diff.continuousAt.mono_left nhdsWithin_le_nhds
+      -- g + f → atTop via Tendsto.atTop_add (atTop + finite = atTop).
+      have h_sum : Filter.Tendsto (fun v => g.f v + f.f v)
+          (nhdsWithin x (interior K₁ ∩ interior K₂)) Filter.atTop :=
+        h_g.atTop_add h_f_cont
+      exact h_sum.congr (fun _ => add_comm _ _)
+    · -- x ∉ interior K₁, hence x ∈ frontier K₁.
+      have hx_fr₁ : x ∈ frontier K₁ := ⟨hx_cl₁, h₁⟩
+      have h_f : Filter.Tendsto f.f
+          (nhdsWithin x (interior K₁ ∩ interior K₂)) Filter.atTop :=
+        (f.barrier x hx_fr₁).mono_left (nhdsWithin_mono _ h_inter_sub₁)
+      by_cases h₂ : x ∈ interior K₂
+      · -- g.f continuous at x.
+        have h_g_cont : Filter.Tendsto g.f
+            (nhdsWithin x (interior K₁ ∩ interior K₂)) (nhds (g.f x)) := by
+          have h_diff : DifferentiableAt ℝ g.f x :=
+            (g.contDiff.differentiableOn (by norm_num)).differentiableAt
+              (isOpen_interior.mem_nhds h₂)
+          exact h_diff.continuousAt.mono_left nhdsWithin_le_nhds
+        exact h_f.atTop_add h_g_cont
+      · -- x ∈ frontier K₂.
+        have hx_fr₂ : x ∈ frontier K₂ := ⟨hx_cl₂, h₂⟩
+        have h_g : Filter.Tendsto g.f
+            (nhdsWithin x (interior K₁ ∩ interior K₂)) Filter.atTop :=
+          (g.barrier x hx_fr₂).mono_left (nhdsWithin_mono _ h_inter_sub₂)
+        -- f + g ≥ f (eventually g ≥ 0 from atTop); use monotonicity.
+        have h_g_nn : ∀ᶠ v in nhdsWithin x (interior K₁ ∩ interior K₂),
+            (0 : ℝ) ≤ g.f v := h_g.eventually (Filter.eventually_ge_atTop 0)
+        refine Filter.tendsto_atTop_mono' _ ?_ h_f
+        filter_upwards [h_g_nn] with v hv using by linarith
 
 /-- **Derived gradient of a sum.** `(f.add g).grad x = f.grad x +
 g.grad x` on `int(K₁ ∩ K₂)`. Follows from `fderiv_fun_add` (Mathlib)
