@@ -88,13 +88,79 @@ theorem unique_centralPath (μ : ℝ) (hμ : 0 < μ)
   rw [hT_u, hT_v, sub_self, inner_zero_right] at h_strict
   exact lt_irrefl 0 h_strict
 
-/-- `T_μ` is continuous on `C_interior`. `T_μ u = Q u + μ•u + μ•φ u`;
-each summand is continuous on `C_interior` (where `τ > 0` keeps the
-`1/τ` terms inside `Q` and `φ` well-defined, and `f_lhscb.grad` is
-continuous from `contDiff`). Sorried — the explicit chain of
-`ContinuousOn` lemmas through `Q`, `M_apply`, `Px_bilinform`,
-`f_lhscb.grad`, and `tau_proj` is mechanical but voluminous. -/
-theorem T_continuousOn (μ : ℝ) : ContinuousOn (𝓢.T μ) 𝓢.C_interior := sorry
+/-- `f_lhscb.grad` is continuous on `interior K_f_lifted` (from C³). -/
+theorem f_lhscb_grad_continuousOn :
+    ContinuousOn 𝓢.f_lhscb.grad (interior 𝓢.K_f_lifted) := by
+  -- f_lhscb.grad u = (toDual_H).symm (fderiv ℝ f_lhscb.f u)
+  have h_fderiv_within_C2 :
+      ContDiffOn ℝ 2 (fderivWithin ℝ 𝓢.f_lhscb.f (interior 𝓢.K_f_lifted))
+        (interior 𝓢.K_f_lifted) := by
+    have := 𝓢.f_lhscb.contDiff.fderivWithin
+      isOpen_interior.uniqueDiffOn (m := 2) (by norm_num)
+    simpa using this
+  have h_fderiv_C2 :
+      ContDiffOn ℝ 2 (fderiv ℝ 𝓢.f_lhscb.f) (interior 𝓢.K_f_lifted) :=
+    h_fderiv_within_C2.congr
+      (fun y hy => (fderivWithin_of_isOpen isOpen_interior hy).symm)
+  show ContinuousOn (fun u =>
+      (InnerProductSpace.toDual ℝ (H X Y)).symm (fderiv ℝ 𝓢.f_lhscb.f u))
+        (interior 𝓢.K_f_lifted)
+  exact (InnerProductSpace.toDual ℝ (H X Y)).symm.continuous.comp_continuousOn
+    h_fderiv_C2.continuousOn
+
+/-- `φ` is continuous on `C_interior`: sum of `f_lhscb.grad` (continuous
+on `interior K_f_lifted ⊇ C_interior`) and `(-1/τ) • e_τ` (continuous
+where `τ ≠ 0`, i.e., on `Cplus ⊇ C_interior`). -/
+theorem phi_continuousOn : ContinuousOn 𝓢.φ 𝓢.C_interior := by
+  unfold φ
+  apply ContinuousOn.add
+  · -- f_lhscb.grad on C_interior ⊆ interior K_f_lifted
+    apply 𝓢.f_lhscb_grad_continuousOn.mono
+    exact 𝓢.C_interior_subset_f_lhscb_interior
+  · -- (-1 / tau_proj u) • e_τ on C_interior
+    apply ContinuousOn.smul _ continuousOn_const
+    apply ContinuousOn.div continuousOn_const
+      𝓢.tau_proj_continuous.continuousOn
+    intro u hu
+    exact ne_of_gt hu.2
+
+/-- `Q` is continuous on `C_interior`: `M_clm` (continuous CLM) minus
+`(Px_bilinform(x, x) / τ) • e_τ` (continuous on `Cplus`). -/
+theorem Q_continuousOn : ContinuousOn 𝓢.Q 𝓢.C_interior := by
+  show ContinuousOn (fun u =>
+    𝓢.M_apply u -
+      (𝓢.Px_bilinform (𝓢.x_proj u) (𝓢.x_proj u) / 𝓢.tau_proj u) •
+        𝓢.e_τ) 𝓢.C_interior
+  apply ContinuousOn.sub
+  · -- M_apply = M_clm (CLM)
+    exact (𝓢.M_clm.continuous).continuousOn
+  · -- (Px(x,x) / τ) • e_τ
+    apply ContinuousOn.smul _ continuousOn_const
+    apply ContinuousOn.div
+    · -- Px_bilinform(x_proj u, x_proj u) is continuous in u
+      show ContinuousOn (fun u => 𝓢.Px_bilinform (𝓢.x_proj u) (𝓢.x_proj u)) _
+      unfold Px_bilinform
+      -- inner (x_proj u) (P (x_proj u)) — continuous
+      have h_xproj : Continuous 𝓢.x_proj := by
+        show Continuous fun u : H X Y => u.fst
+        fun_prop
+      have h_inner :
+          Continuous (fun u : H X Y => inner ℝ (𝓢.x_proj u) (𝓢.P (𝓢.x_proj u))) := by
+        apply Continuous.inner h_xproj
+        exact 𝓢.P.continuous.comp h_xproj
+      exact h_inner.continuousOn
+    · exact 𝓢.tau_proj_continuous.continuousOn
+    · intro u hu
+      exact ne_of_gt hu.2
+
+/-- `T_μ` is continuous on `C_interior`. -/
+theorem T_continuousOn (μ : ℝ) : ContinuousOn (𝓢.T μ) 𝓢.C_interior := by
+  unfold T
+  apply ContinuousOn.add
+  apply ContinuousOn.add
+  · exact 𝓢.Q_continuousOn
+  · exact (continuous_const.smul continuous_id).continuousOn
+  · exact (continuousOn_const).smul 𝓢.phi_continuousOn
 
 /-- `T_μ` is boundary-coercive on `C_interior` for `μ > 0`. Used by
 `exists_unique_centralPath` via Minty. Sorried — comes from `f_lhscb.barrier`
