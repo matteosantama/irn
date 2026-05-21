@@ -680,22 +680,6 @@ theorem T_joint_contDiffAt {μ₀ : ℝ} (_hμ₀ : 0 < μ₀)
       (fun p : ℝ × H X Y => p.1 • 𝓢.φ p.2) (μ₀, u₀) := h_fst.smul h_phi
   exact (h_Q.add h_smulId).add h_smulPhi
 
-/-- **Invertibility of `D_u T_μ` at central-path points.** The partial
-derivative of `T_joint` in the `u`-direction at `(μ, u)` (with `μ > 0`
-and `u ∈ C_interior`) is positive-definite, hence invertible in finite
-dimensions.
-
-**Proof outline (sorried).** For each `v ∈ H`, differentiating the
-monotonicity `0 ≤ ⟨u-u', Q u - Q u'⟩` and `0 ≤ ⟨u-u', φ u - φ u'⟩`
-along `v` gives `⟨v, D Q(u) v⟩ ≥ 0` and `⟨v, D φ(u) v⟩ ≥ 0`. The
-identity component contributes `μ‖v‖²`. So
-`⟨v, (D_u T_μ) v⟩ ≥ μ‖v‖² > 0` for `v ≠ 0` — hence injective, and
-finite-dimensional ⇒ bijective ⇒ invertible. -/
-theorem T_partial_u_isInvertible {μ : ℝ} (hμ : 0 < μ)
-    {u : H X Y} (hu : u ∈ 𝓢.C_interior) :
-    ((fderiv ℝ 𝓢.T_joint (μ, u)).comp
-      (ContinuousLinearMap.inr ℝ ℝ (H X Y))).IsInvertible := sorry
-
 /-- `𝓢.d - 1 ≠ 0` (in `ℕ∞ω`): immediate from `𝓢.d ≥ 3` since `d - 1`
 in `ℕ∞` is zero only when `d ≤ 1`, contradicting `3 ≤ d`. -/
 theorem d_sub_one_ne_zero : ((𝓢.d - 1 : ℕ∞) : ℕ∞ω) ≠ 0 := by
@@ -704,6 +688,73 @@ theorem d_sub_one_ne_zero : ((𝓢.d - 1 : ℕ∞) : ℕ∞ω) ≠ 0 := by
   have h_le_1 : 𝓢.d ≤ 1 := tsub_eq_zero_iff_le.mp h0
   have h_3_le_1 : (3 : ℕ∞) ≤ 1 := 𝓢.hd_ge.trans h_le_1
   exact absurd h_3_le_1 (by decide)
+
+/-- **Invertibility of `D_u T_μ` at central-path points.** The partial
+derivative of `T_joint` in the `u`-direction at `(μ, u)` (with `μ > 0`
+and `u ∈ C_interior`) is positive-definite, hence invertible in finite
+dimensions.
+
+Proof:
+* `T μ = T_joint ∘ (Prod.mk μ)`, and `fderiv (Prod.mk μ) u = inr`, so
+  by the chain rule `fderiv (T μ) u = (fderiv T_joint (μ, u)) ∘L inr`.
+* `T μ` is strongly monotone (with constant `μ`) and `C¹` on
+  `C_interior`, so by `fderiv_inner_lower_bound` we have
+  `μ ‖h‖² ≤ ⟨h, fderiv (T μ) u h⟩` for all `h`.
+* Hence `fderiv (T μ) u` is injective; by `fderiv_range_eq_top` it is
+  also surjective. So it is a `ContinuousLinearEquiv` (in finite dim),
+  i.e. invertible. -/
+theorem T_partial_u_isInvertible {μ : ℝ} (hμ : 0 < μ)
+    {u : H X Y} (hu : u ∈ 𝓢.C_interior) :
+    ((fderiv ℝ 𝓢.T_joint (μ, u)).comp
+      (ContinuousLinearMap.inr ℝ ℝ (H X Y))).IsInvertible := by
+  -- `T μ = T_joint ∘ (Prod.mk μ)`, so by the chain rule its `fderiv` at
+  -- `u` is `(fderiv T_joint (μ, u)).comp inr`.
+  set L : H X Y →L[ℝ] H X Y :=
+    (fderiv ℝ 𝓢.T_joint (μ, u)).comp (ContinuousLinearMap.inr ℝ ℝ (H X Y))
+    with hL_def
+  have h_T_C1 : ContDiffOn ℝ 1 (𝓢.T μ) 𝓢.C_interior := 𝓢.T_contDiffOn1 μ
+  have h_T_joint_diff : DifferentiableAt ℝ 𝓢.T_joint (μ, u) :=
+    (𝓢.T_joint_contDiffAt hμ hu).differentiableAt 𝓢.d_sub_one_ne_zero
+  have h_mk_HasFDerivAt :
+      HasFDerivAt (fun u' : H X Y => ((μ, u') : ℝ × H X Y))
+        (ContinuousLinearMap.inr ℝ ℝ (H X Y)) u := by
+    have h_const_fd : HasFDerivAt (fun _ : H X Y => μ) (0 : H X Y →L[ℝ] ℝ) u :=
+      hasFDerivAt_const μ u
+    have h_id_fd : HasFDerivAt (fun u' : H X Y => u')
+        (ContinuousLinearMap.id ℝ (H X Y)) u := hasFDerivAt_id u
+    have h_prod := h_const_fd.prodMk h_id_fd
+    convert h_prod using 1
+  have h_T_joint_HasFDerivAt :
+      HasFDerivAt 𝓢.T_joint (fderiv ℝ 𝓢.T_joint (μ, u)) (μ, u) :=
+    h_T_joint_diff.hasFDerivAt
+  have h_T_HasFDerivAt : HasFDerivAt (𝓢.T μ) L u :=
+    h_T_joint_HasFDerivAt.comp u h_mk_HasFDerivAt
+  have h_T_fderiv_eq : fderiv ℝ (𝓢.T μ) u = L := h_T_HasFDerivAt.fderiv
+  -- Surjectivity from `fderiv_range_eq_top`.
+  have h_range : (↑L : H X Y →ₗ[ℝ] H X Y).range = ⊤ := by
+    rw [← h_T_fderiv_eq]
+    exact fderiv_range_eq_top 𝓢.C_interior_isOpen hμ
+      (𝓢.T_stronglyMonotoneOn μ hμ) h_T_C1 u hu
+  -- Injectivity from `fderiv_inner_lower_bound`.
+  have h_inj : (↑L : H X Y →ₗ[ℝ] H X Y).ker = ⊥ := by
+    rw [Submodule.eq_bot_iff]
+    intro h h_mem
+    -- `h ∈ ker L`, i.e. `L h = 0`.
+    have hL_h_zero : L h = 0 := h_mem
+    -- From `μ ‖h‖² ≤ ⟨h, L h⟩ = 0` and `μ > 0`, deduce `h = 0`.
+    have h_bound : μ * ‖h‖ ^ 2 ≤ inner ℝ h (fderiv ℝ (𝓢.T μ) u h) :=
+      fderiv_inner_lower_bound 𝓢.C_interior_isOpen hμ
+        (𝓢.T_stronglyMonotoneOn μ hμ) h_T_C1 u hu h
+    rw [h_T_fderiv_eq, hL_h_zero, inner_zero_right] at h_bound
+    have h_norm_sq_zero : ‖h‖ ^ 2 = 0 := by
+      have h_nn : 0 ≤ ‖h‖ ^ 2 := sq_nonneg _
+      nlinarith
+    have h_norm_zero : ‖h‖ = 0 := by
+      have := sq_eq_zero_iff.mp h_norm_sq_zero
+      exact this
+    exact norm_eq_zero.mp h_norm_zero
+  -- Construct the `ContinuousLinearEquiv`.
+  exact ⟨ContinuousLinearEquiv.ofBijective L h_inj h_range, rfl⟩
 
 /-- **Theorem 6 (Smoothness).** If the user's barrier `fBarrier` has
 smoothness degree `d ≥ 3` (recorded in `𝓢.d`, with `d = ⊤` denoting
