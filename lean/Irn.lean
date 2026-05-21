@@ -7,7 +7,7 @@ This is the root module. It re-exports every submodule so that
 The submodules track the structure of `paper/standalone.tex`:
 
 * `Irn.Barriers`       — paper §2.1     (LHSCB, `φ`, `F*`, `G*`)
-* `Irn.ProblemData`    — paper §1–§2.2  (problem data `(P, A, b, c, K, f)`,
+* `Irn.Setting`    — paper §1–§2.2  (problem data `(P, A, b, c, K, f)`,
                                           embedding, `Q`, `M`, `φ`)
 * `Irn.Analytic`       — sorry'd analytic content (Newton-Kantorovich,
                                           Minty, Hessian preconditioner)
@@ -19,7 +19,7 @@ The submodules track the structure of `paper/standalone.tex`:
 -/
 
 import Irn.Barriers
-import Irn.ProblemData
+import Irn.Setting
 import Irn.Analytic
 import Irn.CentralPath
 import Irn.Sphere
