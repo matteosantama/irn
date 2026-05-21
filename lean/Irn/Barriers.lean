@@ -94,6 +94,26 @@ of `fderiv ℝ f x`. Outside `int(K)` the value is whatever Mathlib's
 noncomputable def grad {K : Set V} {ν : ℕ} (f : LHSCB V K ν) : V → V :=
   fun x => (InnerProductSpace.toDual ℝ V).symm (fderiv ℝ f.f x)
 
+/-- **Algebraic core of the self-concordance sum.** If `a² ≤ 4p³`,
+`b² ≤ 4q³`, `p ≥ 0`, `q ≥ 0`, then `(a + b)² ≤ 4(p + q)³`. The case
+split on `p = 0` / `q = 0` handles degenerate cases; the generic
+case uses `nlinarith` with `sq_nonneg (a*q - b*p)` as the key hint
+(this expands to `2 a b p q ≤ a² q² + b² p² ≤ 4 p³ q² + 4 p² q³`,
+which combined with the cube bounds gives the inequality). -/
+lemma sc_sum_ineq {a b p q : ℝ} (hp : 0 ≤ p) (hq : 0 ≤ q)
+    (ha : a ^ 2 ≤ 4 * p ^ 3) (hb : b ^ 2 ≤ 4 * q ^ 3) :
+    (a + b) ^ 2 ≤ 4 * (p + q) ^ 3 := by
+  by_cases hp0 : p = 0 <;> by_cases hq0 : q = 0 <;> simp_all +decide [pow_succ]
+  · norm_num [show a = 0 by nlinarith, show b = 0 by nlinarith]
+  · norm_num [show a = 0 by nlinarith] at *; nlinarith
+  · norm_num [show b = 0 by nlinarith] at *; nlinarith
+  · nlinarith [sq_nonneg (a * q - b * p),
+      show 0 < p * q by positivity,
+      show 0 < p ^ 2 * q by positivity,
+      show 0 < p * q ^ 2 by positivity,
+      show 0 < p ^ 3 by positivity,
+      show 0 < q ^ 3 by positivity]
+
 /-- **Self-concordance is preserved under right composition with a
 continuous linear map.** If `f` is `C³` on the open set `s ⊆ W` and
 satisfies the squared SC bound there, then for any CLM `L : V → W`,
@@ -127,6 +147,22 @@ lemma self_concordant_comp_right_clm
   rw [h2_eq, h3_eq]
   exact hf_sc (L x) hLxs (L h)
 
+/-- **Hessian non-negativity from SC bound.** The squared SC bound
+forces `D²f(x)[h,h] ≥ 0` (the cube of a negative is negative, but
+the LHS is a square). -/
+lemma self_concordant_hessian_nonneg {K : Set V} {ν : ℕ} (f : LHSCB V K ν) :
+    ∀ x ∈ interior K, ∀ h : V,
+      0 ≤ iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => h) := by
+  intro x hx h
+  by_contra hneg
+  push_neg at hneg
+  have hsc := f.self_concordant x hx h
+  have h_cube : (iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => h)) ^ 3 < 0 :=
+    Odd.pow_neg (by decide : Odd 3) hneg
+  have h_sq : 0 ≤ (iteratedFDerivWithin ℝ 3 f.f (interior K) x (fun _ => h)) ^ 2 :=
+    sq_nonneg _
+  linarith
+
 /-- **Sum of LHSCBs.** A `ν₁`-LHSCB on `K₁` plus a `ν₂`-LHSCB on `K₂`
 is a `(ν₁+ν₂)`-LHSCB on `K₁ ∩ K₂`. -/
 noncomputable def add {K₁ K₂ : Set V} {ν₁ ν₂ : ℕ}
@@ -139,13 +175,46 @@ noncomputable def add {K₁ K₂ : Set V} {ν₁ ν₂ : ℕ}
       (ContDiffOn.mono f.contDiff Set.inter_subset_left)
       (ContDiffOn.mono g.contDiff Set.inter_subset_right)
   self_concordant := by
-    -- Nesterov's self-concordant sum theorem: the SC bound is closed
-    -- under addition of barriers on a common interior. Requires
-    -- expanding the cubed-and-squared form and using AM-GM-like
-    -- inequalities on the Hessian/third-derivative pairings.
-    -- Deferred.
-    intro x _hx h
-    sorry
+    -- Nesterov's self-concordant sum theorem. The iterated derivatives
+    -- of `f.f + g.f` are sums of the individual iterated derivatives
+    -- (additivity), and the SC bound is closed under the algebraic
+    -- combination via `sc_sum_ineq`.
+    intro x hx h
+    have hx' : x ∈ interior K₁ ∩ interior K₂ := by
+      rw [interior_inter] at hx; exact hx
+    obtain ⟨hx₁, hx₂⟩ := hx'
+    have hf_C3_at : ContDiffAt ℝ 3 f.f x :=
+      f.contDiff.contDiffAt (isOpen_interior.mem_nhds hx₁)
+    have hg_C3_at : ContDiffAt ℝ 3 g.f x :=
+      g.contDiff.contDiffAt (isOpen_interior.mem_nhds hx₂)
+    -- Identify `iteratedFDerivWithin n (f.f + g.f) (interior (K₁ ∩ K₂))`
+    -- with `iteratedFDeriv n f.f + iteratedFDeriv n g.f` via `_of_isOpen`
+    -- and `iteratedFDeriv_add_apply` (the `fun v => f v + g v` form).
+    have hx_inter : x ∈ interior (K₁ ∩ K₂) := by
+      rw [interior_inter]; exact ⟨hx₁, hx₂⟩
+    have h_open_inter : IsOpen (interior (K₁ ∩ K₂)) := isOpen_interior
+    have h_eq_n : ∀ n : ℕ, n ≤ 3 →
+        iteratedFDerivWithin ℝ n (fun v => f.f v + g.f v) (interior (K₁ ∩ K₂)) x =
+          iteratedFDerivWithin ℝ n f.f (interior K₁) x +
+            iteratedFDerivWithin ℝ n g.f (interior K₂) x := by
+      intro n hn
+      have hn' : (n : WithTop ℕ∞) ≤ 3 := by exact_mod_cast hn
+      rw [iteratedFDerivWithin_of_isOpen _ h_open_inter hx_inter,
+          iteratedFDerivWithin_of_isOpen _ isOpen_interior hx₁,
+          iteratedFDerivWithin_of_isOpen _ isOpen_interior hx₂]
+      exact iteratedFDeriv_add_apply (hf_C3_at.of_le hn') (hg_C3_at.of_le hn')
+    have h_eq2 := h_eq_n 2 (by norm_num)
+    have h_eq3 := h_eq_n 3 (by norm_num)
+    -- SC bounds for f and g.
+    have hf_sc := f.self_concordant x hx₁ h
+    have hg_sc := g.self_concordant x hx₂ h
+    -- Hessian non-negativity for f and g.
+    have hf_nn := f.self_concordant_hessian_nonneg x hx₁ h
+    have hg_nn := g.self_concordant_hessian_nonneg x hx₂ h
+    -- Combine via sc_sum_ineq.
+    rw [h_eq2, h_eq3, ContinuousMultilinearMap.add_apply,
+      ContinuousMultilinearMap.add_apply]
+    exact sc_sum_ineq hf_nn hg_nn hf_sc hg_sc
   log_homog := by
     rintro x hx t ht
     have hx' : x ∈ interior K₁ ∩ interior K₂ := by
@@ -384,21 +453,8 @@ theorem hessian_fderiv_apply_self_inner {K : Set V} {ν : ℕ}
     rw [real_inner_comm, InnerProductSpace.toDual_symm_apply]
   rw [h_riesz]
 
-/-- **Hessian non-negativity from SC bound.** The squared SC bound
-forces `D²f(x)[h,h] ≥ 0` (the cube of a negative is negative, but
-the LHS is a square). -/
-lemma self_concordant_hessian_nonneg {K : Set V} {ν : ℕ} (f : LHSCB V K ν) :
-    ∀ x ∈ interior K, ∀ h : V,
-      0 ≤ iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => h) := by
-  intro x hx h
-  by_contra hneg
-  push_neg at hneg
-  have hsc := f.self_concordant x hx h
-  have h_cube : (iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => h)) ^ 3 < 0 :=
-    Odd.pow_neg (by decide : Odd 3) hneg
-  have h_sq : 0 ≤ (iteratedFDerivWithin ℝ 3 f.f (interior K) x (fun _ => h)) ^ 2 :=
-    sq_nonneg _
-  linarith
+-- `self_concordant_hessian_nonneg` was moved before `LHSCB.add` so that the
+-- sum's `self_concordant` proof can use it.
 
 /-- **Gradient monotonicity** (theorem). Convexity of `interior K`
 plus `D²f ≥ 0` (from `self_concordant`) imply that `t ↦ ⟨u-v, ∇f(v +
