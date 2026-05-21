@@ -25,6 +25,7 @@ Paper references:
 import Mathlib.Analysis.InnerProductSpace.Basic
 import Mathlib.Analysis.InnerProductSpace.Adjoint
 import Mathlib.Analysis.InnerProductSpace.ProdL2
+import Mathlib.Analysis.Convex.Cone.Basic
 import Mathlib.Topology.Algebra.Module.FiniteDimension
 import Irn.Barriers
 
@@ -64,22 +65,17 @@ structure ProblemData (X : Type*) (Y : Type*)
   /-- LHSCB barrier parameter. -/
   ν : ℕ
   ν_pos : 0 < ν
-  /-- The cone for the dual variable `y` (closed, pointed, convex). -/
-  K : Set Y
-  /-- `0 ∈ K` (pointedness). -/
-  K_zero_mem : (0 : Y) ∈ K
-  /-- Closed under non-negative scalar multiplication. -/
-  K_smul_mem : ∀ r : ℝ, 0 ≤ r → ∀ y ∈ K, r • y ∈ K
-  /-- Closed under addition (with `K_smul_mem` this gives convexity). -/
-  K_add_mem : ∀ y₁ ∈ K, ∀ y₂ ∈ K, y₁ + y₂ ∈ K
-  /-- Topologically closed. -/
-  K_closed : IsClosed K
+  /-- The closed pointed convex cone for the dual variable `y`. Mathlib's
+  `ProperCone ℝ Y` bundles pointedness (`0 ∈ K`), non-negative scalar
+  closure, addition closure, and topological closedness in a single
+  type, with `SetLike` providing the natural `y ∈ K` membership. -/
+  K : ProperCone ℝ Y
   /-- A `ν`-LHSCB for `K`. -/
   fBarrier : LHSCB Y ν
   /-- The barrier domain is the (topological) interior of `K`. An LHSCB
   is by definition only defined on the interior of its cone, since the
   barrier blows up on the boundary. -/
-  fBarrier_domain_eq_interior : fBarrier.domain = interior K
+  fBarrier_domain_eq_interior : fBarrier.domain = interior (K : Set Y)
 
 namespace ProblemData
 
@@ -125,7 +121,7 @@ def Cplus (𝓟 : ProblemData X Y) : Set (H X Y) :=
 /-- The (topological) interior of `C`: `y ∈ int K` and `τ > 0`. This
 is where the IRN analysis lives — the barrier `f` is finite here. -/
 def C_interior (𝓟 : ProblemData X Y) : Set (H X Y) :=
-  {u | 𝓟.y_proj u ∈ interior 𝓟.K ∧ 0 < 𝓟.tau_proj u}
+  {u | 𝓟.y_proj u ∈ interior (𝓟.K : Set Y) ∧ 0 < 𝓟.tau_proj u}
 
 theorem C_interior_subset_C : 𝓟.C_interior ⊆ 𝓟.C := fun _ hu =>
   ⟨interior_subset hu.1, le_of_lt hu.2⟩
