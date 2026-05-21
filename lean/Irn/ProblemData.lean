@@ -24,6 +24,7 @@ Paper references:
 
 import Mathlib.Analysis.InnerProductSpace.Basic
 import Mathlib.Analysis.InnerProductSpace.Adjoint
+import Mathlib.Analysis.InnerProductSpace.ProdL2
 import Mathlib.Topology.Algebra.Module.FiniteDimension
 import Irn.Barriers
 
@@ -83,7 +84,57 @@ namespace ProblemData
 variable {X Y : Type*}
   [NormedAddCommGroup X] [InnerProductSpace ℝ X] [FiniteDimensional ℝ X]
   [NormedAddCommGroup Y] [InnerProductSpace ℝ Y] [FiniteDimensional ℝ Y]
-  (𝓟 : ProblemData X Y)
+
+/-- The ambient Hilbert space of the homogeneous embedding,
+`H = X × Y × ℝ` equipped with the `L²` inner product. Implemented as
+the nested `WithLp 2 (X × WithLp 2 (Y × ℝ))` so that Mathlib's
+`WithLp.instProdInnerProductSpace` chains the inner products
+componentwise:
+`⟨(xu, yu, τu), (xv, yv, τv)⟩ = ⟨xu, xv⟩_X + ⟨yu, yv⟩_Y + τu·τv`. -/
+abbrev H (X Y : Type*)
+    [NormedAddCommGroup X] [InnerProductSpace ℝ X]
+    [NormedAddCommGroup Y] [InnerProductSpace ℝ Y] :
+    Type _ := WithLp 2 (X × WithLp 2 (Y × ℝ))
+
+variable (𝓟 : ProblemData X Y)
+
+/-- The X-component projection `(x, y, τ) ↦ x`. The `𝓟` argument is
+unused — kept so that downstream code can write `𝓟.x_proj u`. -/
+def x_proj (_ : ProblemData X Y) (u : H X Y) : X := u.fst
+
+/-- The Y-component projection `(x, y, τ) ↦ y`. -/
+def y_proj (_ : ProblemData X Y) (u : H X Y) : Y := u.snd.fst
+
+/-- The τ-component projection `(x, y, τ) ↦ τ`. -/
+def tau_proj (_ : ProblemData X Y) (u : H X Y) : ℝ := u.snd.snd
+
+/-- The τ-direction unit vector `(0, 0, 1) ∈ H`. -/
+def e_τ (_ : ProblemData X Y) : H X Y :=
+  WithLp.toLp 2 ((0 : X), WithLp.toLp 2 ((0 : Y), (1 : ℝ)))
+
+/-- The KKT-feasible cone `C = X × K × ℝ_+`. -/
+def C (𝓟 : ProblemData X Y) : Set (H X Y) :=
+  {u | 𝓟.y_proj u ∈ 𝓟.K ∧ 0 ≤ 𝓟.tau_proj u}
+
+/-- The relaxed monotonicity domain `C_+ = X × Y × ℝ_++`. -/
+def Cplus (𝓟 : ProblemData X Y) : Set (H X Y) :=
+  {u | 0 < 𝓟.tau_proj u}
+
+/-- `tau_proj u > 0` on `Cplus` (definitional). -/
+theorem tau_proj_pos {u : H X Y} (hu : u ∈ 𝓟.Cplus) :
+    0 < 𝓟.tau_proj u := hu
+
+/-- Positive `tau_proj` lands in `Cplus` (definitional). -/
+theorem Cplus_of_tau_proj_pos {u : H X Y} (h : 0 < 𝓟.tau_proj u) :
+    u ∈ 𝓟.Cplus := h
+
+/-- `⟨u, e_τ⟩ = tau_proj u` — the τ-coordinate is the inner product
+with the τ-unit vector. -/
+theorem inner_u_e_tau (u : H X Y) :
+    inner ℝ u 𝓟.e_τ = 𝓟.tau_proj u := by
+  show inner ℝ u
+      (WithLp.toLp 2 ((0 : X), WithLp.toLp 2 ((0 : Y), (1 : ℝ)))) = u.snd.snd
+  simp [WithLp.prod_inner_apply, inner_zero_right]
 
 /-- The primal bilinear form `B_P(x, x') = ⟨x, P x'⟩` from the quadratic. -/
 def Px_bilinform (x x' : X) : ℝ := inner ℝ x (𝓟.P x')
