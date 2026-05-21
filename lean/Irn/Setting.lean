@@ -395,12 +395,21 @@ noncomputable def f_lhscb : LHSCB (H X Y) 𝓢.K_f_lifted 𝓢.ν where
       (IrnSetup.y_proj_linear : H X Y →L[ℝ] Y)
   self_concordant := by
     -- Self-concordance of `fBarrier.f ∘ y_proj_linear` follows from
-    -- self-concordance of `fBarrier.f` via the chain rule:
-    -- `D^n (f ∘ L)[h,…,h] = D^n f(L·)[L h, …, L h]`. Mathlib's
-    -- `iteratedFDerivWithin`-along-CLM lemma is the technical
-    -- ingredient. Deferred to a follow-up commit.
-    intro x _hx h
-    sorry
+    -- self-concordance of `fBarrier.f` via the chain rule for
+    -- iterated derivatives composed with a CLM.
+    have key := LHSCB.self_concordant_comp_right_clm
+      (s := interior (𝓢.K : Set Y))
+      isOpen_interior 𝓢.fBarrier.contDiff 𝓢.fBarrier.self_concordant
+      (IrnSetup.y_proj_linear : H X Y →L[ℝ] Y)
+    -- `interior K_f_lifted = y_proj_linear ⁻¹' interior K`.
+    have hset : 𝓢.K_f_lifted = (IrnSetup.y_proj_linear : H X Y →L[ℝ] Y) ⁻¹' (𝓢.K : Set Y) := rfl
+    intro x hx h
+    rw [𝓢.interior_K_f_lifted] at hx
+    have := key x hx h
+    -- `f_lhscb.f u = fBarrier.f (y_proj u) = (fBarrier.f ∘ y_proj_linear) u`.
+    -- Both sides match definitionally.
+    rw [𝓢.interior_K_f_lifted]
+    exact this
   log_homog := by
     intros u hu t ht
     rw [𝓢.interior_K_f_lifted] at hu

@@ -92,6 +92,39 @@ of `fderiv ℝ f x`. Outside `int(K)` the value is whatever Mathlib's
 noncomputable def grad {K : Set V} {ν : ℕ} (f : LHSCB V K ν) : V → V :=
   fun x => (InnerProductSpace.toDual ℝ V).symm (fderiv ℝ f.f x)
 
+/-- **Self-concordance is preserved under right composition with a
+continuous linear map.** If `f` is `C³` on the open set `s ⊆ W` and
+satisfies the squared SC bound there, then for any CLM `L : V → W`,
+the function `f ∘ L` is `C³` on `L⁻¹ s` and satisfies the SC bound
+there too. Uses `ContinuousLinearMap.iteratedFDerivWithin_comp_right`. -/
+lemma self_concordant_comp_right_clm
+    {V' W' : Type*}
+    [NormedAddCommGroup V'] [NormedSpace ℝ V']
+    [NormedAddCommGroup W'] [NormedSpace ℝ W']
+    {s : Set W'} (hs : IsOpen s)
+    {f : W' → ℝ} (hf_diff : ContDiffOn ℝ 3 f s)
+    (hf_sc : ∀ x ∈ s, ∀ h : W',
+      (iteratedFDerivWithin ℝ 3 f s x (fun _ => h)) ^ 2 ≤
+        4 * (iteratedFDerivWithin ℝ 2 f s x (fun _ => h)) ^ 3)
+    (L : V' →L[ℝ] W') :
+    ∀ x ∈ L ⁻¹' s, ∀ h : V',
+      (iteratedFDerivWithin ℝ 3 (f ∘ L) (L ⁻¹' s) x (fun _ => h)) ^ 2 ≤
+        4 * (iteratedFDerivWithin ℝ 2 (f ∘ L) (L ⁻¹' s) x (fun _ => h)) ^ 3 := by
+  intro x hx h
+  have hs_diff : UniqueDiffOn ℝ s := hs.uniqueDiffOn
+  have hs'_diff : UniqueDiffOn ℝ (L ⁻¹' s) := (hs.preimage L.continuous).uniqueDiffOn
+  have hLxs : L x ∈ s := hx
+  have h2_eq : iteratedFDerivWithin ℝ 2 (f ∘ L) (L ⁻¹' s) x (fun _ => h)
+             = iteratedFDerivWithin ℝ 2 f s (L x) (fun _ => L h) := by
+    rw [L.iteratedFDerivWithin_comp_right hf_diff hs_diff hs'_diff hLxs (by norm_num)]
+    rfl
+  have h3_eq : iteratedFDerivWithin ℝ 3 (f ∘ L) (L ⁻¹' s) x (fun _ => h)
+             = iteratedFDerivWithin ℝ 3 f s (L x) (fun _ => L h) := by
+    rw [L.iteratedFDerivWithin_comp_right hf_diff hs_diff hs'_diff hLxs (by norm_num)]
+    rfl
+  rw [h2_eq, h3_eq]
+  exact hf_sc (L x) hLxs (L h)
+
 /-- **Sum of LHSCBs.** A `ν₁`-LHSCB on `K₁` plus a `ν₂`-LHSCB on `K₂`
 is a `(ν₁+ν₂)`-LHSCB on `K₁ ∩ K₂`. -/
 noncomputable def add {K₁ K₂ : Set V} {ν₁ ν₂ : ℕ}
