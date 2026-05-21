@@ -1,0 +1,163 @@
+/-
+# Analytic content of the IRN method (stubbed with `sorry`)
+
+The structural data of an IRN setup — the cones, the KKT operator `Q`,
+the barrier-gradient `φ`, the embedding map `M`, the bilinear form
+`Px_bilinform`, the τ-projection, etc. — are all derivable from a
+`ProblemData` (see `Irn.ProblemData`). This file declares the
+remaining ingredients (the `W(u)⁻¹` dual norm, the Hessian
+preconditioner, the Riemannian Josephy–Newton corrector and Lagrange
+multiplier, Minty's resolvent existence, and the two
+Newton–Kantorovich basins) as `sorry`-stubbed `def`s / `theorem`s in
+the `ProblemData` namespace, so that the `toIrnSetup` bridge in
+`Irn.Bridge` only needs a `ProblemData` as input (no separate analytic
+hypothesis bundle).
+
+Each `sorry` below corresponds to a paper-level claim that is either:
+
+* part of standard LHSCB / monotone-operator / Newton–Kantorovich
+  theory (resolvent existence, Hessian-norm contraction, Euclidean
+  basin), or
+* a fact about the IRN dual norm `‖·‖_{W(u)⁻¹}` (which is built from
+  `W = I + ∇²F*`, requiring Hessian machinery we do not yet formalise).
+
+Filling these in is the substantive future work of the formalisation;
+the structural derivations (eg. `inner_u_M`, `Px_quad_form_psd`,
+`inner_u_Q`) are already proven `sorry`-free.
+
+Paper references:
+* §3.2 (a posteriori error bound) — `normWinv_phi_bound`
+* §5.2, eq. (5.3) — `rjnStep`, `rjnLambda`
+* §5.4, Proposition 11 — `rjnLambda_at_central`,
+  `rjnLambda_continuousAt_central`
+* §5.5, Theorem 12 — `rjnStep_euclidean_basin`
+* §6.3, Lemma 15 — `rjnStep_delta_contraction`
+* Appendix — `resolvent_exists` (Minty's theorem for `H_k + Ψ`)
+-/
+
+import Irn.ProblemData
+
+namespace Irn
+namespace ProblemData
+
+variable {X Y : Type*}
+  [NormedAddCommGroup X] [InnerProductSpace ℝ X] [FiniteDimensional ℝ X]
+  [NormedAddCommGroup Y] [InnerProductSpace ℝ Y] [FiniteDimensional ℝ Y]
+  (𝓟 : ProblemData X Y)
+
+/-! ### The `W(u)⁻¹` dual norm -/
+
+/-- The dual norm `‖·‖_{W(u)⁻¹}`, where `W(u) = I + ∇²F*(u)`. Used
+throughout the IRN convergence analysis (notably in `error_bound` and
+the Hessian-norm Newton–Kantorovich step). -/
+noncomputable def normWinv (_ : ProblemData X Y) : H X Y → H X Y → ℝ := sorry
+
+theorem normWinv_nonneg : ∀ u v, 0 ≤ 𝓟.normWinv u v := sorry
+
+/-- `W(u) ⪰ I` implies `W(u)⁻¹ ⪯ I`, so the dual norm is bounded by
+the Euclidean norm. -/
+theorem normWinv_le_norm : ∀ u v, 𝓟.normWinv u v ≤ ‖v‖ := sorry
+
+theorem normWinv_triangle : ∀ u v w,
+    𝓟.normWinv u (v + w) ≤ 𝓟.normWinv u v + 𝓟.normWinv u w := sorry
+
+theorem normWinv_smul : ∀ u (r : ℝ) v,
+    𝓟.normWinv u (r • v) = |r| * 𝓟.normWinv u v := sorry
+
+/-- **LHSCB gradient bound** (paper §3.2):
+`‖φ(u)‖²_{W(u)⁻¹} ≤ ν + 1`, hence `‖φ(u)‖_{W(u)⁻¹} ≤ √(ν+1)`. The
+τ-block contributes at most 1 (from the `g = -log τ` part), giving
+the `+1` correction. -/
+theorem normWinv_phi_bound : ∀ u ∈ 𝓟.C_interior,
+    𝓟.normWinv u (𝓟.φ u) ≤ Real.sqrt ((𝓟.ν : ℝ) + 1) := sorry
+
+/-! ### Hessian preconditioner -/
+
+/-- The Hessian preconditioner `H_k = ∇h(u_k) = μI + μ∇²F*(u_k)`
+(paper §5.2). -/
+noncomputable def hessian_h (_ : ProblemData X Y) :
+    ℝ → H X Y → H X Y →L[ℝ] H X Y := sorry
+
+/-- The continuous linear equivalence `H_k + M`. Invertible because its
+symmetric part is positive definite. -/
+noncomputable def hessian_plus_M (_ : ProblemData X Y) :
+    ℝ → H X Y → (H X Y ≃L[ℝ] H X Y) := sorry
+
+theorem hessian_plus_M_eq : ∀ μ u v,
+    (𝓟.hessian_plus_M μ u : H X Y →L[ℝ] H X Y) v =
+      𝓟.hessian_h μ u v + 𝓟.M_clm v := sorry
+
+/-! ### Riemannian Josephy–Newton corrector and multiplier -/
+
+/-- The Riemannian Josephy–Newton corrector (paper eq. (5.3), Variant A).
+Computed via the closed-form resolvent at the `λ`-shifted input of
+eq. (5.4). -/
+noncomputable def rjnStep (_ : ProblemData X Y) : ℝ → H X Y → H X Y := sorry
+
+/-- The sphere-constraint Lagrange multiplier (paper Proposition 11). -/
+noncomputable def rjnLambda (_ : ProblemData X Y) : ℝ → H X Y → ℝ := sorry
+
+/-- **Proposition 11 (Existence of `λ_k`).** `rjnLambda μ` evaluates to
+`0` at central-path points. -/
+theorem rjnLambda_at_central : ∀ μ : ℝ, ∀ u : H X Y, 0 < μ →
+    u ∈ 𝓟.C_interior →
+    𝓟.Q u + μ • u + μ • 𝓟.φ u = 0 → 𝓟.rjnLambda μ u = 0 := sorry
+
+/-- **Proposition 11 (continued).** `rjnLambda μ` is continuous at the
+central-path point. -/
+theorem rjnLambda_continuousAt_central : ∀ μ : ℝ, ∀ u : H X Y, 0 < μ →
+    u ∈ 𝓟.C_interior →
+    𝓟.Q u + μ • u + μ • 𝓟.φ u = 0 →
+    ContinuousAt (𝓟.rjnLambda μ) u := sorry
+
+/-- The corrector preserves the squared-norm constraint `‖u‖² = ν + 1`
+(the sphere `Sr`). -/
+theorem rjnStep_norm_sq : ∀ μ : ℝ, ∀ u : H X Y, 0 < μ →
+    ‖u‖ ^ 2 = (𝓟.ν : ℝ) + 1 → u ∈ 𝓟.C_interior →
+    ‖𝓟.rjnStep μ u‖ ^ 2 = (𝓟.ν : ℝ) + 1 := sorry
+
+/-- The corrector preserves the interior cone `int C`. -/
+theorem rjnStep_in_C : ∀ μ : ℝ, ∀ u : H X Y, 0 < μ →
+    ‖u‖ ^ 2 = (𝓟.ν : ℝ) + 1 → u ∈ 𝓟.C_interior →
+    𝓟.rjnStep μ u ∈ 𝓟.C_interior := sorry
+
+/-! ### Minty's resolvent existence -/
+
+/-- **Minty's theorem applied to `H_k + Ψ`.** The augmented Newton
+inclusion has a positive scalar `θ` and a primal `u ∈ C_+`. -/
+theorem resolvent_exists : ∀ μ : ℝ, ∀ u_k z : H X Y, 0 < μ →
+    ∃ u : H X Y, u ∈ 𝓟.Cplus ∧ ∃ θ : ℝ, 0 < θ ∧
+      (𝓟.hessian_h μ u_k + 𝓟.M_clm) u = 𝓟.hessian_h μ u_k z + θ • 𝓟.e_τ ∧
+      θ * 𝓟.tau_proj u = 𝓟.Px_bilinform_clm u u + μ := sorry
+
+/-! ### Newton–Kantorovich contractions -/
+
+/-- **Lemma 15 (Hessian-norm Newton–Kantorovich).** On `Sr ∩ C_interior`,
+one corrector step contracts `δ = ‖T‖_{W⁻¹}/μ` quadratically with
+basin radius `ρ_star` and rate `K_star`. -/
+theorem rjnStep_delta_contraction : ∃ ρ_star K_star : ℝ,
+    0 < ρ_star ∧ ρ_star < 1 ∧ 1 ≤ K_star ∧
+    ∀ μ : ℝ, 0 < μ → ∀ u : H X Y,
+      ‖u‖ ^ 2 = (𝓟.ν : ℝ) + 1 → u ∈ 𝓟.C_interior →
+      𝓟.normWinv u (𝓟.Q u + μ • u + μ • 𝓟.φ u) / μ ≤ ρ_star →
+      𝓟.normWinv (𝓟.rjnStep μ u)
+          (𝓟.Q (𝓟.rjnStep μ u) + μ • (𝓟.rjnStep μ u) +
+            μ • 𝓟.φ (𝓟.rjnStep μ u)) / μ ≤
+        K_star *
+          (𝓟.normWinv u (𝓟.Q u + μ • u + μ • 𝓟.φ u) / μ) ^ 2 := sorry
+
+/-- **Theorem 12 (Euclidean Newton–Kantorovich).** Near each
+central-path point, there is an open `U` and a rate `K` such that the
+corrector stays in `U` and contracts the Euclidean error quadratically. -/
+theorem rjnStep_euclidean_basin : ∀ μ : ℝ, 0 < μ → ∀ u_star : H X Y,
+    u_star ∈ 𝓟.C_interior →
+    𝓟.Q u_star + μ • u_star + μ • 𝓟.φ u_star = 0 →
+    ∃ U : Set (H X Y), IsOpen U ∧ u_star ∈ U ∧
+      ∃ K : ℝ, 0 < K ∧
+      (∀ u ∈ U, ‖u‖ ^ 2 = (𝓟.ν : ℝ) + 1 → u ∈ 𝓟.C_interior →
+         𝓟.rjnStep μ u ∈ U) ∧
+      (∀ u ∈ U, ‖u‖ ^ 2 = (𝓟.ν : ℝ) + 1 → u ∈ 𝓟.C_interior →
+         ‖𝓟.rjnStep μ u - u_star‖ ≤ K * ‖u - u_star‖ ^ 2) := sorry
+
+end ProblemData
+end Irn
