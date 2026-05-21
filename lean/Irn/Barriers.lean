@@ -580,21 +580,109 @@ theorem grad_monotone {K : Set V} {ν : ℕ} (f : LHSCB V K ν)
   linarith
 
 /-- **LHSCB gradient inequality** (convexity in gradient form). For
-`u, v ∈ int K`, `f(v) ≥ f(u) + ⟨∇f(u), v - u⟩`. Follows from
-`grad_monotone` via the standard one-variable MVT argument on
-`t ↦ f(γ(t))` along the segment from `u` to `v`.
+`u, v ∈ int K`, `f(v) ≥ f(u) + ⟨∇f(u), v - u⟩`.
 
-Currently sorried — the proof structure mirrors `grad_monotone`'s
-own proof (segment `γ(t) = u + t(v-u)`, function `φ(t) = f.f(γ t)`,
-chain rule + `monotoneOn_of_hasDerivWithinAt_nonneg`), but here the
-output is a function-value inequality rather than an inner-product
-monotonicity. -/
+Proof: define `γ(t) = u + t(v - u)` (so `γ 0 = u`, `γ 1 = v`) and
+`φ(t) := f.f(γ t) - f.f u - t · ⟨∇f u, v-u⟩`. Then `φ(0) = 0`, and
+`φ'(t) = ⟨∇f(γ t) - ∇f u, v-u⟩ ≥ 0` (for `t > 0`, by `grad_monotone`
+applied to `γ(t)` and `u`, dividing out the `t` factor). Hence `φ`
+monotone on `[0, 1]`, so `φ(1) ≥ φ(0) = 0`. -/
 theorem grad_inequality {K : Set V} {ν : ℕ} (f : LHSCB V K ν)
-    (_hK_conv : Convex ℝ (interior K)) :
+    (hK_conv : Convex ℝ (interior K)) :
     ∀ u ∈ interior K, ∀ v ∈ interior K,
       f.f v ≥ f.f u + inner ℝ (f.grad u) (v - u) := by
-  intro u _hu v _hv
-  sorry
+  intros u hu v hv
+  set w : V := v - u with hw_def
+  set γ : ℝ → V := fun t => u + t • w with hγ_def
+  have hγ_deriv : ∀ t : ℝ, HasDerivAt γ w t := fun t => by
+    have h := (hasDerivAt_const t u).add ((hasDerivAt_id t).smul_const w)
+    simpa using h
+  have hγ_cont : Continuous γ :=
+    continuous_const.add (continuous_id.smul continuous_const)
+  have hγ0 : γ 0 = u := by show u + (0:ℝ) • w = u; simp
+  have hγ1 : γ 1 = v := by show u + (1:ℝ) • w = v; simp [w]
+  have hγ_mem : ∀ t ∈ Set.Icc (0:ℝ) 1, γ t ∈ interior K := by
+    intro t ⟨h0, h1⟩
+    have heq : γ t = (1 - t) • u + t • v := by
+      show u + t • (v - u) = (1 - t) • u + t • v
+      rw [smul_sub, sub_smul, one_smul]; abel
+    rw [heq]
+    exact hK_conv hu hv (by linarith) h0 (by linarith)
+  have hf_diffOn : DifferentiableOn ℝ f.f (interior K) :=
+    f.contDiff.differentiableOn (by norm_num)
+  set c : ℝ := inner ℝ (f.grad u) w with hc_def
+  set φ : ℝ → ℝ := fun t => f.f (γ t) - f.f u - t * c with hφ_def
+  -- φ continuous on Icc 0 1.
+  have hφ_cont : ContinuousOn φ (Set.Icc 0 1) := by
+    have h_comp : ContinuousOn (fun t => f.f (γ t)) (Set.Icc 0 1) :=
+      hf_diffOn.continuousOn.comp hγ_cont.continuousOn hγ_mem
+    apply ContinuousOn.sub
+    apply ContinuousOn.sub h_comp continuousOn_const
+    exact (continuous_id.mul continuous_const).continuousOn
+  -- HasDerivAt of φ at each t ∈ Ioo 0 1.
+  have hφ_deriv : ∀ t ∈ Set.Ioo (0:ℝ) 1,
+      HasDerivAt φ (inner ℝ (f.grad (γ t)) w - c) t := by
+    intro t ht
+    have htmem : γ t ∈ interior K := hγ_mem t (Set.Ioo_subset_Icc_self ht)
+    have hf_diff_at : DifferentiableAt ℝ f.f (γ t) :=
+      hf_diffOn.differentiableAt (isOpen_interior.mem_nhds htmem)
+    have h_fderiv : HasFDerivAt f.f (fderiv ℝ f.f (γ t)) (γ t) :=
+      hf_diff_at.hasFDerivAt
+    have h_comp_fc : HasDerivAt (fun s : ℝ => f.f (γ s))
+        ((fderiv ℝ f.f (γ t)) w) t :=
+      h_fderiv.comp_hasDerivAt t (hγ_deriv t)
+    -- Riesz: (fderiv f.f (γ t)) w = ⟨f.grad (γ t), w⟩.
+    have h_riesz : (fderiv ℝ f.f (γ t)) w = inner ℝ (f.grad (γ t)) w := by
+      show (fderiv ℝ f.f (γ t)) w =
+        inner ℝ ((InnerProductSpace.toDual ℝ V).symm (fderiv ℝ f.f (γ t))) w
+      rw [InnerProductSpace.toDual_symm_apply]
+    rw [h_riesz] at h_comp_fc
+    have h_const : HasDerivAt (fun _ : ℝ => f.f u) (0 : ℝ) t :=
+      hasDerivAt_const t (f.f u)
+    have h_linear : HasDerivAt (fun s : ℝ => s * c) c t := by
+      have := (hasDerivAt_id t).mul_const c
+      simpa using this
+    have := (h_comp_fc.sub h_const).sub h_linear
+    convert this using 1
+    ring
+  -- φ' ≥ 0 on Ioo 0 1 (from grad_monotone applied at γ(t) and u).
+  have hφ_deriv_nonneg : ∀ t ∈ Set.Ioo (0:ℝ) 1,
+      0 ≤ inner ℝ (f.grad (γ t)) w - c := by
+    intro t ht
+    have htmem : γ t ∈ interior K := hγ_mem t (Set.Ioo_subset_Icc_self ht)
+    have ht_pos : 0 < t := ht.1
+    have h_mono := f.grad_monotone hK_conv (γ t) htmem u hu
+    have h_diff_eq : γ t - u = t • w := by show u + t • w - u = t • w; abel
+    rw [h_diff_eq, inner_smul_left, conj_trivial] at h_mono
+    -- h_mono : 0 ≤ t * inner ℝ w (f.grad (γ t) - f.grad u)
+    have h_inner_nn : 0 ≤ inner ℝ w (f.grad (γ t) - f.grad u) :=
+      (mul_nonneg_iff_of_pos_left ht_pos).mp h_mono
+    rw [inner_sub_right] at h_inner_nn
+    show 0 ≤ inner ℝ (f.grad (γ t)) w - c
+    rw [hc_def]
+    have h_swap1 : inner ℝ w (f.grad (γ t)) = inner ℝ (f.grad (γ t)) w :=
+      real_inner_comm _ _
+    have h_swap2 : inner ℝ w (f.grad u) = inner ℝ (f.grad u) w :=
+      real_inner_comm _ _
+    rw [h_swap1, h_swap2] at h_inner_nn
+    linarith
+  -- φ monotone on Icc 0 1.
+  have hφ_mono : MonotoneOn φ (Set.Icc 0 1) := by
+    apply monotoneOn_of_hasDerivWithinAt_nonneg (convex_Icc 0 1) hφ_cont
+    · intro t ht
+      rw [interior_Icc] at ht
+      exact (hφ_deriv t ht).hasDerivWithinAt
+    · intro t ht
+      rw [interior_Icc] at ht
+      exact hφ_deriv_nonneg t ht
+  have h_le : φ 0 ≤ φ 1 :=
+    hφ_mono ⟨le_refl _, by norm_num⟩ ⟨by norm_num, le_refl _⟩ (by norm_num)
+  have hφ0 : φ 0 = 0 := by show f.f (γ 0) - f.f u - 0 * c = 0; rw [hγ0]; ring
+  have hφ1 : φ 1 = f.f v - f.f u - c := by
+    show f.f (γ 1) - f.f u - 1 * c = _; rw [hγ1]; ring
+  rw [hφ0, hφ1] at h_le
+  show f.f u + c ≤ f.f v
+  linarith
 
 /-- **LHSCB gradient blow-up at the boundary** (Euclidean norm).
 As `u → x` within `int K` for `x ∈ frontier K`, `‖∇f(u)‖ → ∞`.
