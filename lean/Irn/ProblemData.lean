@@ -246,10 +246,46 @@ theorem inner_u_Q {u : H X Y} (hu : u ∈ 𝓟.Cplus) :
     inner ℝ u (𝓟.Q_apply u hu) = (0 : ℝ) := by
   have hτ : 0 < 𝓟.tau_proj u := 𝓟.tau_proj_pos hu
   have hτ_ne : 𝓟.tau_proj u ≠ 0 := ne_of_gt hτ
-  rw [Q_eq hu, inner_sub_right, real_inner_smul_right,
+  rw [𝓟.Q_eq hu, inner_sub_right, real_inner_smul_right,
       𝓟.inner_u_M, 𝓟.inner_u_e_tau]
   field_simp
   ring
+
+/-- `y_proj` commutes with subtraction (linearity of the projection). -/
+lemma y_proj_sub (u v : H X Y) :
+    𝓟.y_proj (u - v) = 𝓟.y_proj u - 𝓟.y_proj v := by
+  unfold y_proj
+  simp
+
+/-- The inner product of `u : H` with a y-block-lifted vector
+`(0, yv, 0)` reduces to the inner of the y-component:
+`⟨u, (0, yv, 0)⟩_H = ⟨y_proj u, yv⟩_Y`. -/
+lemma inner_u_lifted_y (u : H X Y) (yv : Y) :
+    inner ℝ u
+      (WithLp.toLp 2 ((0 : X), WithLp.toLp 2 (yv, (0 : ℝ)))) =
+    inner ℝ (𝓟.y_proj u) yv := by
+  unfold y_proj
+  simp only [WithLp.prod_inner_apply, inner_zero_right, zero_add, add_zero]
+  rfl
+
+/-- **Lift of `fBarrier` to `H`.** The user's `ν`-LHSCB `f` on `Y` extends
+to a `ν`-LHSCB `f_lhscb` on `H = X × Y × ℝ` by acting only on the y-block:
+`f_lift(x, y, τ) := f(y)`, with gradient `(0, ∇f(y), 0)`. The Euler
+identity and gradient monotonicity transport from `fBarrier`. -/
+noncomputable def f_lhscb : LHSCB (H X Y) 𝓟.ν where
+  f u := 𝓟.fBarrier.f (𝓟.y_proj u)
+  grad u := WithLp.toLp 2 ((0 : X),
+    WithLp.toLp 2 (𝓟.fBarrier.grad (𝓟.y_proj u), (0 : ℝ)))
+  domain := {u | 𝓟.y_proj u ∈ 𝓟.fBarrier.domain}
+  euler := by
+    intros u hu
+    rw [𝓟.inner_u_lifted_y]
+    exact 𝓟.fBarrier.euler (𝓟.y_proj u) hu
+  grad_monotone := by
+    intros u hu v hv
+    rw [inner_sub_right, 𝓟.inner_u_lifted_y, 𝓟.inner_u_lifted_y,
+        ← inner_sub_right, 𝓟.y_proj_sub]
+    exact 𝓟.fBarrier.grad_monotone (𝓟.y_proj u) hu (𝓟.y_proj v) hv
 
 end ProblemData
 
