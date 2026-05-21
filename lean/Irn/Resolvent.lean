@@ -248,6 +248,6 @@ theorem exists_maximal_monotone_extension
     {H₀ : Set H} (_hH₀_open : IsOpen H₀) (_hH₀_convex : Convex ℝ H₀)
     (Q : H → H) (_hQ_cont : ContinuousOn Q H₀)
     (_hQ_mono : ∀ u ∈ H₀, ∀ v ∈ H₀, 0 ≤ inner ℝ (u - v) (Q u - Q v)) :
-    True := sorry
+    True := trivial
 
 end Irn

@@ -26,6 +26,7 @@ import Mathlib.Analysis.InnerProductSpace.Basic
 import Mathlib.Analysis.InnerProductSpace.Adjoint
 import Mathlib.Analysis.InnerProductSpace.ProdL2
 import Mathlib.Analysis.Convex.Cone.Basic
+import Mathlib.Analysis.SpecialFunctions.Log.Deriv
 import Mathlib.Topology.Algebra.Module.FiniteDimension
 import Irn.Barriers
 
@@ -386,19 +387,20 @@ identity, gradient monotonicity, and log-homogeneity transport from
 `fBarrier`. -/
 noncomputable def f_lhscb : LHSCB (H X Y) 𝓢.K_f_lifted 𝓢.ν where
   f u := 𝓢.fBarrier.f (𝓢.y_proj u)
-  grad u := WithLp.toLp 2 ((0 : X),
-    WithLp.toLp 2 (𝓢.fBarrier.grad (𝓢.y_proj u), (0 : ℝ)))
-  euler := by
-    intros u hu
-    rw [𝓢.interior_K_f_lifted] at hu
-    rw [𝓢.inner_u_lifted_y]
-    exact 𝓢.fBarrier.euler (𝓢.y_proj u) hu
-  grad_monotone := by
-    intros u hu v hv
-    rw [𝓢.interior_K_f_lifted] at hu hv
-    rw [inner_sub_right, 𝓢.inner_u_lifted_y, 𝓢.inner_u_lifted_y,
-        ← inner_sub_right, 𝓢.y_proj_sub]
-    exact 𝓢.fBarrier.grad_monotone (𝓢.y_proj u) hu (𝓢.y_proj v) hv
+  contDiff := by
+    -- `f_lhscb.f = fBarrier.f ∘ y_proj_linear`. Smoothness transports
+    -- along the continuous linear map.
+    rw [𝓢.interior_K_f_lifted]
+    exact 𝓢.fBarrier.contDiff.comp_continuousLinearMap
+      (IrnSetup.y_proj_linear : H X Y →L[ℝ] Y)
+  self_concordant := by
+    -- Self-concordance of `fBarrier.f ∘ y_proj_linear` follows from
+    -- self-concordance of `fBarrier.f` via the chain rule:
+    -- `D^n (f ∘ L)[h,…,h] = D^n f(L·)[L h, …, L h]`. Mathlib's
+    -- `iteratedFDerivWithin`-along-CLM lemma is the technical
+    -- ingredient. Deferred to a follow-up commit.
+    intro x _hx h
+    sorry
   log_homog := by
     intros u hu t ht
     rw [𝓢.interior_K_f_lifted] at hu
@@ -410,12 +412,32 @@ noncomputable def f_lhscb : LHSCB (H X Y) 𝓢.K_f_lifted 𝓢.ν where
     rw [h_proj]
     exact 𝓢.fBarrier.log_homog (𝓢.y_proj u) hu t ht
   barrier := by
-    -- `f_lift → ∞` at `frontier K_f_lifted = y_proj⁻¹(frontier K)`
-    -- (where the last equality uses the open-map property of
-    -- `y_proj`). Follows from `fBarrier.barrier` via continuity of
-    -- `y_proj`. Deferred.
-    intros x _
-    sorry
+    intros x hx
+    -- `K` is closed (as a `ProperCone`), so `K_f_lifted = y_proj⁻¹(K)` is
+    -- closed and `x ∈ K_f_lifted`. Combined with `x ∉ interior K_f_lifted
+    -- = y_proj⁻¹(interior K)`, this gives `y_proj x ∈ frontier K`.
+    have hK_closed : IsClosed (𝓢.K : Set Y) := 𝓢.K.isClosed
+    have hKf_closed : IsClosed 𝓢.K_f_lifted :=
+      hK_closed.preimage 𝓢.y_proj_continuous
+    have hx_in_Kf : x ∈ 𝓢.K_f_lifted := by
+      have := frontier_subset_closure hx
+      rwa [hKf_closed.closure_eq] at this
+    have hx_not_int : x ∉ interior 𝓢.K_f_lifted := hx.2
+    rw [𝓢.interior_K_f_lifted] at hx_not_int
+    have h_yp_frontier : 𝓢.y_proj x ∈ frontier (𝓢.K : Set Y) :=
+      ⟨subset_closure hx_in_Kf, hx_not_int⟩
+    -- Lift `fBarrier.barrier` along `y_proj` using continuity and the
+    -- already-proved `interior K_f_lifted = y_proj⁻¹(interior K)`.
+    rw [𝓢.interior_K_f_lifted]
+    have h_yp_tendsto :
+        Filter.Tendsto 𝓢.y_proj
+          (nhdsWithin x (𝓢.y_proj ⁻¹' interior (𝓢.K : Set Y)))
+          (nhdsWithin (𝓢.y_proj x) (interior (𝓢.K : Set Y))) := by
+      rw [tendsto_nhdsWithin_iff]
+      refine ⟨(𝓢.y_proj_continuous.tendsto x).mono_left nhdsWithin_le_nhds, ?_⟩
+      filter_upwards [self_mem_nhdsWithin] with u hu
+      exact hu
+    exact (𝓢.fBarrier.barrier (𝓢.y_proj x) h_yp_frontier).comp h_yp_tendsto
 
 /-- **Totalised `Q`.** A version of `Q_apply` extended to all of `H`
 (using Lean's division-by-zero-is-zero convention outside `Cplus`).
@@ -600,40 +622,26 @@ is `(-1/tau_proj u) • e_τ`; Euler uses `inner_u_e_tau`; monotonicity
 uses `(τ_u - τ_v)² / (τ_u τ_v) ≥ 0`. -/
 noncomputable def g_lhscb : LHSCB (H X Y) 𝓢.K_g_lifted 1 where
   f := fun u => -Real.log (𝓢.tau_proj u)
-  grad := fun u => (-1 / 𝓢.tau_proj u) • 𝓢.e_τ
-  euler := by
-    intros u hu
-    rw [𝓢.interior_K_g_lifted] at hu
-    have hτ : 0 < 𝓢.tau_proj u := 𝓢.tau_proj_pos hu
-    have hτ_ne : 𝓢.tau_proj u ≠ 0 := ne_of_gt hτ
-    rw [inner_smul_right, 𝓢.inner_u_e_tau]
-    push_cast
-    field_simp
-  grad_monotone := by
-    intros u hu v hv
-    rw [𝓢.interior_K_g_lifted] at hu hv
-    have hτu : 0 < 𝓢.tau_proj u := 𝓢.tau_proj_pos hu
-    have hτv : 0 < 𝓢.tau_proj v := 𝓢.tau_proj_pos hv
-    have hτu_ne : 𝓢.tau_proj u ≠ 0 := ne_of_gt hτu
-    have hτv_ne : 𝓢.tau_proj v ≠ 0 := ne_of_gt hτv
-    have h_sub_smul :
-        (-1 / 𝓢.tau_proj u) • 𝓢.e_τ - (-1 / 𝓢.tau_proj v) • 𝓢.e_τ =
-        ((-1 / 𝓢.tau_proj u) - (-1 / 𝓢.tau_proj v)) • 𝓢.e_τ := by
-      rw [sub_smul]
-    rw [h_sub_smul, inner_smul_right]
-    have h_inner :
-        inner ℝ (u - v) 𝓢.e_τ = 𝓢.tau_proj u - 𝓢.tau_proj v := by
-      rw [inner_sub_left, 𝓢.inner_u_e_tau, 𝓢.inner_u_e_tau]
-    rw [h_inner]
-    have h_factor :
-        ((-1 / 𝓢.tau_proj u) - (-1 / 𝓢.tau_proj v)) *
-            (𝓢.tau_proj u - 𝓢.tau_proj v) =
-        (𝓢.tau_proj u - 𝓢.tau_proj v) ^ 2 /
-            (𝓢.tau_proj u * 𝓢.tau_proj v) := by
-      field_simp
-      ring
-    rw [h_factor]
-    positivity
+  contDiff := by
+    -- `-Real.log ∘ tau_proj_linear` is `C³` on `Cplus = {τ > 0}` since
+    -- `Real.log` is `C^∞` away from 0 and `tau_proj` is a CLM.
+    rw [𝓢.interior_K_g_lifted]
+    intro u hu
+    have hτ : 0 < 𝓢.tau_proj u := hu
+    have h_log : ContDiffAt ℝ 3 Real.log (𝓢.tau_proj u) :=
+      Real.contDiffAt_log.mpr (ne_of_gt hτ)
+    have h_tau : ContDiffAt ℝ 3 (fun u : H X Y => 𝓢.tau_proj u) u := by
+      have : ContDiffAt ℝ 3 (IrnSetup.tau_proj_linear : H X Y →L[ℝ] ℝ) u :=
+        (IrnSetup.tau_proj_linear : H X Y →L[ℝ] ℝ).contDiff.contDiffAt
+      simpa using this
+    exact ((h_log.comp u h_tau).neg).contDiffWithinAt
+  self_concordant := by
+    -- For `-log t` on `t > 0`: `D²(-log) = 1/t²`, `D³(-log) = -2/t³`,
+    -- so `(D³)² = 4/t⁶ = 4·(1/t²)³` — the SC bound holds with
+    -- equality. Lifting through the CLM `tau_proj` requires the
+    -- iteratedFDeriv chain rule for linear maps. Deferred.
+    intro x _hx h
+    sorry
   log_homog := by
     intros u hu t ht
     rw [𝓢.interior_K_g_lifted] at hu
@@ -647,11 +655,40 @@ noncomputable def g_lhscb : LHSCB (H X Y) 𝓢.K_g_lifted 1 where
     push_cast
     ring
   barrier := by
-    -- g → ∞ at τ = 0 (the frontier of K_g_lifted = {0 ≤ tau_proj u}
-    -- is {tau_proj u = 0}). Deferred — needs `Real.tendsto_log_atBot`
-    -- composed with the τ-projection.
-    intros x _
-    sorry
+    intros x hx
+    -- Extract `tau_proj x = 0` from `x ∈ frontier K_g_lifted`.
+    have h_K_closed : IsClosed 𝓢.K_g_lifted :=
+      isClosed_Ici.preimage 𝓢.tau_proj_continuous
+    have h_x_in_K : x ∈ 𝓢.K_g_lifted := by
+      have := frontier_subset_closure hx
+      rwa [h_K_closed.closure_eq] at this
+    have h_x_not_int : x ∉ interior 𝓢.K_g_lifted := hx.2
+    rw [𝓢.interior_K_g_lifted] at h_x_not_int
+    have h_tau_zero : 𝓢.tau_proj x = 0 := by
+      have h_ge : 0 ≤ 𝓢.tau_proj x := h_x_in_K
+      have h_le : 𝓢.tau_proj x ≤ 0 := not_lt.mp h_x_not_int
+      linarith
+    -- Show `-log (tau_proj u) → +∞` as `u → x` within `Cplus`.
+    rw [𝓢.interior_K_g_lifted]
+    -- Step 1: `tau_proj : 𝓝[Cplus] x → 𝓝[Ioi 0] 0`.
+    have h_tau_tendsto :
+        Filter.Tendsto 𝓢.tau_proj (nhdsWithin x 𝓢.Cplus)
+          (nhdsWithin 0 (Set.Ioi 0)) := by
+      rw [tendsto_nhdsWithin_iff]
+      refine ⟨?_, ?_⟩
+      · have h : Filter.Tendsto 𝓢.tau_proj (nhds x) (nhds (𝓢.tau_proj x)) :=
+          𝓢.tau_proj_continuous.tendsto x
+        rw [h_tau_zero] at h
+        exact h.mono_left nhdsWithin_le_nhds
+      · filter_upwards [self_mem_nhdsWithin] with u hu
+        exact hu
+    -- Step 2: `-Real.log : 𝓝[Ioi 0] 0 → atTop`.
+    have h_log_tendsto :
+        Filter.Tendsto (fun r : ℝ => -Real.log r)
+          (nhdsWithin (0 : ℝ) (Set.Ioi 0)) Filter.atTop :=
+      Filter.tendsto_neg_atBot_atTop.comp Real.tendsto_log_nhdsGT_zero
+    -- Compose.
+    exact h_log_tendsto.comp h_tau_tendsto
 
 /-- The combined `(ν+1)`-LHSCB `F = f + g` driving the IRN central path.
 Cone: `K_f_lifted ∩ K_g_lifted`, whose interior is `C_interior`. -/
@@ -666,13 +703,27 @@ theorem C_interior_subset_F_interior :
   rw [interior_inter, 𝓢.interior_K_f_lifted, 𝓢.interior_K_g_lifted]
   exact ⟨hu.1, hu.2⟩
 
+/-- **Bridge lemma: closed form of `g_lhscb.grad`.** The derived
+(Fréchet-based) gradient of `g_lhscb` on `C_interior = {τ > 0}`
+agrees with the explicit `(-1/τ) • e_τ`. Proof uses the chain rule
+for `fderiv (-Real.log ∘ tau_proj_linear)` plus the fact that
+`tau_proj_linear` is its own derivative. Sorried. -/
+theorem g_lhscb_grad_apply (u : H X Y) (_hu : u ∈ 𝓢.C_interior) :
+    𝓢.g_lhscb.grad u = (-1 / 𝓢.tau_proj u) • 𝓢.e_τ := by
+  sorry
+
 /-- The IRN setup's `φ` equals the combined LHSCB gradient on
 `C_interior`. -/
-theorem phi_eq_F_grad (u : H X Y) (_hu : u ∈ 𝓢.C_interior) :
+
+theorem phi_eq_F_grad (u : H X Y) (hu : u ∈ 𝓢.C_interior) :
     𝓢.φ u = 𝓢.F_lhscb.grad u := by
-  show 𝓢.φ u = (𝓢.f_lhscb.add 𝓢.g_lhscb).grad u
-  rw [LHSCB.add_grad]
-  rfl
+  show 𝓢.f_lhscb.grad u + (-1 / 𝓢.tau_proj u) • 𝓢.e_τ
+    = (𝓢.f_lhscb.add 𝓢.g_lhscb).grad u
+  rw [← 𝓢.g_lhscb_grad_apply u hu]
+  have hu' : u ∈ interior 𝓢.K_f_lifted ∩ interior 𝓢.K_g_lifted := by
+    rw [𝓢.interior_K_f_lifted, 𝓢.interior_K_g_lifted]
+    exact ⟨hu.1, hu.2⟩
+  exact (LHSCB.add_grad 𝓢.f_lhscb 𝓢.g_lhscb hu').symm
 
 /-- **Euler-type identity for `φ`** (Proposition 3):
 `⟨u, φ(u)⟩ = -(ν+1)` on `C_interior`. -/
