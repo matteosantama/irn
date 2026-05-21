@@ -71,6 +71,10 @@ structure IrnSetup (X : Type*) (Y : Type*)
   closure, addition closure, and topological closedness in a single
   type, with `SetLike` providing the natural `y ∈ K` membership. -/
   K : ProperCone ℝ Y
+  /-- **Slater condition.** The cone `K` has non-empty interior. Required
+  for the central path to exist (else `C_interior = ∅` and the
+  optimization is vacuous). -/
+  K_interior_nonempty : (interior (K : Set Y)).Nonempty
   /-- A `ν`-LHSCB for the cone `K`. The barrier is finite on
   `interior (K : Set Y)`. -/
   fBarrier : LHSCB Y (K : Set Y) ν

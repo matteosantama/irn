@@ -88,10 +88,12 @@ theorem unique_centralPath (μ : ℝ) (hμ : 0 < μ)
   rw [hT_u, hT_v, sub_self, inner_zero_right] at h_strict
   exact lt_irrefl 0 h_strict
 
-/-- `T_μ` is continuous on `C_interior`. Used by `exists_unique_centralPath`
-via Minty. Sorried — composition of continuous pieces (Q has 1/τ, but
-`τ > 0` on `C_interior`; φ has `f.grad` continuous from `contDiff` plus
-the `(-1/τ) • e_τ` term again continuous on `C_interior`). -/
+/-- `T_μ` is continuous on `C_interior`. `T_μ u = Q u + μ•u + μ•φ u`;
+each summand is continuous on `C_interior` (where `τ > 0` keeps the
+`1/τ` terms inside `Q` and `φ` well-defined, and `f_lhscb.grad` is
+continuous from `contDiff`). Sorried — the explicit chain of
+`ContinuousOn` lemmas through `Q`, `M_apply`, `Px_bilinform`,
+`f_lhscb.grad`, and `tau_proj` is mechanical but voluminous. -/
 theorem T_continuousOn (μ : ℝ) : ContinuousOn (𝓢.T μ) 𝓢.C_interior := sorry
 
 /-- `T_μ` is boundary-coercive on `C_interior` for `μ > 0`. Used by
@@ -118,10 +120,15 @@ theorem C_interior_convex : Convex ℝ 𝓢.C_interior := by
       (IrnSetup.tau_proj_linear : H X Y →L[ℝ] ℝ).toLinearMap
   exact h1.inter h2
 
-/-- `C_interior` is open and non-empty (assuming the latter as a setup
-prerequisite — sorried, since non-emptiness depends on the specific
-`fBarrier` and `K`). -/
-theorem C_interior_nonempty : 𝓢.C_interior.Nonempty := sorry
+/-- `C_interior` is non-empty: pick any `y₀ ∈ interior K` from the
+`K_interior_nonempty` Slater hypothesis and form `u₀ = (0, y₀, 1)`. -/
+theorem C_interior_nonempty : 𝓢.C_interior.Nonempty := by
+  obtain ⟨y₀, hy₀⟩ := 𝓢.K_interior_nonempty
+  refine ⟨WithLp.toLp 2 ((0 : X), WithLp.toLp 2 (y₀, (1 : ℝ))), ?_, ?_⟩
+  · show 𝓢.y_proj _ ∈ interior (𝓢.K : Set Y)
+    exact hy₀
+  · show (0 : ℝ) < 𝓢.tau_proj _
+    exact zero_lt_one
 
 /-- `C_interior` is open. -/
 theorem C_interior_isOpen : IsOpen 𝓢.C_interior := by
