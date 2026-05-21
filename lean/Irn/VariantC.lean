@@ -8,17 +8,25 @@ u_k⊤ u − (ν+1) = 0` with the **closed-form geodesic retraction**
   `u_{k+1}^♯  ←  tangent inclusion solve at level μ`
   `u_{k+1}    ←  exp_{u_k}(u_{k+1}^♯ − u_k)`.
 
-This file isolates Variant C: it states the Newton direction as a
-sorry-stubbed analytic primitive (`rjnDirectionC`), assembles the step
+This file isolates Variant C: it defines the Newton direction as
+`Classical.choose` over an `IsVariantCSolution` existence predicate
+(with `0` as fallback when no solution exists), assembles the step
 via the proven `expMap`, derives sphericity of the iterates from
 `expMap_mem_sphere` + tangency, and states the local quadratic
 convergence theorem (Theorem 11 specialised to Variant C).
 
-The remaining sorries flag the analytic content that the paper proof
-imports from Riemannian Newton-Kantorovich theory
-(\\cite[\\S6.3]{absil2008manifolds}) plus the set-valued
-Josephy–Newton extension of \\cite[\\S3]{bonnans1994local}, neither of
-which is in Mathlib at the time of writing.
+The existence branch is provably populated at `u_k = u*(μ)` (via
+`IsVariantCSolution_zero_at_centralPath`, with witness `v = 0`); the
+extension to a full neighbourhood of `u*(μ)` is paper Proposition 10
+and would require implicit-function-theorem analysis of the scalar
+`λ`-quadratic of paper §5.5 — present beyond the central-path point
+only through the `Classical.choose`/fallback mechanism.
+
+The single remaining sorry is `rjnStepC_quadratic_basin`, the deep
+analytic content of paper Theorem 11 (Riemannian Newton-Kantorovich
+via \\cite[\\S6.3]{absil2008manifolds} plus set-valued Josephy–Newton
+of \\cite[\\S3]{bonnans1994local}, neither in Mathlib at time of
+writing).
 
 Paper references:
 * §5.3 (Riemannian Josephy–Newton step — variant C row of the variants
@@ -75,46 +83,129 @@ def IsVariantCSolution (𝓢 : IrnSetup X Y) (μ : ℝ) (u_k v : H X Y) : Prop :
     θ * 𝓢.tau_proj (u_k + v) =
       𝓢.Px_bilinform_clm (u_k + v) (u_k + v) + μ
 
-/-- **Local existence of a Variant C tangent-inclusion solution.** This
-is paper Proposition 10 (Existence and local uniqueness of `λ_k`): in a
-neighbourhood of `u*(μ)`, the augmented system has a unique solution
-`(v_k, λ_k)`. Paper proof: implicit function theorem applied to the
-scalar `φ_B(λ_k) = 0` of paper eq. `eq:varphi` at the basepoint
-`(u*(μ), 0)`, where `φ_B'(0) < 0` from strong monotonicity of
-`H* + ∇Ψ(u*)`.
+/-- **The trivial Variant C solution at the central-path point.** At
+`u_k = u*(μ)` the fixed-point property `T_μ(u_k) = 0` forces `v_k = 0`,
+`λ_k = 0`, `θ_k = (Pₓ(u_k, u_k) + μ) / τ(u_k)`. Concretely:
+* tangency `⟨u_k, 0⟩ = 0` is trivial;
+* `u_k + 0 = u_k ∈ C_+` from `u_k ∈ int C`;
+* the Newton equation reduces to `M u_k + h(u_k) = θ_k e_τ`, which
+  follows from `T_μ(u_k) = Q(u_k) + h(u_k) - (μ/τ) e_τ = 0` plus
+  `Q(u_k) = M u_k - (Pₓ/τ) e_τ`;
+* the scalar equation `θ_k · τ(u_k) = Pₓ(u_k, u_k) + μ` is the
+  definition of `θ_k`. -/
+theorem IsVariantCSolution_zero_at_centralPath (𝓢 : IrnSetup X Y) {μ : ℝ}
+    (hμ : 0 < μ) :
+    𝓢.IsVariantCSolution μ (𝓢.centralPathPoint μ hμ) 0 := by
+  set u_k := 𝓢.centralPathPoint μ hμ with hu_k_def
+  obtain ⟨hC, hT⟩ := 𝓢.centralPathPoint_isCentralPathPoint μ hμ
+  have hCplus : u_k ∈ 𝓢.Cplus := 𝓢.C_interior_subset_Cplus hC
+  have hτ_pos : 0 < 𝓢.tau_proj u_k := 𝓢.tau_proj_pos hCplus
+  have hτ_ne : 𝓢.tau_proj u_k ≠ 0 := ne_of_gt hτ_pos
+  have hPx_clm_apply : 𝓢.Px_bilinform_clm u_k u_k =
+      𝓢.Px_bilinform (𝓢.x_proj u_k) (𝓢.x_proj u_k) := rfl
+  have hPx_nn : 0 ≤ 𝓢.Px_bilinform_clm u_k u_k := by
+    rw [hPx_clm_apply]; exact 𝓢.Px_bilinform_self_nonneg _
+  set θ : ℝ := (𝓢.Px_bilinform_clm u_k u_k + μ) / 𝓢.tau_proj u_k with hθ_def
+  have hθ_pos : 0 < θ := div_pos (by linarith) hτ_pos
+  refine ⟨inner_zero_right _, by simpa using hCplus, θ, hθ_pos, 0, ?_, ?_⟩
+  · -- Newton equation:
+    -- (H_k + M_clm)(u_k + 0) = H_k u_k − (μ•u_k + μ•∇F*(u_k) + 0•u_k) + θ•e_τ
+    show (𝓢.hessian_h μ u_k + 𝓢.M_clm) (u_k + 0) =
+      𝓢.hessian_h μ u_k u_k -
+        (μ • u_k + μ • 𝓢.f_lhscb.grad u_k + (0 : ℝ) • u_k) +
+        θ • 𝓢.e_τ
+    rw [add_zero, zero_smul, add_zero, ContinuousLinearMap.add_apply]
+    -- Reduce: M_clm u_k = θ•e_τ − μ•u_k − μ•∇F*(u_k).
+    have h_Q : 𝓢.Q u_k =
+        𝓢.M_clm u_k - (𝓢.Px_bilinform_clm u_k u_k / 𝓢.tau_proj u_k) • 𝓢.e_τ := by
+      show 𝓢.M_apply u_k - _ • _ = 𝓢.M_clm u_k - _ • _
+      rw [show 𝓢.M_apply u_k = 𝓢.M_clm u_k from rfl, hPx_clm_apply]
+    have h_φ : 𝓢.φ u_k = 𝓢.f_lhscb.grad u_k + (-1 / 𝓢.tau_proj u_k) • 𝓢.e_τ := rfl
+    have h_T_unfolded : 𝓢.Q u_k + μ • u_k + μ • 𝓢.φ u_k = 0 := hT
+    rw [h_Q, h_φ] at h_T_unfolded
+    -- h_T_unfolded :
+    --   (M_clm u_k - (Px/τ)•e_τ) + μ•u_k + μ•(f_lhscb.grad u_k + (-1/τ)•e_τ) = 0
+    -- The θ•e_τ coefficient combines: -(Px/τ) - μ·(-1/τ) = -(Px+μ)/τ = -θ.
+    have h_coef : (-(𝓢.Px_bilinform_clm u_k u_k / 𝓢.tau_proj u_k))
+                  + μ * (-1 / 𝓢.tau_proj u_k) = -θ := by
+      rw [hθ_def]; field_simp; ring
+    have h_T_rearranged :
+        𝓢.M_clm u_k + μ • u_k + μ • 𝓢.f_lhscb.grad u_k = θ • 𝓢.e_τ := by
+      have h := h_T_unfolded
+      -- h : (M_clm u_k - (Px/τ)•e_τ) + μ•u_k
+      --     + μ•(f_lhscb.grad u_k + (-1/τ)•e_τ) = 0
+      have heq :
+          𝓢.M_clm u_k - (𝓢.Px_bilinform_clm u_k u_k / 𝓢.tau_proj u_k) • 𝓢.e_τ
+            + μ • u_k +
+            μ • (𝓢.f_lhscb.grad u_k + (-1 / 𝓢.tau_proj u_k) • 𝓢.e_τ) =
+          𝓢.M_clm u_k + μ • u_k + μ • 𝓢.f_lhscb.grad u_k +
+            ((-(𝓢.Px_bilinform_clm u_k u_k / 𝓢.tau_proj u_k))
+                + μ * (-1 / 𝓢.tau_proj u_k)) • 𝓢.e_τ := by
+        rw [smul_add, smul_smul]
+        module
+      rw [heq, h_coef] at h
+      -- h : M_clm u_k + μ•u_k + μ•f_lhscb.grad u_k + (-θ)•e_τ = 0
+      have h_neg : 𝓢.M_clm u_k + μ • u_k + μ • 𝓢.f_lhscb.grad u_k =
+          -((-θ) • 𝓢.e_τ) := eq_neg_of_add_eq_zero_left h
+      rw [h_neg, neg_smul, neg_neg]
+    -- Goal: H_k u_k + M_clm u_k = H_k u_k - (μ•u_k + μ•f_lhscb.grad u_k) + θ•e_τ
+    have h_M : 𝓢.M_clm u_k = θ • 𝓢.e_τ - (μ • u_k + μ • 𝓢.f_lhscb.grad u_k) := by
+      rw [eq_sub_iff_add_eq, ← add_assoc]
+      exact h_T_rearranged
+    rw [h_M]; abel
+  · -- Scalar equation: θ · τ(u_k) = Pₓ(u_k, u_k) + μ.
+    show θ * 𝓢.tau_proj (u_k + 0) = 𝓢.Px_bilinform_clm (u_k + 0) (u_k + 0) + μ
+    rw [add_zero]
+    show ((𝓢.Px_bilinform_clm u_k u_k + μ) / 𝓢.tau_proj u_k) *
+        𝓢.tau_proj u_k = 𝓢.Px_bilinform_clm u_k u_k + μ
+    field_simp
 
-**Sorry.** Requires the implicit-function-theorem machinery and the
-local discriminant analysis of the scalar `λ`-quadratic
-`eq:lambda-quadratic-B`, both substantial pieces of Mathlib-level
-work. -/
-theorem IsVariantCSolution_exists_local (𝓢 : IrnSetup X Y) (μ : ℝ)
-    (u_k : H X Y) :
-    ∃ v : H X Y, 𝓢.IsVariantCSolution μ u_k v := sorry
-
-/-- **The Variant C Newton direction.** Total: uses
-`Classical.choose` of the local existence theorem. -/
+/-- **The Variant C Newton direction.** Constructive total function:
+returns the (Classical-choose-extracted) `v` satisfying
+`IsVariantCSolution` when one exists; otherwise falls back to `0`. The
+existence branch covers at least `u_k = u*(μ)` (via
+`IsVariantCSolution_zero_at_centralPath`, with `v = 0` as witness); the
+extension to a full neighbourhood of `u*(μ)` is paper Proposition 10
+(requires IFT on the scalar `λ`-quadratic, not yet in Mathlib). -/
 noncomputable def rjnDirectionC (𝓢 : IrnSetup X Y) (μ : ℝ) (u_k : H X Y) :
     H X Y :=
-  Classical.choose (𝓢.IsVariantCSolution_exists_local μ u_k)
+  haveI : Decidable (∃ v, 𝓢.IsVariantCSolution μ u_k v) := Classical.dec _
+  if h : ∃ v, 𝓢.IsVariantCSolution μ u_k v then Classical.choose h else 0
 
-/-- `rjnDirectionC` satisfies `IsVariantCSolution`. -/
-theorem rjnDirectionC_isVariantCSolution (𝓢 : IrnSetup X Y) (μ : ℝ)
-    (u_k : H X Y) :
-    𝓢.IsVariantCSolution μ u_k (𝓢.rjnDirectionC μ u_k) :=
-  Classical.choose_spec (𝓢.IsVariantCSolution_exists_local μ u_k)
+/-- `rjnDirectionC` either satisfies `IsVariantCSolution` (when a
+solution exists) or is `0` (fallback). Useful structural disjunction. -/
+theorem rjnDirectionC_isVariantCSolution_or_zero (𝓢 : IrnSetup X Y)
+    (μ : ℝ) (u_k : H X Y) :
+    𝓢.IsVariantCSolution μ u_k (𝓢.rjnDirectionC μ u_k) ∨
+      𝓢.rjnDirectionC μ u_k = 0 := by
+  unfold rjnDirectionC
+  split_ifs with h
+  · exact Or.inl (Classical.choose_spec h)
+  · exact Or.inr rfl
+
+/-- At the central-path point `u*(μ)`, `rjnDirectionC` satisfies
+`IsVariantCSolution` — i.e., it lands in the existence branch.
+Follows from `IsVariantCSolution_zero_at_centralPath`, which provides
+the witness. -/
+theorem rjnDirectionC_isVariantCSolution_at_centralPath (𝓢 : IrnSetup X Y)
+    {μ : ℝ} (hμ : 0 < μ) :
+    𝓢.IsVariantCSolution μ (𝓢.centralPathPoint μ hμ)
+      (𝓢.rjnDirectionC μ (𝓢.centralPathPoint μ hμ)) := by
+  unfold rjnDirectionC
+  have h : ∃ v, 𝓢.IsVariantCSolution μ (𝓢.centralPathPoint μ hμ) v :=
+    ⟨0, 𝓢.IsVariantCSolution_zero_at_centralPath hμ⟩
+  rw [dif_pos h]
+  exact Classical.choose_spec h
 
 /-- **Tangency of the Variant C direction**: `⟨u_k, v_k⟩ = 0`.
-Falls out of the first conjunct of `IsVariantCSolution` via
-`Classical.choose_spec`. No additional analysis needed. -/
+Proven unconditionally by case-splitting on whether `IsVariantCSolution`
+holds — in the existence branch tangency comes from the first conjunct
+of the predicate, in the fallback branch `v_k = 0` is trivially tangent. -/
 theorem rjnDirectionC_tangent (𝓢 : IrnSetup X Y) (μ : ℝ) (u_k : H X Y) :
-    inner ℝ u_k (𝓢.rjnDirectionC μ u_k) = (0 : ℝ) :=
-  (𝓢.rjnDirectionC_isVariantCSolution μ u_k).1
-
-/-- The `u_k + v_k` candidate lies in `C_+`, i.e. `tau_proj > 0`. -/
-theorem rjnDirectionC_add_mem_Cplus (𝓢 : IrnSetup X Y) (μ : ℝ)
-    (u_k : H X Y) :
-    u_k + 𝓢.rjnDirectionC μ u_k ∈ 𝓢.Cplus :=
-  (𝓢.rjnDirectionC_isVariantCSolution μ u_k).2.1
+    inner ℝ u_k (𝓢.rjnDirectionC μ u_k) = (0 : ℝ) := by
+  rcases 𝓢.rjnDirectionC_isVariantCSolution_or_zero μ u_k with h | h
+  · exact h.1
+  · rw [h]; exact inner_zero_right _
 
 /-! ### The Variant C step -/
 
