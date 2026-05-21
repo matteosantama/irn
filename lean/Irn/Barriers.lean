@@ -305,24 +305,84 @@ theorem euler {K : Set V} {ν : ℕ} (f : LHSCB V K ν) :
     rw [InnerProductSpace.toDual_symm_apply]
   rw [real_inner_comm, h_riesz, h_eq]
 
-/-- **Hessian-times-self identity** (differentiated Euler). On `int K`,
-`(fderiv ∇f x) x = -∇f x`, equivalently `∇²f(x) x = -∇f(x)` in
-operator form. Obtained by differentiating the Euler identity
-`⟨y, ∇f(y)⟩ = -ν` once more, using Hessian symmetry. This is the
-load-bearing identity for the `‖∇f‖²_{(∇²f)⁻¹} = ν` LHSCB bound.
+/-- **Hessian-times-self identity** (bilinear form). On `int K`,
+`(fderiv ℝ (fderiv ℝ f.f) x) x = -fderiv ℝ f.f x` (CLM equality).
+Differentiates the Euler-as-fderiv identity `(fderiv f.f y) y = -ν`
+and uses Hessian symmetry. -/
+theorem hessian_fderiv_apply_self {K : Set V} {ν : ℕ} (f : LHSCB V K ν) :
+    ∀ x ∈ interior K, (fderiv ℝ (fderiv ℝ f.f) x) x = -fderiv ℝ f.f x := by
+  intro x hx
+  -- f.f is C³ on interior K (open).
+  have hf_C3 : ContDiffOn ℝ 3 f.f (interior K) := f.contDiff
+  have h_ff_diff_eventually : ∀ᶠ y in nhds x, HasFDerivAt f.f (fderiv ℝ f.f y) y := by
+    filter_upwards [isOpen_interior.mem_nhds hx] with y hy
+    exact ((hf_C3.differentiableOn (by norm_num)).differentiableAt
+      (isOpen_interior.mem_nhds hy)).hasFDerivAt
+  have h_fderiv_C2 : ContDiffOn ℝ 2 (fderiv ℝ f.f) (interior K) := by
+    have h1 : ContDiffOn ℝ 2 (fderivWithin ℝ f.f (interior K)) (interior K) := by
+      have := hf_C3.fderivWithin isOpen_interior.uniqueDiffOn (m := 2) (by norm_num)
+      simpa using this
+    exact h1.congr (fun y hy => (fderivWithin_of_isOpen isOpen_interior hy).symm)
+  have h_fderiv_diffAt_x : DifferentiableAt ℝ (fderiv ℝ f.f) x :=
+    (h_fderiv_C2.differentiableOn (by norm_num)).differentiableAt
+      (isOpen_interior.mem_nhds hx)
+  -- Hessian symmetry.
+  have h_sym : ∀ v w : V,
+      (fderiv ℝ (fderiv ℝ f.f) x) v w = (fderiv ℝ (fderiv ℝ f.f) x) w v :=
+    second_derivative_symmetric_of_eventually h_ff_diff_eventually
+      h_fderiv_diffAt_x.hasFDerivAt
+  -- e(y) := (fderiv f.f y) y has HasFDerivAt at x via `clm_apply` chain rule.
+  have h_e_HasFDerivAt : HasFDerivAt (fun y => (fderiv ℝ f.f y) y)
+      ((fderiv ℝ f.f x).comp (ContinuousLinearMap.id ℝ V) +
+       (fderiv ℝ (fderiv ℝ f.f) x).flip x) x :=
+    h_fderiv_diffAt_x.hasFDerivAt.clm_apply (hasFDerivAt_id x)
+  -- e is eventually -ν (via Euler + Riesz: ⟨y, ∇f y⟩ = -ν, and ⟨y, ∇f y⟩ = (fderiv f.f y) y).
+  have h_e_const : (fun y => (fderiv ℝ f.f y) y) =ᶠ[nhds x] (fun _ => -(ν : ℝ)) := by
+    filter_upwards [isOpen_interior.mem_nhds hx] with y hy
+    have h1 : (fderiv ℝ f.f y) y = inner ℝ (f.grad y) y := by
+      show (fderiv ℝ f.f y) y =
+        inner ℝ ((InnerProductSpace.toDual ℝ V).symm (fderiv ℝ f.f y)) y
+      rw [InnerProductSpace.toDual_symm_apply]
+    rw [h1, real_inner_comm]
+    exact f.euler y hy
+  have h_const_at_x : HasFDerivAt (fun _ : V => -(ν : ℝ)) (0 : V →L[ℝ] ℝ) x :=
+    hasFDerivAt_const _ _
+  have h_e_zero : HasFDerivAt (fun y => (fderiv ℝ f.f y) y) 0 x :=
+    h_const_at_x.congr_of_eventuallyEq h_e_const
+  -- The two CLMs are equal.
+  have h_clm_zero :
+      (fderiv ℝ f.f x).comp (ContinuousLinearMap.id ℝ V) +
+        (fderiv ℝ (fderiv ℝ f.f) x).flip x = 0 :=
+    h_e_HasFDerivAt.unique h_e_zero
+  -- Extract pointwise + apply Hessian symmetry.
+  ext h
+  have hh := ContinuousLinearMap.ext_iff.mp h_clm_zero h
+  simp only [ContinuousLinearMap.add_apply, ContinuousLinearMap.comp_apply,
+    ContinuousLinearMap.id_apply, ContinuousLinearMap.flip_apply,
+    ContinuousLinearMap.zero_apply] at hh
+  -- hh : (fderiv f.f x) h + (fderiv (fderiv f.f) x) h x = 0
+  rw [h_sym h x] at hh
+  -- hh : (fderiv f.f x) h + (fderiv (fderiv f.f) x) x h = 0
+  show (fderiv ℝ (fderiv ℝ f.f) x) x h = -((fderiv ℝ f.f x) h)
+  linarith
 
-Currently sorried — proof outline: from `f.euler`, the function
-`y ↦ ⟨y, ∇f(y)⟩` is locally constant `-ν` on `int K`, hence
-`fderiv` at `x` is `0`. By `HasFDerivAt.inner` plus the chain rule
-through `∇f = (toDual).symm ∘ fderiv f.f`, the derivative at `h` is
-`⟨h, ∇f(x)⟩ + ⟨x, (fderiv ∇f x) h⟩`. Use `second_derivative_symmetric`
-to swap `⟨x, (fderiv ∇f x) h⟩` to `⟨(fderiv ∇f x) x, h⟩`. Setting the
-sum to zero for all `h` and applying `inner_self_eq_zero` gives the
-vector identity. -/
-theorem hessian_apply_self {K : Set V} {ν : ℕ} (f : LHSCB V K ν) :
-    ∀ x ∈ interior K, (fderiv ℝ f.grad x) x = -f.grad x := by
-  intro x _hx
-  sorry
+/-- **Inner-product form of the Hessian-times-self identity.**
+For all `h ∈ V`, `(fderiv ℝ (fderiv ℝ f.f) x) x h = -inner ℝ h (f.grad x)`
+on `int K`. This is the `‖∇f‖²_{(∇²f)⁻¹} = ν` setup translated to
+inner products (the actual identity follows by setting `h = -y` and
+applying Euler). -/
+theorem hessian_fderiv_apply_self_inner {K : Set V} {ν : ℕ}
+    (f : LHSCB V K ν) :
+    ∀ x ∈ interior K, ∀ h : V,
+      (fderiv ℝ (fderiv ℝ f.f) x) x h = -inner ℝ h (f.grad x) := by
+  intro x hx h
+  rw [f.hessian_fderiv_apply_self x hx]
+  show -((fderiv ℝ f.f x) h) = -inner ℝ h (f.grad x)
+  have h_riesz : (fderiv ℝ f.f x) h = inner ℝ h (f.grad x) := by
+    show (fderiv ℝ f.f x) h =
+      inner ℝ h ((InnerProductSpace.toDual ℝ V).symm (fderiv ℝ f.f x))
+    rw [real_inner_comm, InnerProductSpace.toDual_symm_apply]
+  rw [h_riesz]
 
 /-- **Hessian non-negativity from SC bound.** The squared SC bound
 forces `D²f(x)[h,h] ≥ 0` (the cube of a negative is negative, but
