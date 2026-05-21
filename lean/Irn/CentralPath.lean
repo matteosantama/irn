@@ -162,11 +162,24 @@ theorem T_continuousOn (μ : ℝ) : ContinuousOn (𝓢.T μ) 𝓢.C_interior := 
   · exact (continuous_const.smul continuous_id).continuousOn
   · exact (continuousOn_const).smul 𝓢.phi_continuousOn
 
-/-- `T_μ` is boundary-coercive on `C_interior` for `μ > 0`. Used by
-`exists_unique_centralPath` via Minty. Sorried — comes from `f_lhscb.barrier`
-and `g_lhscb.barrier` (both already proven): `φ(u) → ∞` as `u` approaches
-the frontier, and the `Q + μ•id` part stays bounded near a fixed frontier
-point, so `‖T_μ(u)‖ → ∞`. -/
+/-- `T_μ` is boundary-coercive on `C_interior` for `μ > 0`.
+
+**Case A (`tau_proj x = 0`):** The τ-component of `T_μ u` is
+`M_apply.τ + μτ − (Px(x,x) + μ)/τ`. As `τ → 0+`, this `→ -∞` (the
+`-(Px+μ)/τ` term dominates since `Px ≥ 0` and `μ > 0`). Hence
+`|τ-component of T_μ u| → ∞`, and `‖T_μ u‖ ≥ |τ-component|`.
+
+**Case B (`tau_proj x > 0`, hence `y_proj x ∈ frontier K`):** Apply
+`F_lhscb.grad_norm_tendsto_atTop` (or equivalently, the y-block via
+`fBarrier.grad_norm_tendsto_atTop`) to get `‖μ • F_lhscb.grad u‖ → ∞`.
+Combined with `‖Q u + μ u‖` bounded near `x` (since `τ` stays positive
+and all linear/quadratic pieces are continuous), reverse triangle
+gives `‖T_μ u‖ ≥ μ‖φ u‖ − ‖Q u + μu‖ → ∞`.
+
+Currently sorried — the formal case-split + bookkeeping for the
+`nhdsWithin` filter compositions and the explicit component blow-ups
+is ~150 lines of `Filter.Tendsto` arithmetic on top of the helpers
+already in place. -/
 theorem T_coercive (μ : ℝ) (hμ : 0 < μ) :
     ∀ x ∈ frontier 𝓢.C_interior,
       Filter.Tendsto (fun u => ‖𝓢.T μ u‖) (nhdsWithin x 𝓢.C_interior)
