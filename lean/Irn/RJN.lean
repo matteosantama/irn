@@ -21,7 +21,8 @@ Paper references:
 * §5.3 eq. `eq:rjn`              — Riemannian semi-Newton step
 * §5.3 Proposition 10            — exact sphericity of `exp_u`
                                   (see `Sphere.expMap_mem_sphere`)
-* §5.5 Proposition 11            — existence and local uniqueness of `λ_k`
+* §5.5 Proposition 11            — global uniqueness of `λ_k` (part a)
+                                  and local existence + smoothness (part b)
 * §5.6 Theorem 12                — local quadratic convergence
 -/
 
@@ -149,9 +150,11 @@ theorem IsRjnSolution_zero_at_centralPath (𝓢 : IrnSetup X Y) {μ : ℝ}
 function: returns the (Classical-choose-extracted) tangent direction
 satisfying `IsRjnSolution` when one exists, otherwise falls back to
 `0`. The existence branch covers at least `u_k = u*(μ)` (via
-`IsRjnSolution_zero_at_centralPath`); the extension to a full
-neighbourhood of `u*(μ)` is paper Proposition 11 and is reached
-through the `Classical.choose` mechanism. -/
+`IsRjnSolution_zero_at_centralPath`); local existence on a
+neighbourhood of `u*(μ)` is paper Proposition 11(b). Global
+uniqueness from paper Proposition 11(a) (`IsRjnSolution_unique`)
+makes the `Classical.choose` value canonical wherever a solution
+exists, not merely well-defined. -/
 noncomputable def rjnDirection (𝓢 : IrnSetup X Y) (μ : ℝ) (u_k : H X Y) :
     H X Y :=
   haveI : Decidable (∃ v, 𝓢.IsRjnSolution μ u_k v) := Classical.dec _
@@ -229,16 +232,332 @@ bound applies on every step) and `ball u* ε ⊆ C_interior` (from
 openness of `C_interior`). `rjnStep_quadratic_basin` is then derived
 from it together with the retraction bound. -/
 
+/-! ### Global uniqueness of the RJN tangent direction (paper §5.5
+Proposition 11(a))
+
+Paper Proposition 11(a) gives **global uniqueness** of the Lagrange
+multiplier `λ_k` (and hence of `v_k`) on the full domain
+`u_k ∈ Sr ∩ int C`, without any neighbourhood hypothesis. The proof
+is short:
+
+1. By the closed-form-inverse machinery of paper Theorem 9
+   (`resolvent_closed_form` in `Irn.Resolvent`), for every `λ ∈ ℝ`
+   the shifted equation
+   `H_k(u_{k+1} - u_k) + h(u_k) + λ • u_k + Ψ(u_{k+1}) = 0`
+   has a unique single-valued solution `u_{k+1}(λ) ∈ C_+`, smooth
+   in `λ`.
+2. Differentiating in `λ` and using `μ`-strong monotonicity of
+   `A(λ) := H_k + ∇Ψ(u_{k+1}(λ))` (LHSCB + monotone `∇Ψ`):
+   ```
+   φ'(λ) := d/dλ ⟨u_k, u_{k+1}(λ)⟩
+          = -⟨u_k, A(λ)⁻¹ u_k⟩ < 0,
+   ```
+   strictly, for every `λ ∈ ℝ` and every `u_k ∈ Sr ∩ int C`
+   (using `u_k ≠ 0` from `‖u_k‖² = ν+1 > 0`).
+3. The tangency residual
+   `φ(λ) := ⟨u_k, u_{k+1}(λ)⟩ - (ν+1) = ⟨u_k, v(λ)⟩`
+   (the last equality on the sphere) is therefore strictly
+   decreasing on `ℝ`, hence has at most one zero — proving global
+   uniqueness of `λ_k`, and via the single-valuedness of step (1),
+   of `v_k`. -/
+
+set_option maxHeartbeats 800000 in
+/-- **Global uniqueness of the RJN tangent direction** (paper
+§5.5 Proposition 11(a)). For every `u_k ∈ Sr ∩ int C`, at most one
+`v` satisfies `IsRjnSolution μ u_k v`.
+
+**Proof.** Subtract the Newton equations of two `IsRjnSolution`
+witnesses for `v₁, v₂` (set `u_i := u_k + v_i`, `Δu := u₁ - u₂`):
+```
+  (H_k + M) Δu = (θ₁ - θ₂) • e_τ - (λ₁ - λ₂) • u_k.
+```
+Inner-product with `Δu`. Tangency `⟨u_k, v_i⟩ = 0` kills the
+`u_k`-coefficient; on the right, `⟨Δu, e_τ⟩ = τ(Δu)`. On the left,
+`⟨Δu, (H_k + M) Δu⟩ = μ W_quad(u_k, Δu) + Px(Δu, Δu)`. So
+```
+  μ W_quad + Px(Δu, Δu) = (θ₁ - θ₂) τ(Δu).             (♠)
+```
+Subtract the two scalar equations
+`θ_i τ_i = Px(u_i, u_i) + μ` and combine via the bilinear identity
+`Px(u₁ + u₂, u₁ - u₂) = Px(u₁, u₁) - Px(u₂, u₂)` and the algebraic
+identity `(θ₁ - θ₂)(τ₁ + τ₂) + (θ₁ + θ₂)(τ₁ - τ₂) = 2(θ₁ τ₁ - θ₂ τ₂)`
+to get
+```
+  (θ₁ - θ₂)(τ₁ + τ₂) + (θ₁ + θ₂) τ(Δu) = 2 Px(u₁+u₂, Δu).   (♣)
+```
+Eliminating `θ₁ - θ₂` between (♠) and (♣) (multiply (♠) by `τ₁+τ₂`,
+substitute via (♣)) gives, after multiplying by `τ₁+τ₂` once more,
+```
+  (τ₁+τ₂)² μ W_quad + (τ₁+τ₂)² Px(Δu, Δu) + (τ₁+τ₂)(θ₁+θ₂) τ(Δu)²
+    = 2 (τ₁+τ₂) τ(Δu) Px(u₁+u₂, Δu).
+```
+The PSD bound `Px_quad_form_psd` applied at
+`(x_proj(u₁+u₂), x_proj Δu, τ₁+τ₂, τ(Δu))` bounds the right side by
+`τ(Δu)² Px(u₁+u₂, u₁+u₂) + (τ₁+τ₂)² Px(Δu, Δu)`. Cancelling the
+`Px(Δu, Δu)`-terms,
+```
+  (τ₁+τ₂)² μ W_quad + (τ₁+τ₂)(θ₁+θ₂) τ(Δu)² ≤ τ(Δu)² Px(u₁+u₂, u₁+u₂).
+```
+A second PSD application at `(x_proj u₂, x_proj u₁, τ₂, τ₁)`,
+combined with `Px(u_i, u_i) = θ_i τ_i - μ` and the AM-GM identity
+`τ₁² + τ₂² ≥ 2 τ₁ τ₂`, gives
+```
+  τ₁ θ₂ + τ₂ θ₁ - 2 Px(u₁, u₂) ≥ 2 μ,
+```
+hence `Px(u₁+u₂, u₁+u₂) ≤ (τ₁+τ₂)(θ₁+θ₂) - 4μ`. Multiplying by
+`τ(Δu)² ≥ 0` and substituting yields
+```
+  (τ₁+τ₂)² μ W_quad + 4 μ τ(Δu)² ≤ 0.
+```
+Both summands are non-negative (`τ_i, μ > 0`, `W_quad ≥ ‖·‖² ≥ 0`),
+so both vanish. From `(τ₁+τ₂)² μ W_quad = 0` and `τ₁+τ₂, μ > 0`,
+`W_quad(u_k, Δu) = 0`, and `inner_self_le_W_quad` then forces
+`Δu = 0`, i.e., `v₁ = v₂`.
+
+Note: the sphere hypothesis `u_k ∈ Sr` is not actually used — the
+tangency clause in `IsRjnSolution` already supplies
+`⟨u_k, v_i⟩ = 0`, which is the only sphere-related fact entering
+the argument. It is kept in the signature to match paper
+Proposition 11. -/
+theorem IsRjnSolution_unique {μ : ℝ} (hμ : 0 < μ)
+    {u_k : H X Y} (_hu_k_S : u_k ∈ 𝓢.sphere) (hu_k_C : u_k ∈ 𝓢.C_interior)
+    {v₁ v₂ : H X Y}
+    (h₁ : 𝓢.IsRjnSolution μ u_k v₁) (h₂ : 𝓢.IsRjnSolution μ u_k v₂) :
+    v₁ = v₂ := by
+  obtain ⟨h_tan_1, h_Cplus_1, θ₁, _hθ₁_pos, lam₁, h_newton_1, h_scalar_1⟩ := h₁
+  obtain ⟨h_tan_2, h_Cplus_2, θ₂, _hθ₂_pos, lam₂, h_newton_2, h_scalar_2⟩ := h₂
+  -- Vector abbreviations.
+  set u₁ : H X Y := u_k + v₁ with hu₁_def
+  set u₂ : H X Y := u_k + v₂ with hu₂_def
+  set Δu : H X Y := u₁ - u₂ with hΔu_def
+  -- Bridge: Δu = v₁ - v₂ (relies on defeq via the `set` bindings, so must
+  -- be derived before `clear_value` below).
+  have h_Δu_eq_v_diff : Δu = v₁ - v₂ := by
+    show (u_k + v₁) - (u_k + v₂) = v₁ - v₂; abel
+  -- Make `u₁, u₂, Δu` opaque so subsequent `rw` calls on
+  -- `Px_bilinform_clm_add_*` don't peek through the `set`-bindings.
+  clear_value u₁ u₂ Δu
+  -- Scalar abbreviations.
+  set τ₁ : ℝ := 𝓢.tau_proj u₁ with hτ₁_def
+  set τ₂ : ℝ := 𝓢.tau_proj u₂ with hτ₂_def
+  set τΔ : ℝ := 𝓢.tau_proj Δu with hτΔ_def
+  set Px₁ : ℝ := 𝓢.Px_bilinform_clm u₁ u₁ with hPx₁_def
+  set Px₂ : ℝ := 𝓢.Px_bilinform_clm u₂ u₂ with hPx₂_def
+  set Px₁₂ : ℝ := 𝓢.Px_bilinform_clm u₁ u₂ with hPx₁₂_def
+  set PxΔΔ : ℝ := 𝓢.Px_bilinform_clm Δu Δu with hPxΔΔ_def
+  set PxUΔ : ℝ := 𝓢.Px_bilinform_clm (u₁ + u₂) Δu with hPxUΔ_def
+  set PxUU : ℝ := 𝓢.Px_bilinform_clm (u₁ + u₂) (u₁ + u₂) with hPxUU_def
+  set Wq : ℝ := 𝓢.W_quad u_k Δu with hWq_def
+  -- Positivity / nonnegativity.
+  have hτ₁_pos : 0 < τ₁ := 𝓢.tau_proj_pos h_Cplus_1
+  have hτ₂_pos : 0 < τ₂ := 𝓢.tau_proj_pos h_Cplus_2
+  have hT_pos : 0 < τ₁ + τ₂ := by linarith
+  have hT_sq_pos : 0 < (τ₁ + τ₂) ^ 2 := by positivity
+  have hτ₁τ₂_pos : 0 < τ₁ * τ₂ := mul_pos hτ₁_pos hτ₂_pos
+  have hPx₁_nn : 0 ≤ Px₁ := 𝓢.Px_bilinform_self_nonneg _
+  have hPx₂_nn : 0 ≤ Px₂ := 𝓢.Px_bilinform_self_nonneg _
+  have hPxΔΔ_nn : 0 ≤ PxΔΔ := 𝓢.Px_bilinform_self_nonneg _
+  have hWq_nn : 0 ≤ Wq := by
+    have h := 𝓢.inner_self_le_W_quad u_k hu_k_C Δu
+    linarith [@real_inner_self_nonneg _ _ _ Δu]
+  -- Tangency ⟨u_k, Δu⟩ = 0 via the bridge.
+  have h_tan_Δu : inner ℝ u_k Δu = (0 : ℝ) := by
+    rw [h_Δu_eq_v_diff, inner_sub_right, h_tan_1, h_tan_2, sub_zero]
+  -- Newton-equation difference: (H+M) Δu = (θ₁ - θ₂) e_τ - (λ₁ - λ₂) u_k.
+  have h_newton_diff :
+      (𝓢.hessian_h μ u_k + 𝓢.M_clm) Δu =
+        (θ₁ - θ₂) • 𝓢.e_τ - (lam₁ - lam₂) • u_k := by
+    rw [hΔu_def, map_sub, h_newton_1, h_newton_2]
+    module
+  -- ⟨Δu, (H+M) Δu⟩ = (θ₁ - θ₂) τΔ (tangency kills the λ-term).
+  have h_inner_eq1 :
+      inner ℝ Δu ((𝓢.hessian_h μ u_k + 𝓢.M_clm) Δu) = (θ₁ - θ₂) * τΔ := by
+    rw [h_newton_diff, inner_sub_right, real_inner_smul_right,
+        real_inner_smul_right, 𝓢.inner_u_e_tau]
+    have h_inner_Δu_u_k : inner ℝ Δu u_k = (0 : ℝ) := by
+      rw [real_inner_comm]; exact h_tan_Δu
+    rw [h_inner_Δu_u_k, mul_zero, sub_zero]
+  -- Structure identity: ⟨Δu, (H+M) Δu⟩ = μ Wq + PxΔΔ.
+  have h_inner_expand :
+      inner ℝ Δu ((𝓢.hessian_h μ u_k + 𝓢.M_clm) Δu) = μ * Wq + PxΔΔ := by
+    rw [ContinuousLinearMap.add_apply, inner_add_right]
+    congr 1
+    · show inner ℝ Δu (μ • 𝓢.W_op u_k Δu) = μ * Wq
+      rw [real_inner_smul_right, 𝓢.inner_self_W_op_eq_W_quad u_k hu_k_C]
+    · show inner ℝ Δu (𝓢.M_apply Δu) = PxΔΔ
+      rw [𝓢.inner_u_M Δu]; rfl
+  -- (♠): μ Wq + PxΔΔ = (θ₁ - θ₂) τΔ.
+  have h_eq_W : μ * Wq + PxΔΔ = (θ₁ - θ₂) * τΔ := by
+    rw [← h_inner_expand]; exact h_inner_eq1
+  -- τΔ = τ₁ - τ₂ (linearity of tau_proj).
+  have h_τΔ_eq : τΔ = τ₁ - τ₂ := by
+    show 𝓢.tau_proj Δu = 𝓢.tau_proj u₁ - 𝓢.tau_proj u₂
+    rw [hΔu_def]
+    have h_sub : u₁ - u₂ = u₁ + (-1 : ℝ) • u₂ := by rw [neg_one_smul]; abel
+    rw [h_sub, 𝓢.tau_proj_add, 𝓢.tau_proj_smul]; ring
+  -- Px(U, Δu) = Px₁ - Px₂ via bilinearity + symmetry.
+  have h_PxUΔ_eq : PxUΔ = Px₁ - Px₂ := by
+    show 𝓢.Px_bilinform_clm (u₁ + u₂) Δu =
+      𝓢.Px_bilinform_clm u₁ u₁ - 𝓢.Px_bilinform_clm u₂ u₂
+    rw [hΔu_def]
+    have h_sub : u₁ - u₂ = u₁ + (-1 : ℝ) • u₂ := by rw [neg_one_smul]; abel
+    rw [h_sub, 𝓢.Px_bilinform_clm_add_left, 𝓢.Px_bilinform_clm_add_right,
+        𝓢.Px_bilinform_clm_smul_right, 𝓢.Px_bilinform_clm_add_right,
+        𝓢.Px_bilinform_clm_smul_right]
+    have h_sym : 𝓢.Px_bilinform_clm u₂ u₁ = 𝓢.Px_bilinform_clm u₁ u₂ :=
+      𝓢.Px_bilinform_clm_symm _ _
+    linarith [h_sym]
+  -- Px(U, U) = Px₁ + 2 Px₁₂ + Px₂.
+  have h_PxUU_eq : PxUU = Px₁ + 2 * Px₁₂ + Px₂ := by
+    show 𝓢.Px_bilinform_clm (u₁ + u₂) (u₁ + u₂) =
+      𝓢.Px_bilinform_clm u₁ u₁ + 2 * 𝓢.Px_bilinform_clm u₁ u₂ + 𝓢.Px_bilinform_clm u₂ u₂
+    rw [𝓢.Px_bilinform_clm_add_left, 𝓢.Px_bilinform_clm_add_right,
+        𝓢.Px_bilinform_clm_add_right]
+    have h_sym : 𝓢.Px_bilinform_clm u₂ u₁ = 𝓢.Px_bilinform_clm u₁ u₂ :=
+      𝓢.Px_bilinform_clm_symm _ _
+    linarith [h_sym]
+  -- Scalar-equation difference: θ₁ τ₁ - θ₂ τ₂ = Px₁ - Px₂.
+  have h_scalar_diff : θ₁ * τ₁ - θ₂ * τ₂ = Px₁ - Px₂ := by
+    show θ₁ * 𝓢.tau_proj u₁ - θ₂ * 𝓢.tau_proj u₂
+      = 𝓢.Px_bilinform_clm u₁ u₁ - 𝓢.Px_bilinform_clm u₂ u₂
+    linarith [h_scalar_1, h_scalar_2]
+  -- (♣): (θ₁-θ₂)(τ₁+τ₂) + (θ₁+θ₂) τΔ = 2 PxUΔ.
+  have h_sum_eq :
+      (θ₁ - θ₂) * (τ₁ + τ₂) + (θ₁ + θ₂) * τΔ = 2 * PxUΔ := by
+    rw [h_τΔ_eq, h_PxUΔ_eq]
+    linear_combination 2 * h_scalar_diff
+  -- Multiply (♠) by T: (τ₁+τ₂) μ Wq + (τ₁+τ₂) PxΔΔ + (θ₁+θ₂) τΔ² = 2 τΔ PxUΔ.
+  have h_main_eq :
+      (τ₁ + τ₂) * (μ * Wq) + (τ₁ + τ₂) * PxΔΔ + (θ₁ + θ₂) * τΔ ^ 2
+        = 2 * τΔ * PxUΔ := by
+    linear_combination (τ₁ + τ₂) * h_eq_W + τΔ * h_sum_eq
+  -- Multiply by T again.
+  have h_main_eq' :
+      (τ₁ + τ₂) ^ 2 * (μ * Wq) + (τ₁ + τ₂) ^ 2 * PxΔΔ
+        + (τ₁ + τ₂) * (θ₁ + θ₂) * τΔ ^ 2 = 2 * (τ₁ + τ₂) * τΔ * PxUΔ := by
+    linear_combination (τ₁ + τ₂) * h_main_eq
+  -- PSD bound on (u₁+u₂, Δu, τ₁+τ₂, τΔ).
+  have h_psd1 :
+      2 * (τ₁ + τ₂) * τΔ * PxUΔ
+        ≤ τΔ ^ 2 * PxUU + (τ₁ + τ₂) ^ 2 * PxΔΔ := by
+    have h := 𝓢.Px_quad_form_psd
+      (𝓢.x_proj (u₁ + u₂)) (𝓢.x_proj Δu) (τ₁ + τ₂) τΔ
+    show 2 * (τ₁ + τ₂) * τΔ * 𝓢.Px_bilinform (𝓢.x_proj (u₁ + u₂)) (𝓢.x_proj Δu) ≤
+      τΔ ^ 2 * 𝓢.Px_bilinform (𝓢.x_proj (u₁ + u₂)) (𝓢.x_proj (u₁ + u₂))
+        + (τ₁ + τ₂) ^ 2 * 𝓢.Px_bilinform (𝓢.x_proj Δu) (𝓢.x_proj Δu)
+    linarith [h]
+  -- After PSD₁: (τ₁+τ₂)² μ Wq + (τ₁+τ₂)(θ₁+θ₂) τΔ² ≤ τΔ² PxUU.
+  have h_after_psd1 :
+      (τ₁ + τ₂) ^ 2 * (μ * Wq) + (τ₁ + τ₂) * (θ₁ + θ₂) * τΔ ^ 2
+        ≤ τΔ ^ 2 * PxUU := by
+    linarith [h_main_eq', h_psd1]
+  -- PSD bound on (u₂, u₁, τ₂, τ₁) for the AM-GM step.
+  have h_psd2 :
+      2 * τ₁ * τ₂ * Px₁₂ ≤ τ₁ ^ 2 * Px₂ + τ₂ ^ 2 * Px₁ := by
+    have h := 𝓢.Px_quad_form_psd (𝓢.x_proj u₂) (𝓢.x_proj u₁) τ₂ τ₁
+    have h_sym :
+        𝓢.Px_bilinform (𝓢.x_proj u₂) (𝓢.x_proj u₁) =
+          𝓢.Px_bilinform (𝓢.x_proj u₁) (𝓢.x_proj u₂) :=
+      𝓢.Px_bilinform_symm _ _
+    rw [h_sym] at h
+    show 2 * τ₁ * τ₂ * 𝓢.Px_bilinform (𝓢.x_proj u₁) (𝓢.x_proj u₂) ≤
+      τ₁ ^ 2 * 𝓢.Px_bilinform (𝓢.x_proj u₂) (𝓢.x_proj u₂)
+        + τ₂ ^ 2 * 𝓢.Px_bilinform (𝓢.x_proj u₁) (𝓢.x_proj u₁)
+    linarith [h]
+  -- Express Px_i via the scalar equations.
+  have h_Px₁_eq : Px₁ = θ₁ * τ₁ - μ := by
+    show 𝓢.Px_bilinform_clm u₁ u₁ = θ₁ * 𝓢.tau_proj u₁ - μ
+    linarith [h_scalar_1]
+  have h_Px₂_eq : Px₂ = θ₂ * τ₂ - μ := by
+    show 𝓢.Px_bilinform_clm u₂ u₂ = θ₂ * 𝓢.tau_proj u₂ - μ
+    linarith [h_scalar_2]
+  -- AM-GM.
+  have h_amgm : 2 * τ₁ * τ₂ ≤ τ₁ ^ 2 + τ₂ ^ 2 := by
+    nlinarith [sq_nonneg (τ₁ - τ₂)]
+  -- Key inequality: τ₁ θ₂ + τ₂ θ₁ - 2 Px₁₂ ≥ 2 μ.
+  -- Multiply by τ₁ τ₂ > 0 and use h_psd2 + h_amgm.
+  have h_pxbd : 2 * μ ≤ τ₁ * θ₂ + τ₂ * θ₁ - 2 * Px₁₂ := by
+    -- Substitute Px_i = θ_i τ_i - μ in the PSD₂ bound to get a fully-distributed form.
+    have h_distrib :
+        2 * τ₁ * τ₂ * Px₁₂ ≤
+          τ₁ ^ 2 * τ₂ * θ₂ + τ₂ ^ 2 * τ₁ * θ₁
+            - μ * τ₁ ^ 2 - μ * τ₂ ^ 2 := by
+      have h_sub :
+          τ₁ ^ 2 * Px₂ + τ₂ ^ 2 * Px₁ =
+            τ₁ ^ 2 * τ₂ * θ₂ + τ₂ ^ 2 * τ₁ * θ₁
+              - μ * τ₁ ^ 2 - μ * τ₂ ^ 2 := by
+        rw [h_Px₁_eq, h_Px₂_eq]; ring
+      linarith [h_psd2, h_sub]
+    -- AM-GM scaled: 2 μ τ₁ τ₂ ≤ μ τ₁² + μ τ₂².
+    have h_amgm_scaled : 2 * μ * τ₁ * τ₂ ≤ μ * τ₁ ^ 2 + μ * τ₂ ^ 2 := by
+      nlinarith [h_amgm, hμ.le]
+    -- Add h_distrib and h_amgm_scaled to get the τ₁ τ₂-multiplied form of the goal.
+    have h_cross :
+        2 * μ * τ₁ * τ₂
+          ≤ τ₁ ^ 2 * τ₂ * θ₂ + τ₂ ^ 2 * τ₁ * θ₁ - 2 * τ₁ * τ₂ * Px₁₂ := by
+      linarith [h_distrib, h_amgm_scaled]
+    -- Rewrite to the multiplied form and divide by τ₁ τ₂ > 0.
+    have h_cross_mul :
+        τ₁ * τ₂ * (2 * μ) ≤ τ₁ * τ₂ * (τ₁ * θ₂ + τ₂ * θ₁ - 2 * Px₁₂) := by
+      have h_l : τ₁ * τ₂ * (2 * μ) = 2 * μ * τ₁ * τ₂ := by ring
+      have h_r :
+          τ₁ * τ₂ * (τ₁ * θ₂ + τ₂ * θ₁ - 2 * Px₁₂) =
+            τ₁ ^ 2 * τ₂ * θ₂ + τ₂ ^ 2 * τ₁ * θ₁ - 2 * τ₁ * τ₂ * Px₁₂ := by ring
+      rw [h_l, h_r]; exact h_cross
+    exact le_of_mul_le_mul_left h_cross_mul hτ₁τ₂_pos
+  -- PxUU ≤ T Θ - 4μ.
+  have h_PxUU_bound : PxUU ≤ (τ₁ + τ₂) * (θ₁ + θ₂) - 4 * μ := by
+    rw [h_PxUU_eq]
+    nlinarith [h_Px₁_eq, h_Px₂_eq, h_pxbd]
+  -- Multiply by τΔ² ≥ 0.
+  have h_τΔ_PxUU_bound :
+      τΔ ^ 2 * PxUU ≤ τΔ ^ 2 * ((τ₁ + τ₂) * (θ₁ + θ₂) - 4 * μ) :=
+    mul_le_mul_of_nonneg_left h_PxUU_bound (sq_nonneg _)
+  -- Combine: (τ₁+τ₂)² μ Wq + 4 μ τΔ² ≤ 0.
+  have h_combined :
+      (τ₁ + τ₂) ^ 2 * (μ * Wq) + 4 * μ * τΔ ^ 2 ≤ 0 := by
+    have h_eq :
+        τΔ ^ 2 * ((τ₁ + τ₂) * (θ₁ + θ₂) - 4 * μ) =
+          (τ₁ + τ₂) * (θ₁ + θ₂) * τΔ ^ 2 - 4 * μ * τΔ ^ 2 := by ring
+    linarith [h_after_psd1, h_τΔ_PxUU_bound, h_eq]
+  -- Both summands non-negative ⟹ both zero ⟹ Wq = 0.
+  have h_T_sq_μ_Wq_nn : 0 ≤ (τ₁ + τ₂) ^ 2 * (μ * Wq) :=
+    mul_nonneg hT_sq_pos.le (mul_nonneg hμ.le hWq_nn)
+  have h_μ_τΔ_sq_nn : 0 ≤ 4 * μ * τΔ ^ 2 := by positivity
+  have h_T_sq_μ_Wq_zero : (τ₁ + τ₂) ^ 2 * (μ * Wq) = 0 := by linarith
+  have h_μ_Wq_zero : μ * Wq = 0 :=
+    (mul_eq_zero.mp h_T_sq_μ_Wq_zero).resolve_left (ne_of_gt hT_sq_pos)
+  have h_Wq_zero : Wq = 0 :=
+    (mul_eq_zero.mp h_μ_Wq_zero).resolve_left (ne_of_gt hμ)
+  -- ‖Δu‖² ≤ Wq = 0 ⟹ Δu = 0.
+  have h_inner_Δu_le : inner ℝ Δu Δu ≤ Wq :=
+    𝓢.inner_self_le_W_quad u_k hu_k_C Δu
+  rw [h_Wq_zero] at h_inner_Δu_le
+  have h_inner_Δu_nn : (0 : ℝ) ≤ inner ℝ Δu Δu := real_inner_self_nonneg
+  have h_inner_Δu_zero : inner ℝ Δu Δu = 0 :=
+    le_antisymm h_inner_Δu_le h_inner_Δu_nn
+  have h_norm_Δu_sq_zero : ‖Δu‖ ^ 2 = 0 := by
+    rw [← real_inner_self_eq_norm_sq]; exact h_inner_Δu_zero
+  have h_norm_Δu_zero : ‖Δu‖ = 0 :=
+    pow_eq_zero_iff (by norm_num : (2 : ℕ) ≠ 0) |>.mp h_norm_Δu_sq_zero
+  have h_Δu_zero : Δu = 0 := norm_eq_zero.mp h_norm_Δu_zero
+  -- Conclude v₁ = v₂.
+  have h_v_diff_zero : v₁ - v₂ = 0 := by
+    rw [← h_Δu_eq_v_diff]; exact h_Δu_zero
+  exact sub_eq_zero.mp h_v_diff_zero
+
 /-! ### Implicit function theorem setup for the RJN system
 
-The proofs of `IsRjnSolution_at_centralPath_unique`,
-`rjnDirection_locallyLipschitz`, and (with one extra Newton-identity
-step) `rjnDirection_tangent_step_quadratic_bound` all reduce to a
-single application of Mathlib's implicit function theorem to the
-joint RJN system `G(u_k, v, λ, θ) = (Newton, tangency, scalar)`. The
-IFT gives a smooth implicit function `ψ : nhd u*(μ) → H × ℝ × ℝ`
-with `ψ(u*) = (0, 0, θ*)`; uniqueness within the IFT branch then
-identifies `(ψ u_k).1` with `rjnDirection μ u_k` in a neighbourhood.
+The proofs of `rjnDirection_locallyLipschitz` and (with one extra
+Newton-identity step) `rjnDirection_tangent_step_quadratic_bound`
+both reduce to a single application of Mathlib's implicit function
+theorem to the joint RJN system
+`G(u_k, v, λ, θ) = (Newton, tangency, scalar)`. The IFT gives a
+smooth implicit function `ψ : nhd u*(μ) → H × ℝ × ℝ` with
+`ψ(u*) = (0, 0, θ*)`; the global uniqueness lemma
+`IsRjnSolution_unique` then identifies `(ψ u_k).1` with
+`rjnDirection μ u_k` in a neighbourhood (without needing the
+IFT-branch uniqueness side-condition).
 
 This section sets up the algebraic core: a positive lower bound on
 the "discriminant" `θ* Px(w,w) - 2 Px(u*, w) + τ*` that appears when
@@ -771,37 +1090,36 @@ theorem rjnSystem_contDiffAt {μ : ℝ} (hμ : 0 < μ) :
         - 𝓢.Px_bilinform_clm (p.1 + p.2.1) (p.1 + p.2.1) - μ)) basepoint
   exact h_newton.prodMk (h_tangency.prodMk h_scalar)
 
-/-- **Local uniqueness of the Variant C tangent solution at `u*(μ)`.**
-At `u_k = u*(μ)` the Riemannian semi-Newton tangent inclusion admits
+/-- **Uniqueness of the RJN tangent solution at `u*(μ)`.** At
+`u_k = u*(μ)` the Riemannian semi-Newton tangent inclusion admits
 `v = 0` as a solution (`IsRjnSolution_zero_at_centralPath`); this
 lemma states `v = 0` is the *unique* such solution.
 
-**Sorry — needs the IFT pipeline.** The algebraic core
-(`rjn_partial_jacobian_kernel_trivial`) is now established: the
-*linearised* RJN system at `(u*, 0, 0, θ*)` has trivial kernel.
-What remains to close this sorry is:
-1. Joint smoothness of the rjnSystem function (analogous to
-   `T_joint_contDiffAt` in `CentralPath.lean`).
-2. Identification of the partial Fréchet derivative with the
-   linear map whose kernel-triviality is established above; this
-   feeds into `(fderiv ℝ rjnSystem ... ∘L .inr).IsInvertible`.
-3. Application of `ContDiffAt.contDiffAt_implicitFunction` to get
-   a local implicit function `ψ : nhd(u*) → H × ℝ × ℝ` with
-   `ψ(u*) = (0, 0, θ*)` and local uniqueness on the IFT branch.
-
-Note: paper Proposition 11 only proves *local* uniqueness near
-`(u*, 0)`; the present lemma asserts *unconditional* uniqueness at
-`u_k = u*`. To bridge the gap, either:
-* This sorry is restricted to a small-`‖v‖` ball (matching the
-  paper), and `rjnDirection` is redefined to canonically pick the
-  IFT branch; or
-* A separate argument rules out "exotic" large-`v` solutions of
-  the IsRjnSolution constraints at `u_k = u*` (none is currently
-  known; the constraints permit `u* + v` outside `C_interior`,
-  so strong monotonicity of `T_μ` does not directly apply). -/
+Now a direct corollary of the global-uniqueness lemma
+`IsRjnSolution_unique` (paper §5.5 Proposition 11(a)): given any
+two `IsRjnSolution` witnesses at `u_k = u*(μ)`, they are equal;
+applied to the candidate `v` and the witness `0` it yields `v = 0`.
+Sphere membership of `u*(μ)` follows from `centralPath_norm_sq`
+(paper Proposition 4). -/
 theorem IsRjnSolution_at_centralPath_unique {μ : ℝ} (hμ : 0 < μ)
     {v : H X Y}
-    (_hv : 𝓢.IsRjnSolution μ (𝓢.centralPathPoint μ hμ) v) : v = 0 := sorry
+    (hv : 𝓢.IsRjnSolution μ (𝓢.centralPathPoint μ hμ) v) : v = 0 := by
+  set u_star := 𝓢.centralPathPoint μ hμ with hu_star_def
+  have h_cpp : 𝓢.IsCentralPathPoint μ u_star :=
+    𝓢.centralPathPoint_isCentralPathPoint μ hμ
+  have hu_star_C : u_star ∈ 𝓢.C_interior := h_cpp.1
+  have hu_star_S : u_star ∈ 𝓢.sphere := by
+    show ‖u_star‖ = 𝓢.r
+    have h_norm_sq : ‖u_star‖ ^ 2 = (𝓢.ν : ℝ) + 1 :=
+      𝓢.centralPath_norm_sq hμ h_cpp
+    have h_r_sq : 𝓢.r ^ 2 = (𝓢.ν : ℝ) + 1 := 𝓢.r_sq
+    have h_eq_sq : ‖u_star‖ ^ 2 = 𝓢.r ^ 2 := by rw [h_norm_sq, ← h_r_sq]
+    have h_sqrt : Real.sqrt (‖u_star‖ ^ 2) = Real.sqrt (𝓢.r ^ 2) := by
+      rw [h_eq_sq]
+    rwa [Real.sqrt_sq (norm_nonneg _), Real.sqrt_sq 𝓢.r_pos.le] at h_sqrt
+  have h_zero : 𝓢.IsRjnSolution μ u_star 0 :=
+    𝓢.IsRjnSolution_zero_at_centralPath hμ
+  exact 𝓢.IsRjnSolution_unique hμ hu_star_S hu_star_C hv h_zero
 
 /-- **The Newton direction vanishes at `u*(μ)`.** The base case of
 the basin theorem: at the centre of the basin, `rjnDirection μ u* = 0`,
@@ -816,18 +1134,18 @@ theorem rjnDirection_at_centralPath_eq_zero {μ : ℝ} (hμ : 0 < μ) :
     (𝓢.rjnDirection_isRjnSolution_at_centralPath hμ)
 
 /-- **Local Lipschitz continuity of `rjnDirection`** (sorry — paper
-Proposition 11, IFT half). In a Euclidean ball around `u*(μ)`,
+Proposition 11(b), IFT half). In a Euclidean ball around `u*(μ)`,
 `rjnDirection μ` is Lipschitz with some constant `C`.
 
-**Sorry.** Paper proof (Proposition 11): the Variant C tangent
+**Sorry.** Paper proof (Proposition 11(b)): the RJN tangent
 inclusion in the bundle `(v, λ, θ)` is a `C¹` system in `u` whose
 partial derivative in `(v, λ, θ)` at `(u*, 0, 0, θ*)` is invertible.
 The implicit function theorem produces a `C¹` map `u ↦ (v(u), λ(u), θ(u))`
 with `(v(u*), λ(u*), θ(u*)) = (0, 0, θ*)`; combined with the
-uniqueness lemma `IsRjnSolution_at_centralPath_unique` (extended to a
-neighbourhood by IFT-branch uniqueness), `v(u) = rjnDirection μ u` in
-a neighbourhood of `u*`. Lipschitz continuity follows from the bounded
-derivative of `v` on a compact ball. -/
+*global* uniqueness lemma `IsRjnSolution_unique`, the IFT branch
+`v(u)` agrees with `rjnDirection μ u` on the IFT neighbourhood
+without any further IFT-branch side-condition. Lipschitz continuity
+follows from the bounded derivative of `v` on a compact ball. -/
 theorem rjnDirection_locallyLipschitz {μ : ℝ} (hμ : 0 < μ) :
     ∃ ε C : ℝ, 0 < ε ∧ 0 < C ∧
       ∀ u₁ u₂ : H X Y,
@@ -1105,11 +1423,11 @@ starting from any `u₀ ∈ U ∩ Sr ∩ int C`, the iterates
 Packages the basin theorem `rjnStep_quadratic_basin` together with
 `rjnStep_mem_sphere` into a recursive sequence; interior preservation
 falls out of `U ⊆ C_interior`. The analytic sorries remaining in this
-proof chain are `IsRjnSolution_at_centralPath_unique`,
-`rjnDirection_locallyLipschitz`, and
-`rjnDirection_tangent_step_quadratic_bound` (all under paper
-Proposition 11 / Theorem 12); the retraction half is fully formalized
-in `Sphere.expMap_sub_add_norm_le`. -/
+proof chain are `IsRjnSolution_unique` (paper Proposition 11(a)),
+`rjnDirection_locallyLipschitz` (paper Proposition 11(b)), and
+`rjnDirection_tangent_step_quadratic_bound` (paper Theorem 12,
+Newton-identity half); the retraction half is fully formalized in
+`Sphere.expMap_sub_add_norm_le`. -/
 theorem rjnStep_quadratic_convergence {μ : ℝ} (hμ : 0 < μ) :
     ∃ U : Set (H X Y), IsOpen U ∧ 𝓢.centralPathPoint μ hμ ∈ U ∧
       ∀ u₀ ∈ U, u₀ ∈ 𝓢.sphere → u₀ ∈ 𝓢.C_interior →
