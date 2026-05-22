@@ -35,7 +35,7 @@ variable {X Y : Type*}
   [NormedAddCommGroup Y] [InnerProductSpace ℝ Y] [FiniteDimensional ℝ Y]
 variable (𝓢 : IrnSetup X Y)
 
-open scoped InnerProductSpace
+open scoped InnerProductSpace ContDiff
 
 /-- The smooth summand `h(u) = μ u + μ ∇F*(u)` of the splitting
 `T_μ = h + Ψ` (paper §5.1 eq. `eq:splitting`). -/
@@ -229,18 +229,576 @@ bound applies on every step) and `ball u* ε ⊆ C_interior` (from
 openness of `C_interior`). `rjnStep_quadratic_basin` is then derived
 from it together with the retraction bound. -/
 
+/-! ### Implicit function theorem setup for the RJN system
+
+The proofs of `IsRjnSolution_at_centralPath_unique`,
+`rjnDirection_locallyLipschitz`, and (with one extra Newton-identity
+step) `rjnDirection_tangent_step_quadratic_bound` all reduce to a
+single application of Mathlib's implicit function theorem to the
+joint RJN system `G(u_k, v, λ, θ) = (Newton, tangency, scalar)`. The
+IFT gives a smooth implicit function `ψ : nhd u*(μ) → H × ℝ × ℝ`
+with `ψ(u*) = (0, 0, θ*)`; uniqueness within the IFT branch then
+identifies `(ψ u_k).1` with `rjnDirection μ u_k` in a neighbourhood.
+
+This section sets up the algebraic core: a positive lower bound on
+the "discriminant" `θ* Px(w,w) - 2 Px(u*, w) + τ*` that appears when
+inverting the partial Jacobian of `G` at the basepoint
+`(u*, 0, 0, θ*)`. -/
+
+/-- **Discriminant positivity at the central path** (algebraic core of
+the IFT invertibility). For every `w : H X Y`,
+`θ* · Px(w, w) - 2 Px(u*, w) + τ* ≥ μ / θ* > 0`, where
+`u* = centralPathPoint μ hμ`, `θ* = (Px(u*, u*) + μ) / τ(u*)`, and
+`Px`, `τ` are the primal bilinear form and τ-projection.
+
+This scalar is the determinant of the `(δλ, δθ)`-block of the
+partial Jacobian of the RJN system at `(u*, 0, 0, θ*)` (after
+reducing through tangency); its positivity is exactly the
+non-degeneracy condition that the implicit function theorem requires.
+
+**Proof.** Apply `Px_quad_form_psd` with `(τu, τv) = (θ*, 1)` and
+`(xu, xv) = (x_proj u*, x_proj w)`:
+```
+  0 ≤ Px(u*, u*) - 2 θ* Px(u*, w) + θ*² Px(w, w).
+```
+Hence `2 θ* Px(u*, w) - θ*² Px(w, w) ≤ Px*`. Subtract from
+`θ* τ* = Px* + μ`:
+```
+  θ* τ* - 2 θ* Px(u*, w) + θ*² Px(w, w) ≥ Px* + μ - Px* = μ.
+```
+Factor `θ*` from the LHS and divide by `θ* > 0`. -/
+theorem rjn_discriminant_ge_mu_div_θ {μ : ℝ} (hμ : 0 < μ) (w : H X Y) :
+    μ / ((𝓢.Px_bilinform_clm (𝓢.centralPathPoint μ hμ)
+              (𝓢.centralPathPoint μ hμ) + μ)
+        / 𝓢.tau_proj (𝓢.centralPathPoint μ hμ)) ≤
+      (𝓢.Px_bilinform_clm (𝓢.centralPathPoint μ hμ)
+            (𝓢.centralPathPoint μ hμ) + μ)
+          / 𝓢.tau_proj (𝓢.centralPathPoint μ hμ)
+        * 𝓢.Px_bilinform_clm w w
+      - 2 * 𝓢.Px_bilinform_clm (𝓢.centralPathPoint μ hμ) w
+      + 𝓢.tau_proj (𝓢.centralPathPoint μ hμ) := by
+  set u_star := 𝓢.centralPathPoint μ hμ with hu_star_def
+  obtain ⟨hC_star, _⟩ := 𝓢.centralPathPoint_isCentralPathPoint μ hμ
+  have hu_star_Cplus : u_star ∈ 𝓢.Cplus := 𝓢.C_interior_subset_Cplus hC_star
+  have hτ_pos : 0 < 𝓢.tau_proj u_star := 𝓢.tau_proj_pos hu_star_Cplus
+  have hPx_clm_apply :
+      𝓢.Px_bilinform_clm u_star u_star =
+        𝓢.Px_bilinform (𝓢.x_proj u_star) (𝓢.x_proj u_star) := rfl
+  have hPx_uw_clm_apply :
+      𝓢.Px_bilinform_clm u_star w =
+        𝓢.Px_bilinform (𝓢.x_proj u_star) (𝓢.x_proj w) := rfl
+  have hPx_ww_clm_apply :
+      𝓢.Px_bilinform_clm w w =
+        𝓢.Px_bilinform (𝓢.x_proj w) (𝓢.x_proj w) := rfl
+  set Px_star := 𝓢.Px_bilinform_clm u_star u_star with hPx_star_def
+  have hPx_star_nn : 0 ≤ Px_star := by
+    rw [hPx_clm_apply]; exact 𝓢.Px_bilinform_self_nonneg _
+  set τ_star := 𝓢.tau_proj u_star with hτ_star_def
+  set θ_star : ℝ := (Px_star + μ) / τ_star with hθ_def
+  have hθ_pos : 0 < θ_star := div_pos (by linarith) hτ_pos
+  have hθ_τ : θ_star * τ_star = Px_star + μ := by
+    rw [hθ_def]; field_simp
+  -- PSD: 0 ≤ Px* - 2 θ* Px(u*, w) + θ*² Px(w, w).
+  have h_psd_raw :=
+    𝓢.Px_quad_form_psd (𝓢.x_proj u_star) (𝓢.x_proj w) θ_star 1
+  have h_psd : 0 ≤ Px_star - 2 * θ_star * 𝓢.Px_bilinform_clm u_star w
+        + θ_star ^ 2 * 𝓢.Px_bilinform_clm w w := by
+    rw [hPx_clm_apply, hPx_uw_clm_apply, hPx_ww_clm_apply]
+    nlinarith [h_psd_raw]
+  -- Multiply target by θ_star: get θ_star * (target) ≥ μ.
+  have h_main :
+      μ ≤ θ_star * (θ_star * 𝓢.Px_bilinform_clm w w
+              - 2 * 𝓢.Px_bilinform_clm u_star w + τ_star) := by
+    have h_alg : θ_star * (θ_star * 𝓢.Px_bilinform_clm w w
+                    - 2 * 𝓢.Px_bilinform_clm u_star w + τ_star)
+               = θ_star ^ 2 * 𝓢.Px_bilinform_clm w w
+                 - 2 * θ_star * 𝓢.Px_bilinform_clm u_star w
+                 + θ_star * τ_star := by ring
+    rw [h_alg, hθ_τ]
+    linarith
+  -- Divide by θ_star > 0.
+  rw [div_le_iff₀ hθ_pos]
+  linarith
+
+/-- Strict positivity corollary of `rjn_discriminant_ge_mu_div_θ`. -/
+theorem rjn_discriminant_pos {μ : ℝ} (hμ : 0 < μ) (w : H X Y) :
+    0 < (𝓢.Px_bilinform_clm (𝓢.centralPathPoint μ hμ)
+              (𝓢.centralPathPoint μ hμ) + μ)
+          / 𝓢.tau_proj (𝓢.centralPathPoint μ hμ)
+        * 𝓢.Px_bilinform_clm w w
+      - 2 * 𝓢.Px_bilinform_clm (𝓢.centralPathPoint μ hμ) w
+      + 𝓢.tau_proj (𝓢.centralPathPoint μ hμ) := by
+  set u_star := 𝓢.centralPathPoint μ hμ with hu_star_def
+  obtain ⟨hC_star, _⟩ := 𝓢.centralPathPoint_isCentralPathPoint μ hμ
+  have hu_star_Cplus : u_star ∈ 𝓢.Cplus := 𝓢.C_interior_subset_Cplus hC_star
+  have hτ_pos : 0 < 𝓢.tau_proj u_star := 𝓢.tau_proj_pos hu_star_Cplus
+  have hPx_star_nn : 0 ≤ 𝓢.Px_bilinform_clm u_star u_star := by
+    show 0 ≤ 𝓢.Px_bilinform (𝓢.x_proj u_star) (𝓢.x_proj u_star)
+    exact 𝓢.Px_bilinform_self_nonneg _
+  have hθ_pos : 0 < (𝓢.Px_bilinform_clm u_star u_star + μ) / 𝓢.tau_proj u_star :=
+    div_pos (by linarith) hτ_pos
+  have h_div_pos : 0 < μ / ((𝓢.Px_bilinform_clm u_star u_star + μ)
+      / 𝓢.tau_proj u_star) := div_pos hμ hθ_pos
+  linarith [𝓢.rjn_discriminant_ge_mu_div_θ hμ w]
+
+/-- **Kernel triviality of the partial Jacobian at the central-path
+basepoint.** Suppose `(dv, dlam, dth) ∈ H × ℝ × ℝ` satisfies the
+linearised RJN system at `(u*, 0, 0, θ*)`:
+* `(H + M) dv = dth • e_τ - dlam • u*` (Newton),
+* `⟨u*, dv⟩ = 0` (tangency),
+* `τ* dth + θ* τ(dv) - 2 Px(u*, dv) = 0` (scalar),
+
+where `u* = centralPathPoint μ hμ`, `τ* = τ(u*)`, `Px* = Px(u*, u*)`,
+`θ* = (Px* + μ)/τ*`. Then `dv = 0`, `dlam = 0`, `dth = 0`.
+
+**Proof.** Inner-product the Newton equation with `dv` and use the
+tangency `⟨u*, dv⟩ = 0`: `⟨dv, (H+M) dv⟩ = dth · τ(dv)`. By the
+operator structure, `⟨dv, (H+M) dv⟩ = μ W_quad(u*, dv) + Px(dv, dv)`,
+hence `dth τ(dv) = μ W_quad(u*, dv) + Px(dv, dv)`. Multiply by `τ*`
+and substitute `τ* dth = 2 Px(u*, dv) - θ* τ(dv)` (from the scalar
+equation):
+```
+  τ*² μ W_quad + τ*² Px(dv, dv) + (Px* + μ) τ(dv)²
+    = 2 τ* τ(dv) Px(u*, dv).
+```
+The PSD bound (`Px_quad_form_psd` with `(τu, τv) = (τ*, τ(dv))`)
+gives `2 τ* τ(dv) Px(u*, dv) ≤ τ(dv)² Px* + τ*² Px(dv, dv)`.
+Subtracting:
+```
+  τ*² μ W_quad(u*, dv) + μ τ(dv)² ≤ 0.
+```
+All four factors are non-negative, forcing `W_quad(u*, dv) = 0`. Since
+`W_quad(u*, v) ≥ ‖v‖²`, this gives `dv = 0`. Then the scalar
+equation at `dv = 0` reduces to `τ* dth = 0`, hence `dth = 0` (`τ* > 0`).
+Finally the Newton equation at `(dv, dth) = (0, 0)` reduces to
+`-dlam u* = 0`, hence `dlam = 0` (since `‖u*‖² = ν+1 > 0`). -/
+theorem rjn_partial_jacobian_kernel_trivial {μ : ℝ} (hμ : 0 < μ)
+    {dv : H X Y} {dlam dth : ℝ}
+    (h_eq1 : (𝓢.hessian_h μ (𝓢.centralPathPoint μ hμ) + 𝓢.M_clm) dv
+              = dth • 𝓢.e_τ - dlam • 𝓢.centralPathPoint μ hμ)
+    (h_eq2 : inner ℝ (𝓢.centralPathPoint μ hμ) dv = (0 : ℝ))
+    (h_eq3 : 𝓢.tau_proj (𝓢.centralPathPoint μ hμ) * dth
+              + ((𝓢.Px_bilinform_clm (𝓢.centralPathPoint μ hμ)
+                    (𝓢.centralPathPoint μ hμ) + μ)
+                  / 𝓢.tau_proj (𝓢.centralPathPoint μ hμ))
+                * 𝓢.tau_proj dv
+              - 2 * 𝓢.Px_bilinform_clm (𝓢.centralPathPoint μ hμ) dv
+              = 0) :
+    dv = 0 ∧ dlam = 0 ∧ dth = 0 := by
+  set u_star := 𝓢.centralPathPoint μ hμ with hu_star_def
+  obtain ⟨hC_star, hT_star⟩ := 𝓢.centralPathPoint_isCentralPathPoint μ hμ
+  have hu_star_Cplus : u_star ∈ 𝓢.Cplus := 𝓢.C_interior_subset_Cplus hC_star
+  have hτ_pos : 0 < 𝓢.tau_proj u_star := 𝓢.tau_proj_pos hu_star_Cplus
+  have hτ_ne : 𝓢.tau_proj u_star ≠ 0 := ne_of_gt hτ_pos
+  have hu_star_norm_sq : ‖u_star‖ ^ 2 = (𝓢.ν : ℝ) + 1 :=
+    𝓢.centralPath_norm_sq hμ ⟨hC_star, hT_star⟩
+  have hu_star_norm_sq_pos : 0 < ‖u_star‖ ^ 2 := by
+    rw [hu_star_norm_sq]
+    have : (0 : ℝ) ≤ (𝓢.ν : ℝ) := Nat.cast_nonneg _
+    linarith
+  have hPx_star_nn : 0 ≤ 𝓢.Px_bilinform_clm u_star u_star := by
+    show 0 ≤ 𝓢.Px_bilinform (𝓢.x_proj u_star) (𝓢.x_proj u_star)
+    exact 𝓢.Px_bilinform_self_nonneg _
+  set τ_star := 𝓢.tau_proj u_star with hτ_star_def
+  set Px_star := 𝓢.Px_bilinform_clm u_star u_star with hPx_star_def
+  set θ_star : ℝ := (Px_star + μ) / τ_star with hθ_star_def
+  have hθ_τ : θ_star * τ_star = Px_star + μ := by
+    rw [hθ_star_def]; field_simp
+  -- Step 1: ⟨dv, (H+M) dv⟩ = dth τ(dv) using tangency ⟨u*, dv⟩ = 0.
+  have h_inner_eq1 :
+      inner ℝ dv ((𝓢.hessian_h μ u_star + 𝓢.M_clm) dv)
+        = dth * 𝓢.tau_proj dv := by
+    rw [h_eq1]
+    rw [inner_sub_right, real_inner_smul_right, real_inner_smul_right,
+        𝓢.inner_u_e_tau]
+    have h_dv_u_star : inner ℝ dv u_star = (0 : ℝ) := by
+      rw [real_inner_comm]; exact h_eq2
+    rw [h_dv_u_star]; ring
+  -- Operator-structure identity: ⟨dv, (H+M) dv⟩ = μ W_quad + Px(dv, dv).
+  have h_inner_expand :
+      inner ℝ dv ((𝓢.hessian_h μ u_star + 𝓢.M_clm) dv)
+        = μ * 𝓢.W_quad u_star dv + 𝓢.Px_bilinform_clm dv dv := by
+    show inner ℝ dv (𝓢.hessian_h μ u_star dv + 𝓢.M_clm dv) = _
+    rw [inner_add_right]
+    congr 1
+    · show inner ℝ dv (μ • 𝓢.W_op u_star dv) = μ * 𝓢.W_quad u_star dv
+      rw [real_inner_smul_right, 𝓢.inner_self_W_op_eq_W_quad u_star hC_star]
+    · show inner ℝ dv (𝓢.M_apply dv) = _
+      rw [𝓢.inner_u_M]; rfl
+  have h_key1 :
+      dth * 𝓢.tau_proj dv =
+        μ * 𝓢.W_quad u_star dv + 𝓢.Px_bilinform_clm dv dv := by
+    rw [← h_inner_eq1, h_inner_expand]
+  -- Step 2: τ* dth = 2 Px(u*, dv) - θ* τ(dv) from scalar eq.
+  have h_key2 :
+      τ_star * dth =
+        2 * 𝓢.Px_bilinform_clm u_star dv - θ_star * 𝓢.tau_proj dv := by
+    linarith [h_eq3]
+  -- Multiply h_key1 by τ* and substitute h_key2:
+  -- τ*² μ W_quad + τ*² Px(dv, dv) + (Px* + μ) τ(dv)² = 2 τ* τ(dv) Px(u*, dv).
+  have h_multby_τ :
+      τ_star ^ 2 * (μ * 𝓢.W_quad u_star dv)
+        + τ_star ^ 2 * 𝓢.Px_bilinform_clm dv dv
+        + (Px_star + μ) * 𝓢.tau_proj dv ^ 2
+        = 2 * τ_star * 𝓢.tau_proj dv * 𝓢.Px_bilinform_clm u_star dv := by
+    have h_τkey1 : τ_star * (dth * 𝓢.tau_proj dv)
+        = τ_star * (μ * 𝓢.W_quad u_star dv + 𝓢.Px_bilinform_clm dv dv) := by
+      rw [h_key1]
+    have h_assoc : τ_star * (dth * 𝓢.tau_proj dv) = (τ_star * dth) * 𝓢.tau_proj dv := by
+      ring
+    rw [h_assoc, h_key2] at h_τkey1
+    nlinarith [h_τkey1, hθ_τ, sq_nonneg τ_star, sq_nonneg (𝓢.tau_proj dv)]
+  -- PSD: 0 ≤ τ(dv)² Px* - 2 τ* τ(dv) Px(u*, dv) + τ*² Px(dv, dv).
+  have h_psd_raw :=
+    𝓢.Px_quad_form_psd (𝓢.x_proj u_star) (𝓢.x_proj dv) τ_star (𝓢.tau_proj dv)
+  have h_psd' :
+      2 * τ_star * 𝓢.tau_proj dv * 𝓢.Px_bilinform_clm u_star dv ≤
+        𝓢.tau_proj dv ^ 2 * Px_star + τ_star ^ 2 * 𝓢.Px_bilinform_clm dv dv := by
+    have h_e1 : 𝓢.Px_bilinform (𝓢.x_proj u_star) (𝓢.x_proj u_star) = Px_star := rfl
+    have h_e2 : 𝓢.Px_bilinform (𝓢.x_proj u_star) (𝓢.x_proj dv) =
+                  𝓢.Px_bilinform_clm u_star dv := rfl
+    have h_e3 : 𝓢.Px_bilinform (𝓢.x_proj dv) (𝓢.x_proj dv) =
+                  𝓢.Px_bilinform_clm dv dv := rfl
+    rw [h_e1, h_e2, h_e3] at h_psd_raw
+    linarith [h_psd_raw]
+  -- Combine: τ*² μ W_quad + μ τ(dv)² ≤ 0.
+  have h_W_quad_nn : 0 ≤ 𝓢.W_quad u_star dv := by
+    have h := 𝓢.inner_self_le_W_quad u_star hC_star dv
+    linarith [@real_inner_self_nonneg _ _ _ dv]
+  have h_Px_dv_nn : 0 ≤ 𝓢.Px_bilinform_clm dv dv := by
+    show 0 ≤ 𝓢.Px_bilinform (𝓢.x_proj dv) (𝓢.x_proj dv)
+    exact 𝓢.Px_bilinform_self_nonneg _
+  have h_final_ineq :
+      τ_star ^ 2 * (μ * 𝓢.W_quad u_star dv) + μ * 𝓢.tau_proj dv ^ 2 ≤ 0 := by
+    nlinarith [h_multby_τ, h_psd', hPx_star_nn, sq_nonneg τ_star]
+  -- Both terms in LHS non-negative, so both = 0.
+  have hτ_star_sq_pos : 0 < τ_star ^ 2 := by positivity
+  have h_W_quad_zero : 𝓢.W_quad u_star dv = 0 := by
+    have h1 : 0 ≤ τ_star ^ 2 * (μ * 𝓢.W_quad u_star dv) :=
+      mul_nonneg hτ_star_sq_pos.le (mul_nonneg hμ.le h_W_quad_nn)
+    have h2 : 0 ≤ μ * 𝓢.tau_proj dv ^ 2 :=
+      mul_nonneg hμ.le (sq_nonneg _)
+    have h_sum_zero : τ_star ^ 2 * (μ * 𝓢.W_quad u_star dv)
+                      + μ * 𝓢.tau_proj dv ^ 2 = 0 := by linarith
+    have h_first_zero : τ_star ^ 2 * (μ * 𝓢.W_quad u_star dv) = 0 := by linarith
+    have h_μWQ_zero : μ * 𝓢.W_quad u_star dv = 0 :=
+      (mul_eq_zero.mp h_first_zero).resolve_left (ne_of_gt hτ_star_sq_pos)
+    exact (mul_eq_zero.mp h_μWQ_zero).resolve_left (ne_of_gt hμ)
+  -- ‖dv‖² ≤ W_quad = 0, hence dv = 0.
+  have h_dv_zero : dv = 0 := by
+    have h_inner_le : inner ℝ dv dv ≤ 𝓢.W_quad u_star dv :=
+      𝓢.inner_self_le_W_quad u_star hC_star dv
+    rw [h_W_quad_zero] at h_inner_le
+    have h_inner_nn : (0 : ℝ) ≤ inner ℝ dv dv := real_inner_self_nonneg
+    have h_inner_zero : inner ℝ dv dv = 0 := le_antisymm h_inner_le h_inner_nn
+    have h_norm_sq_zero : ‖dv‖ ^ 2 = 0 := by
+      rw [← real_inner_self_eq_norm_sq]; exact h_inner_zero
+    have h_norm_zero : ‖dv‖ = 0 :=
+      pow_eq_zero_iff (by norm_num : (2:ℕ) ≠ 0) |>.mp h_norm_sq_zero
+    exact norm_eq_zero.mp h_norm_zero
+  -- dth = 0 from scalar eq with dv = 0.
+  have h_dth_zero : dth = 0 := by
+    have h := h_eq3
+    rw [h_dv_zero] at h
+    have h_tau_zero : 𝓢.tau_proj (0 : H X Y) = 0 := by
+      show (0 : H X Y).snd.snd = 0; rfl
+    have hPx_uv_zero : 𝓢.Px_bilinform_clm u_star (0 : H X Y) = 0 := by
+      show 𝓢.Px_bilinform (𝓢.x_proj u_star) (𝓢.x_proj (0 : H X Y)) = 0
+      have h_xproj_zero : 𝓢.x_proj (0 : H X Y) = 0 := by
+        show (0 : H X Y).fst = 0; rfl
+      rw [h_xproj_zero]
+      show inner ℝ (𝓢.x_proj u_star) (𝓢.P (0 : X)) = 0
+      rw [map_zero, inner_zero_right]
+    rw [h_tau_zero, mul_zero, add_zero, hPx_uv_zero, mul_zero, sub_zero] at h
+    exact (mul_eq_zero.mp h).resolve_left hτ_ne
+  -- dlam = 0 from Newton eq with dv = 0, dth = 0.
+  have h_dlam_zero : dlam = 0 := by
+    have h := h_eq1
+    rw [h_dv_zero, h_dth_zero] at h
+    simp only [map_zero, zero_smul, zero_sub] at h
+    -- h : 0 = -(dlam • u_star), i.e., dlam • u_star = 0.
+    have h_smul_eq : dlam • u_star = 0 := neg_eq_zero.mp h.symm
+    -- Take inner product with u_star: dlam ‖u_star‖² = 0.
+    have h_inner_smul :
+        inner ℝ u_star (dlam • u_star) = dlam * inner ℝ u_star u_star := by
+      rw [real_inner_smul_right]
+    have h_inner_zero : inner ℝ u_star (dlam • u_star) = 0 := by
+      rw [h_smul_eq, inner_zero_right]
+    have h_inner_eq : dlam * inner ℝ u_star u_star = 0 := by
+      rw [← h_inner_smul]; exact h_inner_zero
+    rw [real_inner_self_eq_norm_sq] at h_inner_eq
+    exact (mul_eq_zero.mp h_inner_eq).resolve_right (ne_of_gt hu_star_norm_sq_pos)
+  exact ⟨h_dv_zero, h_dlam_zero, h_dth_zero⟩
+
+/-! ### Joint smoothness of the RJN system
+
+We package the three RJN residuals into a single function `rjnSystem`
+and prove it is `C¹` jointly at the central-path basepoint
+`(u*, 0, 0, θ*)`. The smoothness is limited by `hess_op`, which is
+`C^(d-2)` in its argument: `F_lhscb.f` is `C^d`, its first derivative
+is `C^(d-1)`, and the second derivative is `C^(d-2)`. With the
+running hypothesis `d ≥ 3`, this is at least `C¹` — enough to apply
+Mathlib's implicit function theorem. For the quadratic-bound lemma
+(`rjnDirection_tangent_step_quadratic_bound`) `C²` of the implicit
+function is needed, which requires `d ≥ 4`; that gap is documented
+in the corresponding sorry. -/
+
+/-- `hess_op` evaluated bilinearly: `(u, v) ↦ hess_op u v` is `C¹` at
+any `(u₀, v₀)` with `u₀ ∈ C_interior`. Two derivatives of `F_lhscb.f`
+(`C^d` with `d ≥ 3`) make the bilinear application `C¹`.
+
+**Sorry — Mathlib instance-synthesis gap.** The natural proof chain
+`F.f ∈ C³` ⟹ `fderiv F.f ∈ C²` ⟹ `fderiv (fderiv F.f) ∈ C¹` runs into
+a typeclass-synthesis failure at the second step: Lean cannot
+synthesize `NormedAddCommGroup (H X Y →L[ℝ] H X Y →L[ℝ] ℝ)` —
+i.e. the iterated CLM codomain. Mathlib's
+`ContinuousLinearMap.toNormedAddCommGroup` should apply recursively
+but the abbrev unfolding of `H X Y = WithLp 2 (X × WithLp 2 (Y × ℝ))`
+seems to block it at this depth.
+
+Workarounds to try:
+* Route through `iteratedFDerivWithin 2 F.f` (codomain
+  `ContinuousMultilinearMap`, different instance setup) and convert
+  via `continuousMultilinearCurryLeftEquiv` at the end.
+* Provide a custom `NormedAddCommGroup` instance for the iterated
+  CLM type directly in the file's preamble.
+* Reformulate the RJN Newton-equation residual to avoid the
+  operator-valued Hessian (e.g., using `hessianBilin` scalars
+  paired with Riesz), so the smoothness proof never goes through
+  the iterated CLM. -/
+private lemma hess_op_apply_contDiffAt
+    {u₀ : H X Y} (hu₀ : u₀ ∈ 𝓢.C_interior) (v₀ : H X Y) :
+    ContDiffAt ℝ 1 (fun p : H X Y × H X Y => 𝓢.hess_op p.1 p.2) (u₀, v₀) := by
+  sorry
+
+/-- **The joint RJN system.** Bundles the three RJN residuals (Newton,
+tangency, scalar) into a single function
+`H × (H × ℝ × ℝ) → H × ℝ × ℝ` whose zero set is the
+`IsRjnSolution`-locus (modulo the inequality constraints `θ > 0`,
+`u_k + v ∈ Cplus`, which are open and preserved under IFT).
+
+Layout of `p : H × (H × ℝ × ℝ)`:
+* `p.1 = u_k`
+* `p.2.1 = v`
+* `p.2.2.1 = lam`
+* `p.2.2.2 = th` -/
+noncomputable def rjnSystem (𝓢 : IrnSetup X Y) (μ : ℝ) :
+    H X Y × (H X Y × ℝ × ℝ) → H X Y × ℝ × ℝ :=
+  fun p =>
+    ((𝓢.hessian_h μ p.1 + 𝓢.M_clm) (p.1 + p.2.1)
+      - 𝓢.hessian_h μ p.1 p.1
+      + (μ • p.1 + μ • 𝓢.f_lhscb.grad p.1 + p.2.2.1 • p.1)
+      - p.2.2.2 • 𝓢.e_τ,
+     inner ℝ p.1 p.2.1,
+     p.2.2.2 * 𝓢.tau_proj (p.1 + p.2.1)
+       - 𝓢.Px_bilinform_clm (p.1 + p.2.1) (p.1 + p.2.1) - μ)
+
+set_option maxHeartbeats 800000 in
+/-- **Joint smoothness of the RJN system at the central-path basepoint.**
+`rjnSystem μ` is `C¹` at `(u*, (0, 0, θ*))`.
+
+The Newton-residual component combines:
+* `μ • v` (`C^∞`),
+* `μ • hess_op u_k v` (`C¹` by `hess_op_apply_contDiffAt`),
+* `M_clm` applied to `u_k + v` (`C^∞`, linear),
+* `μ • u_k + μ • ∇F*(u_k) + lam • u_k - θ • e_τ`
+  (`C^(d-1) ≥ C¹` via `f_lhscb_grad_contDiffAt` and bilinear smul).
+
+The tangency residual `⟨u_k, v⟩` is `C^∞` (bilinear inner product).
+
+The scalar residual `θ τ(u_k + v) - Px(u_k+v, u_k+v) - μ` is `C^∞`
+(bilinear/quadratic in linear projections and `θ`).
+
+The least-smooth piece is the `hess_op` part, so the joint
+smoothness class drops to `C¹` — which is the threshold the IFT
+needs anyway. -/
+theorem rjnSystem_contDiffAt {μ : ℝ} (hμ : 0 < μ) :
+    ContDiffAt ℝ 1 (𝓢.rjnSystem μ)
+      (𝓢.centralPathPoint μ hμ,
+        (0, 0, ((𝓢.Px_bilinform_clm (𝓢.centralPathPoint μ hμ)
+                  (𝓢.centralPathPoint μ hμ) + μ)
+              / 𝓢.tau_proj (𝓢.centralPathPoint μ hμ)))) := by
+  set u_star := 𝓢.centralPathPoint μ hμ with hu_star_def
+  obtain ⟨hC_star, _⟩ := 𝓢.centralPathPoint_isCentralPathPoint μ hμ
+  set basepoint :
+      H X Y × (H X Y × ℝ × ℝ) :=
+    (u_star, (0, 0, ((𝓢.Px_bilinform_clm u_star u_star + μ)
+                      / 𝓢.tau_proj u_star)))
+  -- Common projections.
+  have h_fst : ContDiffAt ℝ 1 (Prod.fst :
+      H X Y × (H X Y × ℝ × ℝ) → H X Y) basepoint := contDiffAt_fst
+  have h_snd : ContDiffAt ℝ 1 (Prod.snd :
+      H X Y × (H X Y × ℝ × ℝ) → H X Y × ℝ × ℝ) basepoint := contDiffAt_snd
+  -- u_k = p.1 is C^∞ in p.
+  have h_uk : ContDiffAt ℝ 1
+      (fun p : H X Y × (H X Y × ℝ × ℝ) => p.1) basepoint := h_fst
+  -- v = p.2.1 is C^∞ in p.
+  have h_v : ContDiffAt ℝ 1
+      (fun p : H X Y × (H X Y × ℝ × ℝ) => p.2.1) basepoint :=
+    contDiffAt_fst.fun_comp _ h_snd
+  -- lam = p.2.2.1 is C^∞ in p.
+  have h_lam : ContDiffAt ℝ 1
+      (fun p : H X Y × (H X Y × ℝ × ℝ) => p.2.2.1) basepoint :=
+    contDiffAt_fst.fun_comp _ (contDiffAt_snd.fun_comp _ h_snd)
+  -- th = p.2.2.2 is C^∞ in p.
+  have h_th : ContDiffAt ℝ 1
+      (fun p : H X Y × (H X Y × ℝ × ℝ) => p.2.2.2) basepoint :=
+    contDiffAt_snd.fun_comp _ (contDiffAt_snd.fun_comp _ h_snd)
+  -- u_k + v is C^∞ jointly.
+  have h_uk_v : ContDiffAt ℝ 1
+      (fun p : H X Y × (H X Y × ℝ × ℝ) => p.1 + p.2.1) basepoint :=
+    h_uk.add h_v
+  -- f_lhscb.grad u_k is C^(d-1) at u_star ∈ C_interior, hence C^1.
+  have h_grad_at_uk : ContDiffAt ℝ (𝓢.d - 1) 𝓢.f_lhscb.grad u_star :=
+    𝓢.f_lhscb_grad_contDiffAt (𝓢.C_interior_subset_f_lhscb_interior hC_star)
+  have h_d1_ge : (1 : ℕ∞ω) ≤ ((𝓢.d - 1 : ℕ∞) : ℕ∞ω) := by
+    have h : (2 : ℕ∞) ≤ 𝓢.d := le_trans (by decide) 𝓢.hd_ge
+    have hcalc : (1 : ℕ∞) ≤ 𝓢.d - 1 := by
+      calc (1 : ℕ∞) = 2 - 1 := by decide
+        _ ≤ 𝓢.d - 1 := tsub_le_tsub_right h 1
+    exact_mod_cast hcalc
+  have h_grad_C1 : ContDiffAt ℝ 1 𝓢.f_lhscb.grad u_star :=
+    h_grad_at_uk.of_le h_d1_ge
+  have h_grad_pcomp : ContDiffAt ℝ 1
+      (fun p : H X Y × (H X Y × ℝ × ℝ) => 𝓢.f_lhscb.grad p.1) basepoint :=
+    h_grad_C1.fun_comp _ h_uk
+  -- M_clm (u_k + v) is C^∞ jointly (linear).
+  have h_M_clm : ContDiffAt ℝ 1
+      (fun p : H X Y × (H X Y × ℝ × ℝ) => 𝓢.M_clm (p.1 + p.2.1)) basepoint :=
+    𝓢.M_clm.contDiff.contDiffAt.fun_comp _ h_uk_v
+  -- hess_op u_k applied to (u_k + v): via comp₂ with f₁ = .1, f₂ = + .
+  have h_hess_uk_v : ContDiffAt ℝ 1
+      (fun p : H X Y × (H X Y × ℝ × ℝ) => 𝓢.hess_op p.1 (p.1 + p.2.1)) basepoint := by
+    have h := 𝓢.hess_op_apply_contDiffAt hC_star (u_star + 0)
+    -- The basepoint of h is (u_star, u_star + 0) = (basepoint.1, basepoint.1 + basepoint.2.1).
+    exact h.comp₂ h_uk h_uk_v
+  -- Similarly hess_op u_k u_k.
+  have h_hess_uk_uk : ContDiffAt ℝ 1
+      (fun p : H X Y × (H X Y × ℝ × ℝ) => 𝓢.hess_op p.1 p.1) basepoint := by
+    have h := 𝓢.hess_op_apply_contDiffAt hC_star u_star
+    exact h.comp₂ h_uk h_uk
+  -- hessian_h μ p.1 applied to (p.1 + p.2.1) = μ • (p.1 + p.2.1) + μ • hess_op p.1 (p.1 + p.2.1).
+  have h_H_uk_v : ContDiffAt ℝ 1
+      (fun p : H X Y × (H X Y × ℝ × ℝ) =>
+        𝓢.hessian_h μ p.1 (p.1 + p.2.1)) basepoint := by
+    show ContDiffAt ℝ 1
+      (fun p : H X Y × (H X Y × ℝ × ℝ) =>
+        μ • 𝓢.W_op p.1 (p.1 + p.2.1)) basepoint
+    show ContDiffAt ℝ 1
+      (fun p : H X Y × (H X Y × ℝ × ℝ) =>
+        μ • ((p.1 + p.2.1) + 𝓢.hess_op p.1 (p.1 + p.2.1))) basepoint
+    refine (h_uk_v.add h_hess_uk_v).const_smul μ
+  have h_H_uk_uk : ContDiffAt ℝ 1
+      (fun p : H X Y × (H X Y × ℝ × ℝ) =>
+        𝓢.hessian_h μ p.1 p.1) basepoint := by
+    show ContDiffAt ℝ 1
+      (fun p : H X Y × (H X Y × ℝ × ℝ) =>
+        μ • (p.1 + 𝓢.hess_op p.1 p.1)) basepoint
+    refine (h_uk.add h_hess_uk_uk).const_smul μ
+  -- Newton residual is C^1.
+  have h_newton : ContDiffAt ℝ 1
+      (fun p : H X Y × (H X Y × ℝ × ℝ) =>
+        (𝓢.hessian_h μ p.1 + 𝓢.M_clm) (p.1 + p.2.1)
+          - 𝓢.hessian_h μ p.1 p.1
+          + (μ • p.1 + μ • 𝓢.f_lhscb.grad p.1 + p.2.2.1 • p.1)
+          - p.2.2.2 • 𝓢.e_τ) basepoint := by
+    have h_first : ContDiffAt ℝ 1
+        (fun p : H X Y × (H X Y × ℝ × ℝ) =>
+          (𝓢.hessian_h μ p.1 + 𝓢.M_clm) (p.1 + p.2.1)) basepoint := by
+      show ContDiffAt ℝ 1
+        (fun p : H X Y × (H X Y × ℝ × ℝ) =>
+          𝓢.hessian_h μ p.1 (p.1 + p.2.1) + 𝓢.M_clm (p.1 + p.2.1)) basepoint
+      exact h_H_uk_v.add h_M_clm
+    have h_const_μ_uk : ContDiffAt ℝ 1
+        (fun p : H X Y × (H X Y × ℝ × ℝ) => μ • p.1) basepoint :=
+      h_uk.const_smul μ
+    have h_const_μ_grad : ContDiffAt ℝ 1
+        (fun p : H X Y × (H X Y × ℝ × ℝ) =>
+          μ • 𝓢.f_lhscb.grad p.1) basepoint :=
+      h_grad_pcomp.const_smul μ
+    have h_lam_uk : ContDiffAt ℝ 1
+        (fun p : H X Y × (H X Y × ℝ × ℝ) => p.2.2.1 • p.1) basepoint :=
+      h_lam.smul h_uk
+    have h_th_eτ : ContDiffAt ℝ 1
+        (fun p : H X Y × (H X Y × ℝ × ℝ) => p.2.2.2 • 𝓢.e_τ) basepoint :=
+      h_th.smul contDiffAt_const
+    exact ((h_first.sub h_H_uk_uk).add
+            ((h_const_μ_uk.add h_const_μ_grad).add h_lam_uk)).sub h_th_eτ
+  -- Tangency residual is C^∞ (bilinear inner).
+  have h_tangency : ContDiffAt ℝ 1
+      (fun p : H X Y × (H X Y × ℝ × ℝ) => inner ℝ p.1 p.2.1) basepoint := by
+    have h_inner_cd : ContDiff ℝ ⊤
+        (fun q : H X Y × H X Y => inner ℝ q.1 q.2 : H X Y × H X Y → ℝ) :=
+      (isBoundedBilinearMap_inner (𝕜 := ℝ) (E := H X Y)).contDiff
+    have h_pair : ContDiffAt ℝ 1
+        (fun p : H X Y × (H X Y × ℝ × ℝ) => (p.1, p.2.1)) basepoint :=
+      h_uk.prodMk h_v
+    exact (h_inner_cd.contDiffAt.of_le le_top).fun_comp _ h_pair
+  -- Scalar residual is C^∞.
+  have h_scalar : ContDiffAt ℝ 1
+      (fun p : H X Y × (H X Y × ℝ × ℝ) =>
+        p.2.2.2 * 𝓢.tau_proj (p.1 + p.2.1)
+          - 𝓢.Px_bilinform_clm (p.1 + p.2.1) (p.1 + p.2.1) - μ) basepoint := by
+    have h_tau : ContDiffAt ℝ 1
+        (fun p : H X Y × (H X Y × ℝ × ℝ) =>
+          𝓢.tau_proj (p.1 + p.2.1)) basepoint :=
+      ((IrnSetup.tau_proj_linear : H X Y →L[ℝ] ℝ).contDiff.contDiffAt).fun_comp _ h_uk_v
+    have h_th_tau : ContDiffAt ℝ 1
+        (fun p : H X Y × (H X Y × ℝ × ℝ) =>
+          p.2.2.2 * 𝓢.tau_proj (p.1 + p.2.1)) basepoint :=
+      h_th.mul h_tau
+    have h_Px : ContDiffAt ℝ 1
+        (fun p : H X Y × (H X Y × ℝ × ℝ) =>
+          𝓢.Px_bilinform_clm (p.1 + p.2.1) (p.1 + p.2.1)) basepoint := by
+      have h_bilin_cd : ContDiff ℝ ⊤
+          (fun q : H X Y × H X Y => 𝓢.Px_bilinform_clm q.1 q.2) := by
+        exact (𝓢.Px_bilinform_clm.isBoundedBilinearMap).contDiff
+      have h_pair : ContDiffAt ℝ 1
+          (fun p : H X Y × (H X Y × ℝ × ℝ) =>
+            (p.1 + p.2.1, p.1 + p.2.1)) basepoint :=
+        h_uk_v.prodMk h_uk_v
+      exact (h_bilin_cd.contDiffAt.of_le le_top).fun_comp _ h_pair
+    exact (h_th_tau.sub h_Px).sub contDiffAt_const
+  -- Combine all three components into the product.
+  show ContDiffAt ℝ 1 (𝓢.rjnSystem μ) basepoint
+  show ContDiffAt ℝ 1 (fun p : H X Y × (H X Y × ℝ × ℝ) =>
+    ((𝓢.hessian_h μ p.1 + 𝓢.M_clm) (p.1 + p.2.1)
+        - 𝓢.hessian_h μ p.1 p.1
+        + (μ • p.1 + μ • 𝓢.f_lhscb.grad p.1 + p.2.2.1 • p.1)
+        - p.2.2.2 • 𝓢.e_τ,
+      inner ℝ p.1 p.2.1,
+      p.2.2.2 * 𝓢.tau_proj (p.1 + p.2.1)
+        - 𝓢.Px_bilinform_clm (p.1 + p.2.1) (p.1 + p.2.1) - μ)) basepoint
+  exact h_newton.prodMk (h_tangency.prodMk h_scalar)
+
 /-- **Local uniqueness of the Variant C tangent solution at `u*(μ)`.**
 At `u_k = u*(μ)` the Riemannian semi-Newton tangent inclusion admits
 `v = 0` as a solution (`IsRjnSolution_zero_at_centralPath`); this
 lemma states `v = 0` is the *unique* such solution.
 
-**Sorry.** Paper proof (§5.5): the closed-form λ-parametrisation
-`u(λ) = w₀(λ) + θ(λ) w₁` reduces the Riemannian semi-Newton
-inclusion to a scalar λ-quadratic (paper eq. `eq:lambda-quadratic-B`)
-with at most two real roots. At `u_k = u*(μ)`, `λ = 0` yields
-`u(0) = u*` (the central-path point itself), so `v(0) = 0`. The
-IFT regime of paper Proposition 11 selects this `λ = 0` root as
-the unique solution in a neighbourhood of `(u*, 0)`. -/
+**Sorry — needs the IFT pipeline.** The algebraic core
+(`rjn_partial_jacobian_kernel_trivial`) is now established: the
+*linearised* RJN system at `(u*, 0, 0, θ*)` has trivial kernel.
+What remains to close this sorry is:
+1. Joint smoothness of the rjnSystem function (analogous to
+   `T_joint_contDiffAt` in `CentralPath.lean`).
+2. Identification of the partial Fréchet derivative with the
+   linear map whose kernel-triviality is established above; this
+   feeds into `(fderiv ℝ rjnSystem ... ∘L .inr).IsInvertible`.
+3. Application of `ContDiffAt.contDiffAt_implicitFunction` to get
+   a local implicit function `ψ : nhd(u*) → H × ℝ × ℝ` with
+   `ψ(u*) = (0, 0, θ*)` and local uniqueness on the IFT branch.
+
+Note: paper Proposition 11 only proves *local* uniqueness near
+`(u*, 0)`; the present lemma asserts *unconditional* uniqueness at
+`u_k = u*`. To bridge the gap, either:
+* This sorry is restricted to a small-`‖v‖` ball (matching the
+  paper), and `rjnDirection` is redefined to canonically pick the
+  IFT branch; or
+* A separate argument rules out "exotic" large-`v` solutions of
+  the IsRjnSolution constraints at `u_k = u*` (none is currently
+  known; the constraints permit `u* + v` outside `C_interior`,
+  so strong monotonicity of `T_μ` does not directly apply). -/
 theorem IsRjnSolution_at_centralPath_unique {μ : ℝ} (hμ : 0 < μ)
     {v : H X Y}
     (_hv : 𝓢.IsRjnSolution μ (𝓢.centralPathPoint μ hμ) v) : v = 0 := sorry
