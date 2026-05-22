@@ -212,33 +212,74 @@ theorem rjnStep_mem_sphere {μ : ℝ} {u_k : H X Y} (hu_k : u_k ∈ 𝓢.sphere)
 
 Paper Theorem 12 decomposes into two pieces by triangle inequality:
 
-* **Tangent step bound** — the (still sorried) Newton-step half:
-  in a basin of `u*(μ)`, the tangent iterate `u + rjnDirection μ u`
-  is quadratically close to `u*(μ)`, and `‖rjnDirection μ u‖` is
-  linearly bounded by `‖u − u*(μ)‖`. This is the IFT-driven part
-  (Φ'(u*) = 0 plus Taylor remainder).
+* **Tangent step bound** — the Newton-step half, itself split here
+  into two independent analytic sorries:
+  - `rjnDirection_linear_bound` — `‖rjnDirection μ u‖ ≤ C ‖u − u*‖`
+    near `u*(μ)`; the IFT/Lipschitz half of paper Proposition 11.
+  - `rjnDirection_tangent_step_quadratic_bound` —
+    `‖u + rjnDirection μ u − u*‖ ≤ K_tan ‖u − u*‖²`; the Newton-
+    identity + Taylor half (`Φ'(u*) = 0` on `T_{u*}Sr`).
 * **Retraction bound** — the second-order retraction property of
   `expMap`: `‖expMap u v − (u + v)‖ ≤ ‖v‖²/r`. Proven in
   `Sphere.expMap_sub_add_norm_le` from the trigonometric identities.
 
-`rjnDirection_quadratic_basin` packages the tangent step half as the
-remaining analytic sorry; `rjnStep_quadratic_basin` is then derived
+`rjnDirection_quadratic_basin` combines the two analytic sorries and
+shrinks the basin radius to satisfy `C·ε ≤ r` (so the retraction
+bound applies on every step) and `ball u* ε ⊆ C_interior` (from
+openness of `C_interior`). `rjnStep_quadratic_basin` is then derived
 from it together with the retraction bound. -/
 
-/-- **Tangent step quadratic bound** (sorry — paper §5.6 Theorem 12,
-"tangent step" half). In a basin of `u*(μ)`, the Newton direction
-`rjnDirection μ u` is linearly bounded by the distance to `u*(μ)`
-(constant `C`), and the tangent iterate `u + rjnDirection μ u` is
-quadratically close to `u*(μ)` (constant `K_tan`). The auxiliary
-hypothesis `C * ε ≤ r` ensures `‖rjnDirection μ u‖ ≤ r` throughout
-the basin, so the retraction bound `expMap_sub_add_norm_le` applies.
+/-- **Local linear bound on `rjnDirection`** (sorry — paper §5.6
+Theorem 12, IFT/Lipschitz half). In a basin of `u*(μ)`, the Newton
+direction `rjnDirection μ u` is linearly bounded by the distance to
+`u*(μ)`.
 
-**Sorry.** Paper proof: `Φ(u) := u + rjnDirection μ u` is `C¹` near
-`u*(μ)` (implicit function theorem on the tangent inclusion), with
-`Φ(u*) = u*` (fixed point at the central-path point) and `Φ'(u*) = 0`
-on `T_{u*}Sr` (Newton-identity cancellation in tangent coordinates).
-Taylor remainder gives the quadratic bound. Requires Riemannian Newton
-infrastructure not yet in Mathlib. -/
+**Sorry.** Paper proof (Proposition 11): the Variant C tangent
+inclusion in the bundle `(v, λ, θ)` is a `C¹` system in `u` whose
+partial derivative in `(v, λ, θ)` at `(u*, 0, 0, θ*)` is invertible.
+The implicit function theorem produces a `C¹` map `u ↦ v(u)` with
+`v(u*) = 0`; by uniqueness of the IFT branch, `v(u) = rjnDirection μ u`
+in a neighbourhood of `u*`. Lipschitz continuity (from the bounded
+derivative of `v`) gives the linear bound `‖v(u)‖ ≤ C ‖u − u*‖`. -/
+theorem rjnDirection_linear_bound {μ : ℝ} (hμ : 0 < μ) :
+    ∃ ε C : ℝ, 0 < ε ∧ 0 < C ∧
+      ∀ u : H X Y,
+        u ∈ Metric.ball (𝓢.centralPathPoint μ hμ) ε → u ∈ 𝓢.sphere →
+          ‖𝓢.rjnDirection μ u‖ ≤ C * ‖u - 𝓢.centralPathPoint μ hμ‖ := sorry
+
+/-- **Local quadratic bound on the tangent step** (sorry — paper §5.6
+Theorem 12, Newton-identity half). In a basin of `u*(μ)`, the tangent
+iterate `u + rjnDirection μ u` is quadratically close to `u*(μ)`.
+
+**Sorry.** Paper proof: define `Φ(u) := u + rjnDirection μ u`. By the
+IFT smoothness of `rjnDirection` near `u*` (same machinery as
+`rjnDirection_linear_bound`), `Φ` is `C²` on a neighbourhood of `u*`.
+The Newton identity in tangent coordinates gives `Φ(u*) = u*` (since
+`rjnDirection μ u* = 0`) and `Φ'(u*) = 0` on `T_{u*}Sr`
+(cancellation: the linearised Newton equation at `u*` solves
+exactly). Taylor's theorem with `C²` remainder yields the quadratic
+bound. -/
+theorem rjnDirection_tangent_step_quadratic_bound {μ : ℝ} (hμ : 0 < μ) :
+    ∃ ε K_tan : ℝ, 0 < ε ∧ 0 < K_tan ∧
+      ∀ u : H X Y,
+        u ∈ Metric.ball (𝓢.centralPathPoint μ hμ) ε → u ∈ 𝓢.sphere →
+          ‖u + 𝓢.rjnDirection μ u - 𝓢.centralPathPoint μ hμ‖ ≤
+            K_tan * ‖u - 𝓢.centralPathPoint μ hμ‖ ^ 2 := sorry
+
+/-- **Tangent step quadratic basin** (paper §5.6 Theorem 12, "tangent
+step" half). Combines the two analytic sorries
+`rjnDirection_linear_bound` and `rjnDirection_tangent_step_quadratic_bound`
+with the openness of `C_interior` to produce a single basin radius
+`ε` satisfying:
+* `C * ε ≤ r` — so `‖rjnDirection μ u‖ ≤ C ‖u − u*‖ < C ε ≤ r`
+  on every point of the basin, making the retraction bound
+  `expMap_sub_add_norm_le` applicable downstream;
+* `ball u* ε ⊆ C_interior` — by openness of `C_interior` at the
+  central-path point.
+
+The combined `ε` is `min ε₁ (min ε₂ (min δ (r/C)))`, where `(ε₁, C)`
+comes from the linear bound, `(ε₂, K_tan)` from the quadratic bound,
+and `δ` is the openness radius of `C_interior` at `u*`. -/
 theorem rjnDirection_quadratic_basin {μ : ℝ} (hμ : 0 < μ) :
     ∃ ε C K_tan : ℝ, 0 < ε ∧ 0 < C ∧ 0 < K_tan ∧
       C * ε ≤ 𝓢.r ∧
@@ -247,7 +288,39 @@ theorem rjnDirection_quadratic_basin {μ : ℝ} (hμ : 0 < μ) :
         u ∈ Metric.ball (𝓢.centralPathPoint μ hμ) ε → u ∈ 𝓢.sphere →
           ‖𝓢.rjnDirection μ u‖ ≤ C * ‖u - 𝓢.centralPathPoint μ hμ‖ ∧
           ‖u + 𝓢.rjnDirection μ u - 𝓢.centralPathPoint μ hμ‖ ≤
-            K_tan * ‖u - 𝓢.centralPathPoint μ hμ‖ ^ 2) := sorry
+            K_tan * ‖u - 𝓢.centralPathPoint μ hμ‖ ^ 2) := by
+  set u_star := 𝓢.centralPathPoint μ hμ with hu_star_def
+  have hu_star_C : u_star ∈ 𝓢.C_interior :=
+    (𝓢.centralPathPoint_isCentralPathPoint μ hμ).1
+  obtain ⟨ε₁, C, hε₁_pos, hC_pos, h_lin⟩ := 𝓢.rjnDirection_linear_bound hμ
+  obtain ⟨ε₂, K_tan, hε₂_pos, hK_tan_pos, h_quad⟩ :=
+    𝓢.rjnDirection_tangent_step_quadratic_bound hμ
+  obtain ⟨δ, hδ_pos, hδ_sub⟩ :=
+    Metric.isOpen_iff.mp 𝓢.C_interior_isOpen u_star hu_star_C
+  have hr_pos : 0 < 𝓢.r := 𝓢.r_pos
+  have h_rC_pos : 0 < 𝓢.r / C := div_pos hr_pos hC_pos
+  set ε : ℝ := min ε₁ (min ε₂ (min δ (𝓢.r / C))) with hε_def
+  have hε_pos : 0 < ε :=
+    lt_min hε₁_pos (lt_min hε₂_pos (lt_min hδ_pos h_rC_pos))
+  have hε_le_ε₁ : ε ≤ ε₁ := min_le_left _ _
+  have hε_le_ε₂ : ε ≤ ε₂ :=
+    le_trans (min_le_right _ _) (min_le_left _ _)
+  have hε_le_δ : ε ≤ δ :=
+    le_trans (min_le_right _ _) (le_trans (min_le_right _ _) (min_le_left _ _))
+  have hε_le_rC : ε ≤ 𝓢.r / C :=
+    le_trans (min_le_right _ _) (le_trans (min_le_right _ _) (min_le_right _ _))
+  have h_Cε_le_r : C * ε ≤ 𝓢.r := by
+    rw [mul_comm]
+    exact (le_div_iff₀ hC_pos).mp hε_le_rC
+  have h_ball_sub : Metric.ball u_star ε ⊆ 𝓢.C_interior :=
+    subset_trans (Metric.ball_subset_ball hε_le_δ) hδ_sub
+  refine ⟨ε, C, K_tan, hε_pos, hC_pos, hK_tan_pos, h_Cε_le_r, h_ball_sub, ?_⟩
+  intros u hu_ball hu_S
+  have h_in_ε₁ : u ∈ Metric.ball u_star ε₁ :=
+    Metric.ball_subset_ball hε_le_ε₁ hu_ball
+  have h_in_ε₂ : u ∈ Metric.ball u_star ε₂ :=
+    Metric.ball_subset_ball hε_le_ε₂ hu_ball
+  exact ⟨h_lin u h_in_ε₁ hu_S, h_quad u h_in_ε₂ hu_S⟩
 
 /-- **Quadratic basin from tangent + retraction.** Combines
 `rjnDirection_quadratic_basin` (the tangent step half, sorry) with
