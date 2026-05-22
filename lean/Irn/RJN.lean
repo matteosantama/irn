@@ -229,23 +229,77 @@ bound applies on every step) and `ball u* ε ⊆ C_interior` (from
 openness of `C_interior`). `rjnStep_quadratic_basin` is then derived
 from it together with the retraction bound. -/
 
-/-- **Local linear bound on `rjnDirection`** (sorry — paper §5.6
-Theorem 12, IFT/Lipschitz half). In a basin of `u*(μ)`, the Newton
-direction `rjnDirection μ u` is linearly bounded by the distance to
-`u*(μ)`.
+/-- **Local uniqueness of the Variant C tangent solution at `u*(μ)`.**
+At `u_k = u*(μ)` the Riemannian semi-Newton tangent inclusion admits
+`v = 0` as a solution (`IsRjnSolution_zero_at_centralPath`); this
+lemma states `v = 0` is the *unique* such solution.
+
+**Sorry.** Paper proof (§5.5): the closed-form λ-parametrisation
+`u(λ) = w₀(λ) + θ(λ) w₁` reduces the Riemannian semi-Newton
+inclusion to a scalar λ-quadratic (paper eq. `eq:lambda-quadratic-B`)
+with at most two real roots. At `u_k = u*(μ)`, `λ = 0` yields
+`u(0) = u*` (the central-path point itself), so `v(0) = 0`. The
+IFT regime of paper Proposition 11 selects this `λ = 0` root as
+the unique solution in a neighbourhood of `(u*, 0)`. -/
+theorem IsRjnSolution_at_centralPath_unique {μ : ℝ} (hμ : 0 < μ)
+    {v : H X Y}
+    (_hv : 𝓢.IsRjnSolution μ (𝓢.centralPathPoint μ hμ) v) : v = 0 := sorry
+
+/-- **The Newton direction vanishes at `u*(μ)`.** The base case of
+the basin theorem: at the centre of the basin, `rjnDirection μ u* = 0`,
+so both bounds in `rjnDirection_linear_bound` and
+`rjnDirection_tangent_step_quadratic_bound` reduce to `0 ≤ 0`.
+Combines `rjnDirection_isRjnSolution_at_centralPath` (the chosen
+direction is a Variant C solution) with
+`IsRjnSolution_at_centralPath_unique` (the only such solution is `0`). -/
+theorem rjnDirection_at_centralPath_eq_zero {μ : ℝ} (hμ : 0 < μ) :
+    𝓢.rjnDirection μ (𝓢.centralPathPoint μ hμ) = 0 :=
+  𝓢.IsRjnSolution_at_centralPath_unique hμ
+    (𝓢.rjnDirection_isRjnSolution_at_centralPath hμ)
+
+/-- **Local Lipschitz continuity of `rjnDirection`** (sorry — paper
+Proposition 11, IFT half). In a Euclidean ball around `u*(μ)`,
+`rjnDirection μ` is Lipschitz with some constant `C`.
 
 **Sorry.** Paper proof (Proposition 11): the Variant C tangent
 inclusion in the bundle `(v, λ, θ)` is a `C¹` system in `u` whose
 partial derivative in `(v, λ, θ)` at `(u*, 0, 0, θ*)` is invertible.
-The implicit function theorem produces a `C¹` map `u ↦ v(u)` with
-`v(u*) = 0`; by uniqueness of the IFT branch, `v(u) = rjnDirection μ u`
-in a neighbourhood of `u*`. Lipschitz continuity (from the bounded
-derivative of `v`) gives the linear bound `‖v(u)‖ ≤ C ‖u − u*‖`. -/
+The implicit function theorem produces a `C¹` map `u ↦ (v(u), λ(u), θ(u))`
+with `(v(u*), λ(u*), θ(u*)) = (0, 0, θ*)`; combined with the
+uniqueness lemma `IsRjnSolution_at_centralPath_unique` (extended to a
+neighbourhood by IFT-branch uniqueness), `v(u) = rjnDirection μ u` in
+a neighbourhood of `u*`. Lipschitz continuity follows from the bounded
+derivative of `v` on a compact ball. -/
+theorem rjnDirection_locallyLipschitz {μ : ℝ} (hμ : 0 < μ) :
+    ∃ ε C : ℝ, 0 < ε ∧ 0 < C ∧
+      ∀ u₁ u₂ : H X Y,
+        u₁ ∈ Metric.ball (𝓢.centralPathPoint μ hμ) ε →
+        u₂ ∈ Metric.ball (𝓢.centralPathPoint μ hμ) ε →
+          ‖𝓢.rjnDirection μ u₁ - 𝓢.rjnDirection μ u₂‖ ≤ C * ‖u₁ - u₂‖ := sorry
+
+/-- **Local linear bound on `rjnDirection`** (paper §5.6 Theorem 12,
+IFT/Lipschitz half). In a basin of `u*(μ)`, the Newton direction
+`rjnDirection μ u` is linearly bounded by the distance to `u*(μ)`.
+
+Proven from `rjnDirection_at_centralPath_eq_zero` (base case
+`rjnDirection μ u* = 0`) and `rjnDirection_locallyLipschitz` (sorry):
+`‖rjnDirection μ u‖ = ‖rjnDirection μ u − rjnDirection μ u*‖
+                    ≤ C ‖u − u*‖`. The sphere hypothesis is unused
+here — it's threaded for compatibility with the basin signature. -/
 theorem rjnDirection_linear_bound {μ : ℝ} (hμ : 0 < μ) :
     ∃ ε C : ℝ, 0 < ε ∧ 0 < C ∧
       ∀ u : H X Y,
         u ∈ Metric.ball (𝓢.centralPathPoint μ hμ) ε → u ∈ 𝓢.sphere →
-          ‖𝓢.rjnDirection μ u‖ ≤ C * ‖u - 𝓢.centralPathPoint μ hμ‖ := sorry
+          ‖𝓢.rjnDirection μ u‖ ≤ C * ‖u - 𝓢.centralPathPoint μ hμ‖ := by
+  obtain ⟨ε, C, hε_pos, hC_pos, h_lip⟩ := 𝓢.rjnDirection_locallyLipschitz hμ
+  refine ⟨ε, C, hε_pos, hC_pos, ?_⟩
+  intros u hu _
+  have h_star_mem : 𝓢.centralPathPoint μ hμ ∈
+      Metric.ball (𝓢.centralPathPoint μ hμ) ε := by
+    rw [Metric.mem_ball, dist_self]; exact hε_pos
+  have h := h_lip u (𝓢.centralPathPoint μ hμ) hu h_star_mem
+  rw [𝓢.rjnDirection_at_centralPath_eq_zero hμ, sub_zero] at h
+  exact h
 
 /-- **Local quadratic bound on the tangent step** (sorry — paper §5.6
 Theorem 12, Newton-identity half). In a basin of `u*(μ)`, the tangent
