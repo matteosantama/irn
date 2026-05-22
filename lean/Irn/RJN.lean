@@ -181,38 +181,6 @@ theorem rjnDirection_isRjnSolution_at_centralPath (𝓢 : IrnSetup X Y)
   rw [dif_pos h]
   exact Classical.choose_spec h
 
-/-- **Local uniqueness of the Variant C tangent solution at `u*(μ)`.**
-The Riemannian semi-Newton tangent inclusion at `u_k = u*(μ)` admits
-`v = 0` as a solution by `IsRjnSolution_zero_at_centralPath`; this
-lemma says `v = 0` is the *unique* such solution.
-
-**Sorry.** Paper proof (§5.5): the closed-form λ-parametrisation
-`u(λ) = w_0^(0) − λ w_2 + θ(λ) w_1` reduces the Riemannian semi-Newton
-inclusion to a scalar λ-quadratic (paper eq. `eq:lambda-quadratic-B`)
-which has at most two real roots. At `u_k = u*(μ)`, `λ = 0` yields
-`u(0) = u*` (the central-path point itself), so `v(0) = 0`. The IFT
-regime of paper Proposition 11 selects this `λ = 0` root as the
-unique solution in a neighbourhood of `(u*, 0)`. The other root of
-the quadratic, if real, lies outside the IFT regime. -/
-theorem IsRjnSolution_at_centralPath_unique (𝓢 : IrnSetup X Y) {μ : ℝ}
-    (hμ : 0 < μ) {v : H X Y}
-    (_hv : 𝓢.IsRjnSolution μ (𝓢.centralPathPoint μ hμ) v) : v = 0 := sorry
-
-/-- **The Newton direction vanishes at the central-path point.**
-Combines `rjnDirection_isRjnSolution_at_centralPath` (the chosen
-direction is a Variant C solution) with
-`IsRjnSolution_at_centralPath_unique` (the only such solution is `0`).
-Established here as the base case (`u = u*`) of
-`rjnDirection_quadratic_basin`: both bounds in the basin theorem
-become `0 ≤ 0` at `u = u*`, so the theorem holds at the centre of the
-basin and the IFT analytic content is needed only for the genuine
-neighbourhood. -/
-theorem rjnDirection_at_centralPath_zero (𝓢 : IrnSetup X Y) {μ : ℝ}
-    (hμ : 0 < μ) :
-    𝓢.rjnDirection μ (𝓢.centralPathPoint μ hμ) = 0 :=
-  𝓢.IsRjnSolution_at_centralPath_unique hμ
-    (𝓢.rjnDirection_isRjnSolution_at_centralPath hμ)
-
 /-- **Tangency of the Riemannian semi-Newton direction**:
 `⟨u_k, v_k⟩ = 0`. Proven unconditionally by case-splitting on whether
 `IsRjnSolution` holds — in the existence branch tangency comes from
