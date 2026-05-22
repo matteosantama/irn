@@ -4,23 +4,20 @@ Interior Riemannian Newton: Lean formalization.
 This is the root module. It re-exports every submodule so that
 `import Irn` brings every definition and theorem statement into scope.
 
-The submodules track the structure of `paper/standalone.tex`:
+The submodules track the structure of `paper/main.tex`:
 
 * `Irn.Barriers`       — paper §2.1     (LHSCB, `φ`, `F*`, `G*`)
-* `Irn.Setting`        — paper §1–§2.2  (problem data `(P, A, b, c, K, f)`,
+* `Irn.Setting`        — paper §1, §2.1 (problem data `(P, A, b, c, K, f)`,
                                           embedding, `Q`, `M`, `φ`)
-* `Irn.Monotone`       — monotone operator API and a Minty-style
-                                          existence theorem
+* `Irn.Monotone`       — monotone operator API and a strongly-monotone
+                                          C¹ existence theorem
 * `Irn.CentralPath`    — paper §2.2–§3.2 (`T_μ`, existence, smoothness)
 * `Irn.Analytic`       — Hessian preconditioner, `W⁻¹` dual norm,
-                                          Minty resolvent existence
-* `Irn.Sphere`         — paper §3.1–§3.3, §7.1 (sphere, tangency, error
+                                          closed-form inverse existence
+* `Irn.Sphere`         — paper §3.1–§3.3, §5.3 (sphere, tangency, error
                                           bound, geodesic exp_u)
-* `Irn.Resolvent`      — paper §4        (closed-form resolvent)
-* `Irn.RJN`            — paper §5        (Riemannian Josephy–Newton,
-                                          Variant A scaffold)
-* `Irn.VariantC`       — paper §5.3, §5.6 (Variant C step and
-                                          Theorem 11 specialised)
+* `Irn.Resolvent`      — paper §4        (closed-form inverse of H + Ψ)
+* `Irn.RJN`            — paper §5        (Riemannian semi-Newton step)
 * `Irn.PathFollowing`  — paper §6        (path-following complexity)
 -/
 
@@ -32,5 +29,4 @@ import Irn.Analytic
 import Irn.Sphere
 import Irn.Resolvent
 import Irn.RJN
-import Irn.VariantC
 import Irn.PathFollowing

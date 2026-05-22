@@ -4,22 +4,21 @@
 The outer-loop analysis: tangentially-projected residual `tildeT`,
 the on-sphere identity `P_u φ(u) = φ(u) + u`, the affine-in-`μ`
 proximity-transfer identity, failure of Euclidean tolerances
-(Proposition 12), the Hessian-norm proximity `δ`, the bounded
-transfer constant (Lemma 13), the proximity transfer bound
-(Lemma 14), the Hessian-norm quadratic contraction (Lemma 15), and
-the polynomial complexity theorem (Theorem 16).
+(Proposition 13), the Hessian-norm proximity `δ`, the bounded
+transfer constant (Lemma 14), the proximity transfer bound
+(Lemma 15), the Hessian-norm quadratic contraction (Lemma 16), and
+the polynomial complexity theorem (Theorem 17).
 
 Paper references:
-* Eq. (6.1) `P_u φ(u) = φ(u) + u`
-* Eq. (6.3) transfer identity for `tildeT`
-* Proposition 12 (failure of Euclidean tolerances)
-* Remark 17 (power-law tolerances) — informal, no theorem
-* Eq. (6.6) `W(u) = I + ∇²F*(u)`
-* Eq. (6.7) Hessian-norm proximity `δ(u, μ)`
-* Lemma 13 (bounded transfer constant)
-* Lemma 14 (proximity transfer)
-* Lemma 15 (Hessian-norm quadratic contraction)
-* Theorem 16 (polynomial complexity)
+* §6.1 eq. `eq:proj-phi` `P_u φ(u) = φ(u) + u`
+* §6.1 eq. `eq:transfer-id` transfer identity for `tildeT`
+* §6.2 Proposition 13 (failure of Euclidean tolerances)
+* §6.3 eq. `eq:W-def` `W(u) = I + ∇²F*(u)`
+* §6.3 eq. `eq:Hess-prox` Hessian-norm proximity `δ(u, μ)`
+* §6.3 Lemma 14 (bounded transfer constant)
+* §6.3 Lemma 15 (proximity transfer)
+* §6.3 Lemma 16 (Hessian-norm quadratic contraction)
+* §6.3 Theorem 17 (polynomial complexity)
 -/
 
 import Irn.RJN
@@ -87,7 +86,7 @@ theorem mu_R_eq_Q_norm {μ : ℝ} (hμ : 0 < μ) :
     rw [h1, smul_add, add_comm (μ • 𝓢.φ u)]
   rw [hQ, norm_neg, norm_smul, Real.norm_eq_abs, abs_of_pos hμ]
 
-/-- **Proposition 12 (Failure of Euclidean tolerances).** -/
+/-- **Proposition 13 (Failure of Euclidean tolerances).** -/
 theorem euclidean_failure
     {μ : ℝ} (hμ : 0 < μ) {σ : ℝ} (hσ : 0 < σ) (hσ' : σ ≤ 1) :
     ‖𝓢.tildeT (σ * μ) (𝓢.centralPathPoint μ hμ)‖ / (σ * μ) =
@@ -123,7 +122,7 @@ theorem euclidean_failure
 noncomputable def delta (μ : ℝ) (u : H X Y) : ℝ :=
   𝓢.normWinv u (𝓢.tildeT μ u) / μ
 
-/-- **Lemma 13 (Bounded transfer constant).** -/
+/-- **Lemma 14 (Bounded transfer constant).** -/
 theorem transfer_bound {u : H X Y}
     (hS : u ∈ 𝓢.sphere) (hC : u ∈ 𝓢.C_interior) :
     𝓢.normWinv u (𝓢.φ u + u) ≤ 2 * Real.sqrt ((𝓢.ν : ℝ) + 1) := by
@@ -143,7 +142,7 @@ theorem transfer_bound {u : H X Y}
     _ = Real.sqrt ((𝓢.ν : ℝ) + 1) + Real.sqrt ((𝓢.ν : ℝ) + 1) := by rw [h_u_eq]
     _ = 2 * Real.sqrt ((𝓢.ν : ℝ) + 1) := by ring
 
-/-- **Lemma 14 (Proximity transfer).** -/
+/-- **Lemma 15 (Proximity transfer).** -/
 theorem proximity_transfer
     {μ : ℝ} (hμ : 0 < μ) {σ : ℝ} (hσ : 0 < σ) (hσ' : σ ≤ 1)
     {u : H X Y} (hS : u ∈ 𝓢.sphere) (hC : u ∈ 𝓢.C_interior) :
@@ -182,7 +181,7 @@ theorem proximity_transfer
     field_simp
   linarith
 
-/-- The outer-loop arithmetic underlying Theorem 16. -/
+/-- The outer-loop arithmetic underlying Theorem 17. -/
 theorem outer_iteration_count
     {α : ℝ} (hα_pos : 0 < α) (hα_lt_1 : α < 1)
     {ε : ℝ} (hε : 0 < ε)
@@ -220,55 +219,25 @@ theorem outer_iteration_count
         rw [← Real.exp_nat_mul]; congr 1; ring
     _ ≤ ε := h_exp_target
 
-/-- The Newton corrector contracts the Hessian-norm proximity `δ`
-quadratically on a basin of constant radius `ρ*`. -/
+/-- **Lemma 16 (Hessian-norm quadratic contraction).** There exist
+absolute constants `ρ_star ∈ (0, 1)` and `K_star ≥ 1` such that, for
+every `μ > 0` and `u ∈ Sr ∩ int C` with `δ(u, μ) ≤ ρ_star`, one
+Riemannian semi-Newton step produces `u^+ ∈ Sr ∩ int C` with
+`δ(u^+, μ) ≤ K_star · δ(u, μ)²`.
+
+**Sorry.** Identical mathematical content to `rjnStep_quadratic_basin`
+(RJN.lean) but in the `δ`-norm rather than the Euclidean norm.
+Translation between the two needs the Dikin-ball Hessian Lipschitz
+bound (`LHSCB.hessian_dikin_bound`, also a sorry); a direct proof
+mirrors the Newton–Kantorovich argument of paper §6.3 Lemma 16. -/
 theorem rjnStep_quadratic_contraction :
     ∃ ρ_star K_star : ℝ, 0 < ρ_star ∧ ρ_star < 1 ∧ 1 ≤ K_star ∧
       ∀ {μ : ℝ}, 0 < μ → ∀ {u : H X Y}, u ∈ 𝓢.sphere → u ∈ 𝓢.C_interior →
         𝓢.delta μ u ≤ ρ_star →
-          𝓢.delta μ (𝓢.rjnStep μ u) ≤ K_star * (𝓢.delta μ u) ^ 2 := by
-  obtain ⟨ρ_star, K_star, hρ_pos, hρ_lt, hK_ge, h_field⟩ :=
-    𝓢.rjnStep_delta_contraction
-  refine ⟨ρ_star, K_star, hρ_pos, hρ_lt, hK_ge, ?_⟩
-  intros μ hμ u hS hC h_δ
-  have h_norm_sq : ‖u‖ ^ 2 = (𝓢.ν : ℝ) + 1 := by
-    have hn : ‖u‖ = 𝓢.r := hS
-    rw [hn, 𝓢.r_sq]
-  have h_inv := 𝓢.rjnStep_invariant hμ hS hC
-  have h_delta_u : 𝓢.delta μ u =
-      𝓢.normWinv u (𝓢.Q u + μ • u + μ • 𝓢.φ u) / μ := by
-    unfold delta tildeT
-    rw [proj_of_orthogonal u _ (𝓢.tangent_T hμ hS hC)]
-    rfl
-  have h_delta_step : 𝓢.delta μ (𝓢.rjnStep μ u) =
-      𝓢.normWinv (𝓢.rjnStep μ u)
-        (𝓢.Q (𝓢.rjnStep μ u) + μ • (𝓢.rjnStep μ u) +
-            μ • 𝓢.φ (𝓢.rjnStep μ u)) / μ := by
-    unfold delta tildeT
-    rw [proj_of_orthogonal _ _ (𝓢.tangent_T hμ h_inv.1 h_inv.2)]
-    rfl
-  rw [h_delta_step, h_delta_u]
-  rw [h_delta_u] at h_δ
-  exact h_field μ hμ u h_norm_sq hC h_δ
+          𝓢.rjnStep μ u ∈ 𝓢.sphere ∧ 𝓢.rjnStep μ u ∈ 𝓢.C_interior ∧
+          𝓢.delta μ (𝓢.rjnStep μ u) ≤ K_star * (𝓢.delta μ u) ^ 2 := sorry
 
-/-- **Lemma 15 (Hessian-norm quadratic contraction).** -/
-theorem hessian_quadratic_contraction :
-    ∃ ρ_star : ℝ, ∃ K_star : ℝ,
-      0 < ρ_star ∧ ρ_star < 1 ∧ 1 ≤ K_star ∧
-      ∀ {μ : ℝ}, 0 < μ →
-        ∀ {u : H X Y}, u ∈ 𝓢.sphere → u ∈ 𝓢.C_interior →
-          𝓢.delta μ u ≤ ρ_star →
-            ∀ {u_next : H X Y} {lam : ℝ}, IsRJNStepA 𝓢 μ u u_next lam →
-              𝓢.delta μ u_next ≤ K_star * (𝓢.delta μ u) ^ 2 := by
-  obtain ⟨ρ, K, hρ_pos, hρ_lt, hK_ge, h_contract⟩ :=
-    𝓢.rjnStep_quadratic_contraction
-  refine ⟨ρ, K, hρ_pos, hρ_lt, hK_ge, ?_⟩
-  intros μ hμ u hS hC h_δ u_next _lam h_step
-  obtain ⟨h_eq_step, _⟩ := h_step
-  rw [h_eq_step]
-  exact h_contract hμ hS hC h_δ
-
-/-- **Theorem 16 (Polynomial complexity).** -/
+/-- **Theorem 17 (Polynomial complexity).** -/
 theorem polynomial_complexity :
     ∃ α : ℝ, ∃ β : ℝ,
       0 < α ∧ α < 1 ∧ 0 < β ∧ β < 1 ∧
@@ -359,10 +328,12 @@ theorem polynomial_complexity :
         nlinarith [h_36K1_α, hα_pos, h_K_ge]
       have h_in_basin : 𝓢.delta (σ^(k+1) * μ₀) (seq_fn k) ≤ ρ_star :=
         le_trans h_pre_contract h_6α_le_ρ
-      have h_invariant := 𝓢.rjnStep_invariant hμ_succ_pos h_S_k h_C_k
-      refine ⟨h_invariant, ?_⟩
+      have h_contract_full :=
+        h_contract hμ_succ_pos h_S_k h_C_k h_in_basin
+      obtain ⟨h_S_next, h_C_next, h_contract'⟩ := h_contract_full
+      rw [← h_seq_succ] at h_S_next h_C_next
+      refine ⟨⟨h_S_next, h_C_next⟩, ?_⟩
       rw [h_seq_succ]
-      have h_contract' := h_contract hμ_succ_pos h_S_k h_C_k h_in_basin
       have h_delta_nn : 0 ≤ 𝓢.delta (σ^(k+1) * μ₀) (seq_fn k) := by
         unfold delta
         apply div_nonneg

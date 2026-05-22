@@ -1,8 +1,8 @@
 /-
-# Closed-form resolvent (paper §4)
+# Closed-form inverse of `H + Ψ` (paper §4)
 
-Theorem 9 (closed-form resolvent of `Ψ = Q + μ ∂G*`) and the
-auxiliary maximal-monotone extension result (Appendix Lemma 24).
+Theorem 9 (closed-form inverse of the smooth single-valued operator
+`Ψ = Q + μ ∇G*` shifted by a positive-definite preconditioner `H`).
 
 With the embedding structure on `IrnSetup` (matrix `M_clm`, unit
 `e_τ`, scalar function `tau_proj`, bilinear form `Px_bilinform_clm`,
@@ -12,9 +12,8 @@ scalar quadratic — itself recorded as `exists_pos_root_quad` and
 fed by `resolvent_exists` in `Irn.Analytic`.
 
 Paper references:
-* §4 Theorem 9 (closed-form resolvent of `Ψ`)
+* §4 Theorem 9 (closed-form inverse of `Ψ`)
 * §4 eq. `eq:theta` (scalar quadratic for `θ`)
-* Appendix Lemma 24 (maximal monotone extension)
 -/
 
 import Irn.Sphere
@@ -34,9 +33,9 @@ variable {X Y : Type*}
 
 `w_0` and `w_1` are the two `λ`-independent solves against `H_k + M`
 that appear in the closed-form formula `u = w_0 + θ w_1` of Theorem 9.
-`w_2 = (H_k + M)⁻¹ u_k` is the additional Variant C / Variant B
-back-substitution used to expose the `λ`-dependence of `u(λ)` in paper
-§5.4.
+`w_2 = (H_k + M)⁻¹ u_k` is the additional back-substitution used to
+expose the `λ`-dependence of `u(λ)` in the closed-form parametrisation
+of paper §5.4.
 -/
 
 /-- `w_0(μ, u_k, z) = (H_k + M)⁻¹ (H_k z)`. -/
@@ -50,9 +49,8 @@ noncomputable def w1 (μ : ℝ) (hμ : 0 < μ) (u_k : H X Y)
   (𝓢.hessian_plus_M μ hμ u_k hu_k).symm 𝓢.e_τ
 
 /-- `w_2(μ, u_k) = (H_k + M)⁻¹ u_k`. The third back-substitution
-of paper §5.4 eq. `eq:three-vectors`, used by Variant C to capture
-the `λ`-dependence of the parametrised step `u(λ) = w_0^(0) - λ w_2
-+ θ(λ) w_1`. -/
+of paper §5.4 eq. `eq:three-vectors`, used to capture the `λ`-dependence
+of the parametrised step `u(λ) = w_0^(0) - λ w_2 + θ(λ) w_1`. -/
 noncomputable def w2 (μ : ℝ) (hμ : 0 < μ) (u_k : H X Y)
     (hu_k : u_k ∈ 𝓢.C_interior) : H X Y :=
   (𝓢.hessian_plus_M μ hμ u_k hu_k).symm u_k
@@ -106,11 +104,11 @@ noncomputable def quad_γ (μ : ℝ) (hμ : 0 < μ) (u_k : H X Y)
     (hu_k : u_k ∈ 𝓢.C_interior) (z : H X Y) : ℝ :=
   - 𝓢.Px_bilinform_clm (𝓢.w0 μ hμ u_k hu_k z) (𝓢.w0 μ hμ u_k hu_k z) - μ
 
-/-! ### Theorem 9 and Lemma 24. -/
+/-! ### Theorem 9 -/
 
 /-- **Existence of a positive root of the scalar quadratic.**
 
-Built from `resolvent_exists` (the Minty-existence sorry in
+Built from `resolvent_exists` (the existence theorem in
 `Irn.Analytic`). Given `(u, θ)` from the existence, the unique-inverse
 property of `hessian_plus_M` forces `u = w_0 + θ • w_1`. The scalar
 relation `θ · tau_proj u = B_P(u, u) + μ` then expands via linearity /
@@ -167,7 +165,7 @@ theorem exists_pos_root_quad (μ : ℝ) (hμ : 0 < μ) (u_k : H X Y)
     linarith [h_scalar']
   exact ⟨θ, hθ_pos, h_quad, h_tau_pos⟩
 
-/-- **Theorem 9 (Closed-form resolvent of `Ψ`).** With `H_k = hessian_h μ u_k`,
+/-- **Theorem 9 (Closed-form inverse of `H + Ψ`).** With `H_k = hessian_h μ u_k`,
 the resolvent value `u = J_Ψ^{H_k}(z)` lies in `Cplus` and is the unique
 pair `(u, θ)` with `θ > 0` satisfying
 `(H_k + M) u = H_k z + θ • e_τ` and `θ · tau_proj u = B_P(u, u) + μ`. -/
@@ -238,17 +236,5 @@ theorem resolvent_closed_form
     linarith [h_quad]
 
 end IrnSetup
-
-/-- **Lemma 24 (Maximal monotone extension).** A continuous monotone
-single-valued operator on an open convex set extends to a maximally
-monotone operator on the ambient Hilbert space. Stating this
-meaningfully requires defining maximally monotone (set-valued)
-operators in Mathlib first, which is left as future work. -/
-theorem exists_maximal_monotone_extension
-    {H : Type*} [NormedAddCommGroup H] [InnerProductSpace ℝ H]
-    {H₀ : Set H} (_hH₀_open : IsOpen H₀) (_hH₀_convex : Convex ℝ H₀)
-    (Q : H → H) (_hQ_cont : ContinuousOn Q H₀)
-    (_hQ_mono : ∀ u ∈ H₀, ∀ v ∈ H₀, 0 ≤ inner ℝ (u - v) (Q u - Q v)) :
-    True := trivial
 
 end Irn

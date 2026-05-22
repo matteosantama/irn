@@ -198,7 +198,7 @@ point. Specifically, for `r = ‖u − u₀‖_{∇²f(u₀)} < 1` and any direc
 `h ∈ V`:
 `(1 − r)² ⟨h, ∇²f(u₀) h⟩ ≤ ⟨h, ∇²f(u) h⟩ ≤ (1 − r)⁻² ⟨h, ∇²f(u₀) h⟩`.
 
-This is **paper §6.3 Lemma 15 step (i)** ("self-concordance of `W`"):
+This is **paper §6.3 Lemma 16 step (i)** ("self-concordance of `W`"):
 the Lipschitz constant of `∇²f` in the local SC norm is an absolute
 constant. It is the analytic input that lets the Newton–Kantorovich
 analysis give a basin radius `ρ*` independent of `μ` — without it the
@@ -249,7 +249,7 @@ lemma self_concordant_abs_third {K : Set V} {ν : ℕ} {d : ℕ∞}
   exact (abs_le_of_sq_le_sq' h_abs_sq_le h_rhs_nn).2
 
 omit [CompleteSpace V] in
-/-- **Dikin-ball Hessian Lipschitz bound (paper §6.3 Lemma 15 step (i)).**
+/-- **Dikin-ball Hessian Lipschitz bound (paper §6.3 Lemma 16 step (i)).**
 For `u, u₀ ∈ int K` such that the SC-norm displacement
 `r² := ⟨u − u₀, ∇²f(u₀)(u − u₀)⟩` is less than `1`, the Hessian
 quadratic form satisfies the multiplicative bound

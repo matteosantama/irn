@@ -1,5 +1,5 @@
 /-
-# Sphere geometry, tangentiality, error bound (paper §3, §7.1)
+# Sphere geometry, tangentiality, error bound (paper §3, §5.3)
 
 The sphere `Sr ⊆ H`, the orthogonal projector `P_u` onto the tangent
 space, the tangentiality lemma, the a-posteriori error bound, and the
@@ -10,8 +10,8 @@ Paper references:
 * §3.1 Lemma 5 (tangentiality) → `tangent_T`
 * §3.3 Theorem 8 (a posteriori error bound) → `error_bound`,
   `error_bound_tangent`
-* §7.1 eq. `eq:exp-map` (geodesic exp) → `expMap`
-* §7.1 Proposition 17 (exact sphericity of `exp_u`) → `expMap_mem_sphere`
+* §5.3 eq. `eq:retraction` (geodesic exp) → `expMap`
+* §5.3 Proposition 10 (exact sphericity of `exp_u`) → `expMap_mem_sphere`
 -/
 
 import Irn.CentralPath
@@ -72,7 +72,7 @@ noncomputable def expMap (𝓢 : IrnSetup X Y) (u v : H X Y) : H X Y :=
       (𝓢.r * Real.sin (‖(0 : H X Y)‖ / 𝓢.r) / ‖(0 : H X Y)‖) • (0 : H X Y) = u
   simp
 
-/-- **Proposition 17 (Exact sphericity of `exp_u`).** For `u ∈ Sr` and
+/-- **Proposition 10 (Exact sphericity of `exp_u`).** For `u ∈ Sr` and
 `v ⟂ u` in the Euclidean sense, `exp_u(v) ∈ Sr`. Orthogonality kills
 the cross term in `‖a u + b v‖²`, and `cos² + sin² = 1` recovers `r²`.
 Handles `v = 0` via `expMap_zero`. Sorry-free. -/
@@ -182,24 +182,6 @@ theorem error_bound_tangent {μ : ℝ} (hμ : 0 < μ) {u : H X Y}
     ‖u - 𝓢.centralPathPoint μ hμ‖ ≤ ‖proj u (𝓢.T μ u)‖ / μ := by
   rw [proj_of_orthogonal u _ (𝓢.tangent_T hμ hS hC)]
   exact 𝓢.error_bound hμ hC
-
-/-- The Newton corrector preserves the constraint set: combining
-Proposition 10 (well-definedness within a basin) and Theorem 11
-(the iterates stay on `Sr ∩ int C`). Built from the two analytic
-hypotheses `rjnStep_norm_sq` and `rjnStep_in_C`. -/
-theorem rjnStep_invariant
-    {μ : ℝ} (hμ : 0 < μ) {u : H X Y} (hS : u ∈ 𝓢.sphere)
-    (hC : u ∈ 𝓢.C_interior) :
-    𝓢.rjnStep μ u ∈ 𝓢.sphere ∧ 𝓢.rjnStep μ u ∈ 𝓢.C_interior := by
-  have h_norm : ‖u‖ = 𝓢.r := hS
-  have h_norm_sq : ‖u‖ ^ 2 = (𝓢.ν : ℝ) + 1 := by
-    rw [h_norm, 𝓢.r_sq]
-  have h_step_norm_sq : ‖𝓢.rjnStep μ u‖ ^ 2 = (𝓢.ν : ℝ) + 1 :=
-    𝓢.rjnStep_norm_sq μ u hμ h_norm_sq hC
-  refine ⟨?_, 𝓢.rjnStep_in_C μ u hμ h_norm_sq hC⟩
-  show ‖𝓢.rjnStep μ u‖ = 𝓢.r
-  unfold r
-  rw [← Real.sqrt_sq (norm_nonneg _), h_step_norm_sq]
 
 end IrnSetup
 

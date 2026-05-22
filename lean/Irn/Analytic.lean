@@ -11,32 +11,20 @@ analytic machinery needed by the path-following analysis:
 * `normWinv`, `normWinv_sq` — the `W(u)⁻¹` dual norm via the
   variational sup characterisation, with triangle, smul, and the
   `‖φ(u)‖_{W⁻¹} ≤ √(ν+1)` bound used in the paper §6.3 proof of
-  Lemma 13.
+  Lemma 14.
 * `W_op`, `hess_op`, `hessian_h`, `hessian_plus_M`, `hessian_h_equiv` —
   the Hessian preconditioner and its sum with `M`, packaged as
   continuous linear equivalences (positive-definite ⇒ invertible in
   finite dimensions).
-* `resolvent_exists` — Minty for `H_k + Ψ` via the scalar quadratic
-  `α θ² + β θ + γ = 0` with `α > 0`, `γ < 0` (intermediate value
-  theorem).
-* `rjnStep`, `rjnLambda` — the Riemannian Josephy–Newton corrector
-  (paper eq. (5.3) with `λ_k = 0`) and the sphere-constraint Lagrange
-  multiplier.
-
-A handful of paper-level results (the two Newton–Kantorovich basins,
-`rjnStep` invariance on the sphere/`C_interior`, the
-fixed-point property at central-path points) remain as `sorry`s —
-these depend on Hessian-norm machinery beyond the current scope.
+* `resolvent_exists` — existence of a solution to the closed-form
+  inverse equation `(H_k + Ψ)(u) = w` (paper §4 Theorem 9) via the
+  scalar quadratic `α θ² + β θ + γ = 0` with `α > 0`, `γ < 0` plus the
+  intermediate value theorem.
 
 Paper references:
-* §6.3 Lemma 13 proof — `normWinv_phi_bound` (the `‖φ‖²_{W⁻¹} ≤ ν+1`
+* §4 Theorem 9 — `resolvent_exists` (input to the closed-form inverse)
+* §6.3 Lemma 14 proof — `normWinv_phi_bound` (the `‖φ‖²_{W⁻¹} ≤ ν+1`
   bound used to derive the transfer constant)
-* §5.3 eq. `eq:rjn` — `rjnStep`, `rjnLambda`
-* §5.5 Proposition 10 — `rjnLambda_at_central`,
-  `rjnLambda_continuousAt_central`
-* §5.6 Theorem 11 — `rjnStep_euclidean_basin` (sorry)
-* §6.3 Lemma 15 — `rjnStep_delta_contraction` (sorry)
-* Appendix — `resolvent_exists` (Minty's theorem for `H_k + Ψ`)
 -/
 
 import Irn.Setting
@@ -676,10 +664,11 @@ private lemma quad_has_pos_root (a b c : ℝ) (ha : 0 < a) (hc : c < 0) :
   · exfalso; rw [← h] at hθ_eq; simp [hf_def] at hθ_eq; linarith
   · exact h
 
-/-! ### Minty's resolvent existence -/
+/-! ### Existence for the closed-form inverse (paper §4 Theorem 9) -/
 
-/-- **Minty's theorem applied to `H_k + Ψ`.** The augmented Newton
-inclusion has a positive scalar `θ` and a primal `u ∈ C_+`.
+/-- **Existence of a solution to `(H_k + Ψ)(u) = w`.** Reformulating
+the closed-form inverse of paper Theorem 9: the augmented Newton
+equation has a positive scalar `θ` and a primal `u ∈ C_+`.
 
 The proof reduces to the existence of a positive root of a scalar
 quadratic. Given `H_k + M` invertible (via `hessian_plus_M`), define
@@ -782,103 +771,6 @@ theorem resolvent_exists : ∀ μ : ℝ, ∀ u_k z : H X Y, 0 < μ →
       linarith [𝓢.Px_bilinform_self_nonneg (𝓢.x_proj u)]
     nlinarith [h_scalar]
   exact ⟨u, h_cplus, θ, hθ_pos, h_newton, h_scalar⟩
-
-/-! ### Riemannian Josephy–Newton corrector and multiplier -/
-
-/-- The Riemannian Josephy–Newton corrector (paper eq. (5.3) with
-`λ_k = 0`, the ambient variable-metric Josephy–Newton step). Defined as
-the variable-metric resolvent of `Ψ = Q + μ ∂G*` at
-`z = u_k - H_k⁻¹ h(u_k)`, where `H_k = μ I + μ ∇²F*(u_k)` is the Hessian
-preconditioner and `h(u) = μ u + μ ∇f*(y_proj u)` is the smooth part of
-the splitting (using **only** the y-block of the barrier gradient — the
-τ-block `(-1/τ) e_τ` goes into `Ψ`). The choice of `z` ensures the
-central-path point `u*(μ)` is a fixed point of `rjnStep μ`. Outside the
-domain where `μ > 0` and `u_k ∈ C_interior`, returns `0`. -/
-noncomputable def rjnStep (𝓢 : IrnSetup X Y) (μ : ℝ) (u_k : H X Y) : H X Y :=
-  haveI : Decidable (0 < μ ∧ u_k ∈ 𝓢.C_interior) := Classical.dec _
-  if h : 0 < μ ∧ u_k ∈ 𝓢.C_interior then
-    let z := u_k - (𝓢.hessian_h_equiv μ h.1 u_k h.2).symm
-      (μ • u_k + μ • 𝓢.f_lhscb.grad u_k)
-    Classical.choose (𝓢.resolvent_exists μ u_k z h.1 h.2)
-  else 0
-
-/-- The sphere-constraint Lagrange multiplier (paper Proposition 10).
-Defined as the constant-zero function; the paper's actual `λ_k` is
-determined by the scalar equation `φ(λ) = 0` of paper §5.5 (closed
-form: a quadratic in `λ` for Variants B/C, a quartic for Variant A).
-The constant-zero definition suffices for current downstream consumers,
-which only need the vanishing at central-path points and local
-continuity. -/
-noncomputable def rjnLambda (_ : IrnSetup X Y) (_ : ℝ) (_ : H X Y) : ℝ := 0
-
-/-- **Fixed-point property.** The central-path point `u*(μ)` is a
-fixed point of `rjnStep μ`. This is the key sanity check for the
-definition of `rjnStep`: at `u_k = u*`, the Newton equation
-`(H_k + M) u = H_k z + θ e_τ` with `z = u* - H_k⁻¹ h(u*)` admits
-`u = u*` and `θ = (Px* + μ)/τ*` as a solution (both the vector and
-scalar equations hold at this point).
-
-**Sorried** — requires uniqueness of the resolvent (i.e., the scalar
-quadratic has a unique positive root), which holds since
-`α θ² + β θ + γ = 0` with `α > 0`, `γ < 0` has Vieta product
-`θ₁ θ₂ = γ/α < 0`, so at most one positive root. -/
-theorem rjnStep_fixed_point (μ : ℝ) (hμ : 0 < μ) :
-    𝓢.rjnStep μ (𝓢.centralPathPoint μ hμ) = 𝓢.centralPathPoint μ hμ := sorry
-
-/-- **Proposition 10 (Existence of `λ_k`).** `rjnLambda μ` evaluates to
-`0` at central-path points. -/
-theorem rjnLambda_at_central : ∀ μ : ℝ, ∀ u : H X Y, 0 < μ →
-    u ∈ 𝓢.C_interior →
-    𝓢.Q u + μ • u + μ • 𝓢.φ u = 0 → 𝓢.rjnLambda μ u = 0 := by
-  intros; rfl
-
-/-- **Proposition 10 (continued).** `rjnLambda μ` is continuous at the
-central-path point. -/
-theorem rjnLambda_continuousAt_central : ∀ μ : ℝ, ∀ u : H X Y, 0 < μ →
-    u ∈ 𝓢.C_interior →
-    𝓢.Q u + μ • u + μ • 𝓢.φ u = 0 →
-    ContinuousAt (𝓢.rjnLambda μ) u := by
-  intros; exact continuousAt_const
-
-/-- The corrector preserves the squared-norm constraint `‖u‖² = ν + 1`
-(the sphere `Sr`). -/
-theorem rjnStep_norm_sq : ∀ μ : ℝ, ∀ u : H X Y, 0 < μ →
-    ‖u‖ ^ 2 = (𝓢.ν : ℝ) + 1 → u ∈ 𝓢.C_interior →
-    ‖𝓢.rjnStep μ u‖ ^ 2 = (𝓢.ν : ℝ) + 1 := sorry
-
-/-- The corrector preserves the interior cone `int C`. -/
-theorem rjnStep_in_C : ∀ μ : ℝ, ∀ u : H X Y, 0 < μ →
-    ‖u‖ ^ 2 = (𝓢.ν : ℝ) + 1 → u ∈ 𝓢.C_interior →
-    𝓢.rjnStep μ u ∈ 𝓢.C_interior := sorry
-
-/-! ### Newton–Kantorovich contractions -/
-
-/-- **Lemma 15 (Hessian-norm Newton–Kantorovich).** On `Sr ∩ C_interior`,
-one corrector step contracts `δ = ‖T‖_{W⁻¹}/μ` quadratically with
-basin radius `ρ_star` and rate `K_star`. -/
-theorem rjnStep_delta_contraction : ∃ ρ_star K_star : ℝ,
-    0 < ρ_star ∧ ρ_star < 1 ∧ 1 ≤ K_star ∧
-    ∀ μ : ℝ, 0 < μ → ∀ u : H X Y,
-      ‖u‖ ^ 2 = (𝓢.ν : ℝ) + 1 → u ∈ 𝓢.C_interior →
-      𝓢.normWinv u (𝓢.Q u + μ • u + μ • 𝓢.φ u) / μ ≤ ρ_star →
-      𝓢.normWinv (𝓢.rjnStep μ u)
-          (𝓢.Q (𝓢.rjnStep μ u) + μ • (𝓢.rjnStep μ u) +
-            μ • 𝓢.φ (𝓢.rjnStep μ u)) / μ ≤
-        K_star *
-          (𝓢.normWinv u (𝓢.Q u + μ • u + μ • 𝓢.φ u) / μ) ^ 2 := sorry
-
-/-- **Theorem 11 (Euclidean Newton–Kantorovich).** Near each
-central-path point, there is an open `U` and a rate `K` such that the
-corrector stays in `U` and contracts the Euclidean error quadratically. -/
-theorem rjnStep_euclidean_basin : ∀ μ : ℝ, 0 < μ → ∀ u_star : H X Y,
-    u_star ∈ 𝓢.C_interior →
-    𝓢.Q u_star + μ • u_star + μ • 𝓢.φ u_star = 0 →
-    ∃ U : Set (H X Y), IsOpen U ∧ u_star ∈ U ∧
-      ∃ K : ℝ, 0 < K ∧
-      (∀ u ∈ U, ‖u‖ ^ 2 = (𝓢.ν : ℝ) + 1 → u ∈ 𝓢.C_interior →
-         𝓢.rjnStep μ u ∈ U) ∧
-      (∀ u ∈ U, ‖u‖ ^ 2 = (𝓢.ν : ℝ) + 1 → u ∈ 𝓢.C_interior →
-         ‖𝓢.rjnStep μ u - u_star‖ ≤ K * ‖u - u_star‖ ^ 2) := sorry
 
 end IrnSetup
 end Irn
