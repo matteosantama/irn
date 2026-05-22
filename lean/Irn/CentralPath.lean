@@ -464,10 +464,10 @@ both the `C¹` regularity hypothesis of the corrected Minty existence
 theorem and the joint smoothness needed by the IFT proof of
 `centralPathPoint_contDiff`. -/
 
-/-- `(𝓢.d - 1) + 1 = 𝓢.d` (in `ℕ∞ω`): the standard `tsub` identity
+/-- `(𝓢.d - 1) + 1 = 𝓢.d` (in `WithTop ℕ∞`): the standard `tsub` identity
 specialised to our setting (`d ≥ 3 ⇒ 1 ≤ d`). -/
 lemma d_sub_one_add_one_eq :
-    ((𝓢.d - 1 : ℕ∞) : ℕ∞ω) + 1 = ((𝓢.d : ℕ∞) : ℕ∞ω) := by
+    ((𝓢.d - 1 : ℕ∞) : WithTop ℕ∞) + 1 = ((𝓢.d : ℕ∞) : WithTop ℕ∞) := by
   have h1 : (1 : ℕ∞) ≤ 𝓢.d := le_trans (by decide) 𝓢.hd_ge
   have hcancel : (𝓢.d - 1) + 1 = 𝓢.d := tsub_add_cancel_of_le h1
   exact_mod_cast hcancel
@@ -482,7 +482,7 @@ theorem f_lhscb_grad_contDiffOn :
       (fderivWithin ℝ 𝓢.f_lhscb.f (interior 𝓢.K_f_lifted))
       (interior 𝓢.K_f_lifted) := by
     refine 𝓢.f_lhscb.contDiff.fderivWithin isOpen_interior.uniqueDiffOn ?_
-    have h1 : (1 : ℕ∞ω) ≤ ((𝓢.d : ℕ∞) : ℕ∞ω) := by
+    have h1 : (1 : WithTop ℕ∞) ≤ ((𝓢.d : ℕ∞) : WithTop ℕ∞) := by
       have h : (1 : ℕ∞) ≤ 𝓢.d := le_trans (by decide) 𝓢.hd_ge
       exact_mod_cast h
     exact (tsub_add_cancel_of_le h1).le
@@ -680,9 +680,9 @@ theorem T_joint_contDiffAt {μ₀ : ℝ} (_hμ₀ : 0 < μ₀)
       (fun p : ℝ × H X Y => p.1 • 𝓢.φ p.2) (μ₀, u₀) := h_fst.smul h_phi
   exact (h_Q.add h_smulId).add h_smulPhi
 
-/-- `𝓢.d - 1 ≠ 0` (in `ℕ∞ω`): immediate from `𝓢.d ≥ 3` since `d - 1`
+/-- `𝓢.d - 1 ≠ 0` (in `WithTop ℕ∞`): immediate from `𝓢.d ≥ 3` since `d - 1`
 in `ℕ∞` is zero only when `d ≤ 1`, contradicting `3 ≤ d`. -/
-theorem d_sub_one_ne_zero : ((𝓢.d - 1 : ℕ∞) : ℕ∞ω) ≠ 0 := by
+theorem d_sub_one_ne_zero : ((𝓢.d - 1 : ℕ∞) : WithTop ℕ∞) ≠ 0 := by
   intro heq
   have h0 : 𝓢.d - 1 = (0 : ℕ∞) := by exact_mod_cast heq
   have h_le_1 : 𝓢.d ≤ 1 := tsub_eq_zero_iff_le.mp h0
@@ -773,31 +773,56 @@ theorem centralPathPoint_contDiff :
     (𝓢.centralPathPoint_isCentralPathPoint μ₀ hμ₀).1
   have h_cdaT := 𝓢.T_joint_contDiffAt hμ₀ h_C
   have h_inv := 𝓢.T_partial_u_isInvertible hμ₀ h_C
+  -- Mathlib v4.28.0 packages the IFT inputs into `IsContDiffImplicitAt` and
+  -- exposes the implicit function via methods on that struct, instead of as
+  -- a dotted API on `ContDiffAt` directly. Build the struct from `h_cdaT`
+  -- (smoothness) + the differential's bijectivity (from `IsInvertible`).
+  have h_diff : DifferentiableAt ℝ 𝓢.T_joint
+      (μ₀, 𝓢.centralPathPoint μ₀ hμ₀) :=
+    h_cdaT.differentiableAt 𝓢.d_sub_one_ne_zero
+  have h_hasFDeriv : HasFDerivAt 𝓢.T_joint
+      (fderiv ℝ 𝓢.T_joint (μ₀, 𝓢.centralPathPoint μ₀ hμ₀))
+      (μ₀, 𝓢.centralPathPoint μ₀ hμ₀) := h_diff.hasFDerivAt
+  have h_bij : Function.Bijective
+      ((fderiv ℝ 𝓢.T_joint (μ₀, 𝓢.centralPathPoint μ₀ hμ₀)).comp
+        (ContinuousLinearMap.inr ℝ ℝ (H X Y)) : H X Y → H X Y) := by
+    obtain ⟨A, hA⟩ := h_inv
+    rw [← hA]
+    exact A.bijective
+  let h_isImpl : IsContDiffImplicitAt (𝓢.d - 1) 𝓢.T_joint
+      (fderiv ℝ 𝓢.T_joint (μ₀, 𝓢.centralPathPoint μ₀ hμ₀))
+      (μ₀, 𝓢.centralPathPoint μ₀ hμ₀) :=
+    { hasFDerivAt := h_hasFDeriv
+      contDiffAt := h_cdaT
+      bijective := h_bij
+      ne_zero := 𝓢.d_sub_one_ne_zero }
   -- IFT: the implicit function `ψ` of `T_joint` is `C^(d-1)` at `μ₀`.
-  set ψ : ℝ → H X Y :=
-    h_cdaT.implicitFunction 𝓢.d_sub_one_ne_zero h_inv with hψ_def
+  set ψ : ℝ → H X Y := h_isImpl.implicitFunction with hψ_def
   have h_implicit_cd : ContDiffAt ℝ (𝓢.d - 1) ψ μ₀ :=
-    h_cdaT.contDiffAt_implicitFunction 𝓢.d_sub_one_ne_zero h_inv
+    h_isImpl.contDiffAt_implicitFunction
   -- `ψ` equals `centralPathMap` on a neighbourhood of `μ₀`:
-  -- 1. `ψ μ₀ = u*(μ₀) ∈ C_interior` (apply_self), and `ψ` is continuous,
-  --    so `ψ μ ∈ C_interior` for `μ` near `μ₀` (since `C_interior` is open).
+  -- 1. `ψ μ₀ = u*(μ₀) ∈ C_interior` (derived from the apply equation + uniqueness),
+  --    and `ψ` is continuous, so `ψ μ ∈ C_interior` for `μ` near `μ₀`.
   -- 2. By IFT, `T_joint (μ, ψ μ) = T_joint (μ₀, u*(μ₀)) = 0` near `μ₀`.
   -- 3. So `(ψ μ, μ)` is a central path point at `μ` (for `μ > 0` near `μ₀`),
   --    and by uniqueness `ψ μ = centralPathPoint μ = centralPathMap μ`.
   have h_eq : 𝓢.centralPathMap =ᶠ[nhds μ₀] ψ := by
+    have h_T_base : 𝓢.T_joint (μ₀, 𝓢.centralPathPoint μ₀ hμ₀) = 0 :=
+      (𝓢.centralPathPoint_isCentralPathPoint μ₀ hμ₀).2
+    -- `apply_implicitFunction : ∀ᶠ μ in 𝓝 μ₀, T_joint (μ, ψ μ) = T_joint (μ₀, u₀)`.
+    have h_T_apply : ∀ᶠ μ in nhds μ₀,
+        𝓢.T_joint (μ, ψ μ) = 𝓢.T_joint (μ₀, 𝓢.centralPathPoint μ₀ hμ₀) :=
+      h_isImpl.apply_implicitFunction
+    -- `ψ μ₀ = u*(μ₀)`: use `eventually_implicitFunction_apply_eq` at the
+    -- basepoint `(μ₀, u*(μ₀))`, where the `f xy = f a` premise is `rfl`.
     have h_ψ_self : ψ μ₀ = 𝓢.centralPathPoint μ₀ hμ₀ :=
-      h_cdaT.implicitFunction_apply_self 𝓢.d_sub_one_ne_zero h_inv
+      h_isImpl.eventually_implicitFunction_apply_eq.self_of_nhds rfl
     have h_ψ_cont : ContinuousAt ψ μ₀ := h_implicit_cd.continuousAt
     have h_ψ_in_C : ∀ᶠ μ in nhds μ₀, ψ μ ∈ 𝓢.C_interior := by
       have h_self_in : ψ μ₀ ∈ 𝓢.C_interior := h_ψ_self ▸ h_C
       exact h_ψ_cont (𝓢.C_interior_isOpen.mem_nhds h_self_in)
     have h_μ_pos : ∀ᶠ μ in nhds μ₀, 0 < μ :=
       isOpen_Ioi.mem_nhds hμ₀
-    have h_T_base : 𝓢.T_joint (μ₀, 𝓢.centralPathPoint μ₀ hμ₀) = 0 :=
-      (𝓢.centralPathPoint_isCentralPathPoint μ₀ hμ₀).2
-    have h_T_apply :=
-      h_cdaT.eventually_apply_implicitFunction 𝓢.d_sub_one_ne_zero h_inv
-    -- `h_T_apply : ∀ᶠ μ in 𝓝 μ₀, T_joint (μ, ψ μ) = T_joint (μ₀, u*(μ₀))`.
     have h_T_zero : ∀ᶠ μ in nhds μ₀, 𝓢.T_joint (μ, ψ μ) = 0 := by
       filter_upwards [h_T_apply] with μ hμ
       rw [hμ, h_T_base]

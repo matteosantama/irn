@@ -261,7 +261,7 @@ is short:
    uniqueness of `λ_k`, and via the single-valuedness of step (1),
    of `v_k`. -/
 
-set_option maxHeartbeats 800000 in
+set_option maxHeartbeats 1600000 in
 /-- **Global uniqueness of the RJN tangent direction** (paper
 §5.5 Proposition 11(a)). For every `u_k ∈ Sr ∩ int C`, at most one
 `v` satisfies `IsRjnSolution μ u_k v`.
@@ -660,6 +660,7 @@ theorem rjn_discriminant_pos {μ : ℝ} (hμ : 0 < μ) (w : H X Y) :
       / 𝓢.tau_proj u_star) := div_pos hμ hθ_pos
   linarith [𝓢.rjn_discriminant_ge_mu_div_θ hμ w]
 
+set_option maxHeartbeats 800000 in
 /-- **Kernel triviality of the partial Jacobian at the central-path
 basepoint.** Suppose `(dv, dlam, dth) ∈ H × ℝ × ℝ` satisfies the
 linearised RJN system at `(u*, 0, 0, θ*)`:
@@ -970,7 +971,7 @@ theorem rjnSystem_contDiffAt {μ : ℝ} (hμ : 0 < μ) :
   -- f_lhscb.grad u_k is C^(d-1) at u_star ∈ C_interior, hence C^1.
   have h_grad_at_uk : ContDiffAt ℝ (𝓢.d - 1) 𝓢.f_lhscb.grad u_star :=
     𝓢.f_lhscb_grad_contDiffAt (𝓢.C_interior_subset_f_lhscb_interior hC_star)
-  have h_d1_ge : (1 : ℕ∞ω) ≤ ((𝓢.d - 1 : ℕ∞) : ℕ∞ω) := by
+  have h_d1_ge : (1 : WithTop ℕ∞) ≤ ((𝓢.d - 1 : ℕ∞) : WithTop ℕ∞) := by
     have h : (2 : ℕ∞) ≤ 𝓢.d := le_trans (by decide) 𝓢.hd_ge
     have hcalc : (1 : ℕ∞) ≤ 𝓢.d - 1 := by
       calc (1 : ℕ∞) = 2 - 1 := by decide
