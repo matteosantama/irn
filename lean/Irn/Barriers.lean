@@ -52,6 +52,8 @@ import Mathlib.Analysis.Calculus.ContDiff.Basic
 import Mathlib.Analysis.Calculus.ContDiff.FTaylorSeries
 import Mathlib.Analysis.Calculus.ContDiff.Operations
 import Mathlib.Analysis.Calculus.FDeriv.Symmetric
+import Mathlib.Analysis.Calculus.IteratedDeriv.Defs
+import Mathlib.Analysis.Convex.Topology
 import Mathlib.Analysis.InnerProductSpace.Basic
 import Mathlib.Analysis.InnerProductSpace.Calculus
 import Mathlib.Analysis.InnerProductSpace.Dual
@@ -77,6 +79,12 @@ structure LHSCB (V : Type*)
   self-concordance bound, which uses third-order derivatives, is well
   defined). -/
   hd_ge : (3 : ℕ∞) ≤ d
+  /-- The domain `K` is convex. Together with the LHSCB structure this
+  expresses that `f` is a barrier for a convex (cone) domain — the
+  setting in which the Nesterov–Nemirovski machinery applies. The
+  `interior K` is then also convex (`Convex.interior`), so the segment
+  `[u₀, u]` between any two interior points lies in `interior K`. -/
+  convex_K : Convex ℝ K
   /-- The barrier function. -/
   f : V → ℝ
   /-- `f` is `C^d` on `int(K)`. -/
@@ -248,6 +256,91 @@ lemma self_concordant_abs_third {K : Set V} {ν : ℕ} {d : ℕ∞}
     rw [sq_abs, h_rhs_sq]; exact hsc
   exact (abs_le_of_sq_le_sq' h_abs_sq_le h_rhs_nn).2
 
+/-! ### Dikin-ball Hessian Lipschitz bound — scaffold
+
+The bound is decomposed into four auxiliary lemmas plus a top-level
+theorem, following the standard Nesterov–Nemirovski outline:
+
+1. `segment_in_interior` — the line segment `[u₀, u]` stays in
+   `interior K` (convex preimage of `interior K`, which is itself
+   convex by `Convex.interior` on `f.convex_K`).
+2. `dikin_path_metric_bound` — the seed `a(t) ≤ a(0)/(1 − tr)²`
+   estimate from the diagonal SC ODE.
+3. `path_hess_deriv_bound` — the polarized derivative bound for
+   `t ↦ hess f (u₀ + t·(u−u₀)) h`.
+4. `path_hess_integrated_bound` — integrate (3) against (2) to get
+   `(1−r)² · hess f u₀ h ≤ hess f u h ≤ (1−r)⁻² · hess f u₀ h`.
+
+The final `hessian_dikin_bound` is then just a thin wrapper that
+unfolds `hess` back to the `iteratedFDerivWithin`-spelling used
+downstream. All five carry `sorry` for now. -/
+
+end LHSCB
+
+/-- Convenience abbreviation for the Hessian quadratic form
+`D²f(x)[h, h]` taken inside `interior K`. -/
+noncomputable def hess {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
+    (f : V → ℝ) (K : Set V) (x h : V) : ℝ :=
+  iteratedFDerivWithin ℝ 2 f (interior K) x (fun _ => h)
+
+/-- The local Hessian-induced (semi)norm along direction `v`:
+`‖v‖_{∇²f(x)} = √(D²f(x)[v,v])`. -/
+noncomputable def local_norm {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
+    (f : V → ℝ) (K : Set V) (x v : V) : ℝ :=
+  Real.sqrt (hess f K x v)
+
+/-- The interior of a convex set is convex, so the segment between
+two interior points lies in the interior. -/
+lemma segment_in_interior {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
+    {K : Set V} (hK_convex : Convex ℝ K)
+    (u₀ : V) (hu₀ : u₀ ∈ interior K)
+    (u : V) (hu : u ∈ interior K) :
+    ∀ t ∈ Set.Icc (0:ℝ) 1, u₀ + t • (u - u₀) ∈ interior K := by
+  sorry
+
+namespace LHSCB
+
+variable {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
+  [CompleteSpace V]
+
+/-- **Lemma 1.** Diagonal Dikin metric bound along the segment.
+For `t ∈ [0, 1]` and `r = √(hess f u₀ (u−u₀)) < 1`, the local norm of
+the displacement at `u₀ + t·(u−u₀)` is bounded by `r/(1 − tr)`. -/
+lemma dikin_path_metric_bound {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
+    {K : Set V} {ν : ℕ} {d : ℕ∞}
+    (f : LHSCB V K ν d) (hK_convex : Convex ℝ K)
+    (u₀ u : V) (hu₀ : u₀ ∈ interior K) (hu : u ∈ interior K)
+    (t : ℝ) (ht : t ∈ Set.Icc (0:ℝ) 1)
+    (r : ℝ) (hr_pos : 0 ≤ r) (hr_lt_one : r < 1)
+    (h_in_ball : hess f.f K u₀ (u - u₀) ≤ r ^ 2) :
+    local_norm f.f K (u₀ + t • (u - u₀)) (u - u₀) ≤ r / (1 - t * r) := by
+  sorry
+
+/-- **Lemma 2.** Polarized self-concordance bound along the segment:
+the derivative of `t ↦ hess f (u₀ + t·(u−u₀)) h` is bounded by
+`2 · hess f (·) h · local_norm f (·) (u−u₀)`. -/
+lemma path_hess_deriv_bound {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
+    {K : Set V} {ν : ℕ} {d : ℕ∞}
+    (f : LHSCB V K ν d) (hK_convex : Convex ℝ K)
+    (u₀ u h : V) (hu₀ : u₀ ∈ interior K) (hu : u ∈ interior K)
+    (t : ℝ) (ht : t ∈ Set.Ioo (0:ℝ) 1) :
+    ∃ H', HasDerivAt (fun s => hess f.f K (u₀ + s • (u - u₀)) h) H' t ∧
+          |H'| ≤ 2 * hess f.f K (u₀ + t • (u - u₀)) h *
+                 local_norm f.f K (u₀ + t • (u - u₀)) (u - u₀) := by
+  sorry
+
+/-- **Lemma 3.** Integrating Lemma 2 against Lemma 1 from `0` to `1`:
+`(1−r)² · hess f u₀ h ≤ hess f u h ≤ (1−r)⁻² · hess f u₀ h`. -/
+lemma path_hess_integrated_bound {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
+    {K : Set V} {ν : ℕ} {d : ℕ∞}
+    (f : LHSCB V K ν d) (hK_convex : Convex ℝ K)
+    (u₀ u h : V) (hu₀ : u₀ ∈ interior K) (hu : u ∈ interior K)
+    (r : ℝ) (hr_pos : 0 ≤ r) (hr_lt_one : r < 1)
+    (h_in_ball : hess f.f K u₀ (u - u₀) ≤ r ^ 2) :
+    (1 - r) ^ 2 * hess f.f K u₀ h ≤ hess f.f K u h ∧
+    hess f.f K u h ≤ (1 - r) ^ (-2 : ℝ) * hess f.f K u₀ h := by
+  sorry
+
 omit [CompleteSpace V] in
 /-- **Dikin-ball Hessian Lipschitz bound (paper §6.3 Lemma 16 step (i)).**
 For `u, u₀ ∈ int K` such that the SC-norm displacement
@@ -258,18 +351,14 @@ for every direction `h`. The constants depend only on `r` — not on
 `u₀`, `K`, or the LHSCB barrier parameter `ν` — which is what makes
 the LHSCB Newton–Kantorovich basin radius an *absolute* constant.
 
-**Sorry.** Proof outline above; chains polarization of the squared SC
-bound with an ODE argument for the diagonal `a(t)^(−1/2)` derivative,
-plus an integration of `2r/(1−sr)` for the polarized lift. The
-foundational `self_concordant_abs_third` lemma (the un-squared SC form)
-is the un-blocked first step. -/
+Now a thin wrapper around `path_hess_integrated_bound`; the analytic
+content lives in the four scaffold lemmas above. -/
 theorem hessian_dikin_bound {K : Set V} {ν : ℕ} {d : ℕ∞}
-    (f : LHSCB V K ν d)
+    (f : LHSCB V K ν d) (hK_convex : Convex ℝ K)
     (u₀ : V) (hu₀ : u₀ ∈ interior K)
     (u : V) (hu : u ∈ interior K)
-    (_h_segment : ∀ t ∈ Set.Icc (0:ℝ) 1, u₀ + t • (u - u₀) ∈ interior K)
-    (r : ℝ) (_hr_pos : 0 ≤ r) (_hr_lt_one : r < 1)
-    (_h_in_ball :
+    (r : ℝ) (hr_pos : 0 ≤ r) (hr_lt_one : r < 1)
+    (h_in_ball :
       iteratedFDerivWithin ℝ 2 f.f (interior K) u₀ (fun _ => u - u₀) ≤ r ^ 2) :
     ∀ h : V,
       (1 - r) ^ 2 *
@@ -278,7 +367,8 @@ theorem hessian_dikin_bound {K : Set V} {ν : ℕ} {d : ℕ∞}
       iteratedFDerivWithin ℝ 2 f.f (interior K) u (fun _ => h) ≤
         (1 - r) ^ (-2 : ℝ) *
           iteratedFDerivWithin ℝ 2 f.f (interior K) u₀ (fun _ => h) := by
-  sorry
+  intro h
+  exact path_hess_integrated_bound f hK_convex u₀ u h hu₀ hu r hr_pos hr_lt_one h_in_ball
 
 /-- **Sum of LHSCBs.** A `ν₁`-LHSCB on `K₁` plus a `ν₂`-LHSCB on `K₂`
 is a `(ν₁+ν₂)`-LHSCB on `K₁ ∩ K₂` of smoothness `min d₁ d₂`. -/
@@ -286,6 +376,7 @@ noncomputable def add {K₁ K₂ : Set V} {ν₁ ν₂ : ℕ} {d₁ d₂ : ℕ�
     (f : LHSCB V K₁ ν₁ d₁) (g : LHSCB V K₂ ν₂ d₂) :
     LHSCB V (K₁ ∩ K₂) (ν₁ + ν₂) (min d₁ d₂) where
   hd_ge := le_min f.hd_ge g.hd_ge
+  convex_K := f.convex_K.inter g.convex_K
   f := fun v => f.f v + g.f v
   contDiff := by
     have hmin1 : (min d₁ d₂ : WithTop ℕ∞) ≤ (d₁ : WithTop ℕ∞) := by

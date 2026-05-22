@@ -433,6 +433,12 @@ identity, gradient monotonicity, and log-homogeneity transport from
 `fBarrier`. -/
 noncomputable def f_lhscb : LHSCB (H X Y) 𝓢.K_f_lifted 𝓢.ν 𝓢.d where
   hd_ge := 𝓢.hd_ge
+  -- `K_f_lifted = y_proj⁻¹(K)` is the linear preimage of `𝓢.K` under
+  -- the CLM `y_proj_linear`; preimages of convex sets under linear
+  -- maps are convex.
+  convex_K :=
+    𝓢.fBarrier.convex_K.linear_preimage
+      (IrnSetup.y_proj_linear : H X Y →L[ℝ] Y).toLinearMap
   f u := 𝓢.fBarrier.f (𝓢.y_proj u)
   contDiff := by
     -- `f_lhscb.f = fBarrier.f ∘ y_proj_linear`. Smoothness transports
@@ -657,6 +663,11 @@ is `(-1/tau_proj u) • e_τ`; Euler uses `inner_u_e_tau`; monotonicity
 uses `(τ_u - τ_v)² / (τ_u τ_v) ≥ 0`. -/
 noncomputable def g_lhscb : LHSCB (H X Y) 𝓢.K_g_lifted 1 𝓢.d where
   hd_ge := 𝓢.hd_ge
+  -- `K_g_lifted = tau_proj⁻¹(Set.Ici 0)`; `Set.Ici 0` is convex and
+  -- `tau_proj_linear` is a CLM, so the preimage is convex.
+  convex_K :=
+    (convex_Ici (0 : ℝ)).linear_preimage
+      (IrnSetup.tau_proj_linear : H X Y →L[ℝ] ℝ).toLinearMap
   f := fun u => -Real.log (𝓢.tau_proj u)
   contDiff := by
     -- `-Real.log ∘ tau_proj_linear` is `C^d` on `Cplus = {τ > 0}` since
