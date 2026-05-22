@@ -377,11 +377,11 @@ theorem rjnDirection_quadratic_basin {μ : ℝ} (hμ : 0 < μ) :
   exact ⟨h_lin u h_in_ε₁ hu_S, h_quad u h_in_ε₂ hu_S⟩
 
 /-- **Quadratic basin from tangent + retraction.** Combines
-`rjnDirection_quadratic_basin` (the tangent step half, sorry) with
-`Sphere.expMap_sub_add_norm_le` (the retraction half, proven) via
-triangle inequality. The combined contraction constant is
-`K = C² / r + K_tan`; the self-mapping basin shrinks to
-`min(ε, 1/(2K))/2`. -/
+`rjnDirection_quadratic_basin` (the tangent step half, derived from
+two analytic sorries) with `Sphere.expMap_sub_add_norm_le` (the
+retraction half, proven) via triangle inequality. The combined
+contraction constant is `K = C² / r + K_tan`; the self-mapping basin
+shrinks to `min(ε, 1/(2K))/2`. -/
 theorem rjnStep_quadratic_basin {μ : ℝ} (hμ : 0 < μ) :
     ∃ U : Set (H X Y), IsOpen U ∧ 𝓢.centralPathPoint μ hμ ∈ U ∧
       U ⊆ 𝓢.C_interior ∧
@@ -546,10 +546,12 @@ starting from any `u₀ ∈ U ∩ Sr ∩ int C`, the iterates
 
 Packages the basin theorem `rjnStep_quadratic_basin` together with
 `rjnStep_mem_sphere` into a recursive sequence; interior preservation
-falls out of `U ⊆ C_interior`. The only remaining analytic sorry in
-this proof chain is `rjnDirection_quadratic_basin` (the tangent step
-half of Theorem 12); the retraction half is fully formalized in
-`Sphere.expMap_sub_add_norm_le`. -/
+falls out of `U ⊆ C_interior`. The analytic sorries remaining in this
+proof chain are `IsRjnSolution_at_centralPath_unique`,
+`rjnDirection_locallyLipschitz`, and
+`rjnDirection_tangent_step_quadratic_bound` (all under paper
+Proposition 11 / Theorem 12); the retraction half is fully formalized
+in `Sphere.expMap_sub_add_norm_le`. -/
 theorem rjnStep_quadratic_convergence {μ : ℝ} (hμ : 0 < μ) :
     ∃ U : Set (H X Y), IsOpen U ∧ 𝓢.centralPathPoint μ hμ ∈ U ∧
       ∀ u₀ ∈ U, u₀ ∈ 𝓢.sphere → u₀ ∈ 𝓢.C_interior →
