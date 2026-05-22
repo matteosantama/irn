@@ -85,7 +85,7 @@ def IsRjnSolution (𝓢 : IrnSetup X Y) (μ : ℝ) (u_k v : H X Y) : Prop :=
   `Q(u_k) = M u_k - (Pₓ/τ) e_τ`;
 * the scalar equation `θ_k · τ(u_k) = Pₓ(u_k, u_k) + μ` is the
   definition of `θ_k`. -/
-theorem IsRjnSolution_zero_at_centralPath (𝓢 : IrnSetup X Y) {μ : ℝ}
+theorem IsRjnSolution.zero_at_centralPath (𝓢 : IrnSetup X Y) {μ : ℝ}
     (hμ : 0 < μ) :
     𝓢.IsRjnSolution μ (𝓢.centralPathPoint μ hμ) 0 := by
   set u_k := 𝓢.centralPathPoint μ hμ with hu_k_def
@@ -150,9 +150,9 @@ theorem IsRjnSolution_zero_at_centralPath (𝓢 : IrnSetup X Y) {μ : ℝ}
 function: returns the (Classical-choose-extracted) tangent direction
 satisfying `IsRjnSolution` when one exists, otherwise falls back to
 `0`. The existence branch covers at least `u_k = u*(μ)` (via
-`IsRjnSolution_zero_at_centralPath`); local existence on a
+`IsRjnSolution.zero_at_centralPath`); local existence on a
 neighbourhood of `u*(μ)` is paper Proposition 11(b). Global
-uniqueness from paper Proposition 11(a) (`IsRjnSolution_unique`)
+uniqueness from paper Proposition 11(a) (`IsRjnSolution.unique`)
 makes the `Classical.choose` value canonical wherever a solution
 exists, not merely well-defined. -/
 noncomputable def rjnDirection (𝓢 : IrnSetup X Y) (μ : ℝ) (u_k : H X Y) :
@@ -173,14 +173,14 @@ theorem rjnDirection_isRjnSolution_or_zero (𝓢 : IrnSetup X Y)
 
 /-- At `u_k = u*(μ)`, `rjnDirection` lands in the existence branch —
 i.e., it is an actual Riemannian semi-Newton direction (not the
-fallback). Follows from `IsRjnSolution_zero_at_centralPath`. -/
+fallback). Follows from `IsRjnSolution.zero_at_centralPath`. -/
 theorem rjnDirection_isRjnSolution_at_centralPath (𝓢 : IrnSetup X Y)
     {μ : ℝ} (hμ : 0 < μ) :
     𝓢.IsRjnSolution μ (𝓢.centralPathPoint μ hμ)
       (𝓢.rjnDirection μ (𝓢.centralPathPoint μ hμ)) := by
   unfold rjnDirection
   have h : ∃ v, 𝓢.IsRjnSolution μ (𝓢.centralPathPoint μ hμ) v :=
-    ⟨0, 𝓢.IsRjnSolution_zero_at_centralPath hμ⟩
+    ⟨0, IsRjnSolution.zero_at_centralPath 𝓢 hμ⟩
   rw [dif_pos h]
   exact Classical.choose_spec h
 
@@ -319,7 +319,7 @@ tangency clause in `IsRjnSolution` already supplies
 `⟨u_k, v_i⟩ = 0`, which is the only sphere-related fact entering
 the argument. It is kept in the signature to match paper
 Proposition 11. -/
-theorem IsRjnSolution_unique {μ : ℝ} (hμ : 0 < μ)
+theorem IsRjnSolution.unique {μ : ℝ} (hμ : 0 < μ)
     {u_k : H X Y} (_hu_k_S : u_k ∈ 𝓢.sphere) (hu_k_C : u_k ∈ 𝓢.C_interior)
     {v₁ v₂ : H X Y}
     (h₁ : 𝓢.IsRjnSolution μ u_k v₁) (h₂ : 𝓢.IsRjnSolution μ u_k v₂) :
@@ -384,8 +384,7 @@ theorem IsRjnSolution_unique {μ : ℝ} (hμ : 0 < μ)
     congr 1
     · show inner ℝ Δu (μ • 𝓢.W_op u_k Δu) = μ * Wq
       rw [real_inner_smul_right, 𝓢.inner_self_W_op_eq_W_quad u_k hu_k_C]
-    · show inner ℝ Δu (𝓢.M_apply Δu) = PxΔΔ
-      rw [𝓢.inner_u_M Δu]; rfl
+    · exact 𝓢.inner_u_M Δu
   -- (♠): μ Wq + PxΔΔ = (θ₁ - θ₂) τΔ.
   have h_eq_W : μ * Wq + PxΔΔ = (θ₁ - θ₂) * τΔ := by
     rw [← h_inner_expand]; exact h_inner_eq1
@@ -555,7 +554,7 @@ theorem to the joint RJN system
 `G(u_k, v, λ, θ) = (Newton, tangency, scalar)`. The IFT gives a
 smooth implicit function `ψ : nhd u*(μ) → H × ℝ × ℝ` with
 `ψ(u*) = (0, 0, θ*)`; the global uniqueness lemma
-`IsRjnSolution_unique` then identifies `(ψ u_k).1` with
+`IsRjnSolution.unique` then identifies `(ψ u_k).1` with
 `rjnDirection μ u_k` in a neighbourhood (without needing the
 IFT-branch uniqueness side-condition).
 
@@ -1093,16 +1092,16 @@ theorem rjnSystem_contDiffAt {μ : ℝ} (hμ : 0 < μ) :
 
 /-- **Uniqueness of the RJN tangent solution at `u*(μ)`.** At
 `u_k = u*(μ)` the Riemannian semi-Newton tangent inclusion admits
-`v = 0` as a solution (`IsRjnSolution_zero_at_centralPath`); this
+`v = 0` as a solution (`IsRjnSolution.zero_at_centralPath`); this
 lemma states `v = 0` is the *unique* such solution.
 
 Now a direct corollary of the global-uniqueness lemma
-`IsRjnSolution_unique` (paper §5.5 Proposition 11(a)): given any
+`IsRjnSolution.unique` (paper §5.5 Proposition 11(a)): given any
 two `IsRjnSolution` witnesses at `u_k = u*(μ)`, they are equal;
 applied to the candidate `v` and the witness `0` it yields `v = 0`.
 Sphere membership of `u*(μ)` follows from `centralPath_norm_sq`
 (paper Proposition 4). -/
-theorem IsRjnSolution_at_centralPath_unique {μ : ℝ} (hμ : 0 < μ)
+theorem IsRjnSolution.at_centralPath_unique {μ : ℝ} (hμ : 0 < μ)
     {v : H X Y}
     (hv : 𝓢.IsRjnSolution μ (𝓢.centralPathPoint μ hμ) v) : v = 0 := by
   set u_star := 𝓢.centralPathPoint μ hμ with hu_star_def
@@ -1119,8 +1118,8 @@ theorem IsRjnSolution_at_centralPath_unique {μ : ℝ} (hμ : 0 < μ)
       rw [h_eq_sq]
     rwa [Real.sqrt_sq (norm_nonneg _), Real.sqrt_sq 𝓢.r_pos.le] at h_sqrt
   have h_zero : 𝓢.IsRjnSolution μ u_star 0 :=
-    𝓢.IsRjnSolution_zero_at_centralPath hμ
-  exact 𝓢.IsRjnSolution_unique hμ hu_star_S hu_star_C hv h_zero
+    IsRjnSolution.zero_at_centralPath 𝓢 hμ
+  exact IsRjnSolution.unique 𝓢 hμ hu_star_S hu_star_C hv h_zero
 
 /-- **The Newton direction vanishes at `u*(μ)`.** The base case of
 the basin theorem: at the centre of the basin, `rjnDirection μ u* = 0`,
@@ -1128,10 +1127,10 @@ so both bounds in `rjnDirection_linear_bound` and
 `rjnDirection_tangent_step_quadratic_bound` reduce to `0 ≤ 0`.
 Combines `rjnDirection_isRjnSolution_at_centralPath` (the chosen
 direction is a Variant C solution) with
-`IsRjnSolution_at_centralPath_unique` (the only such solution is `0`). -/
+`IsRjnSolution.at_centralPath_unique` (the only such solution is `0`). -/
 theorem rjnDirection_at_centralPath_eq_zero {μ : ℝ} (hμ : 0 < μ) :
     𝓢.rjnDirection μ (𝓢.centralPathPoint μ hμ) = 0 :=
-  𝓢.IsRjnSolution_at_centralPath_unique hμ
+  IsRjnSolution.at_centralPath_unique 𝓢 hμ
     (𝓢.rjnDirection_isRjnSolution_at_centralPath hμ)
 
 /-- **Local Lipschitz continuity of `rjnDirection`** (sorry — paper
@@ -1143,7 +1142,7 @@ inclusion in the bundle `(v, λ, θ)` is a `C¹` system in `u` whose
 partial derivative in `(v, λ, θ)` at `(u*, 0, 0, θ*)` is invertible.
 The implicit function theorem produces a `C¹` map `u ↦ (v(u), λ(u), θ(u))`
 with `(v(u*), λ(u*), θ(u*)) = (0, 0, θ*)`; combined with the
-*global* uniqueness lemma `IsRjnSolution_unique`, the IFT branch
+*global* uniqueness lemma `IsRjnSolution.unique`, the IFT branch
 `v(u)` agrees with `rjnDirection μ u` on the IFT neighbourhood
 without any further IFT-branch side-condition. Lipschitz continuity
 follows from the bounded derivative of `v` on a compact ball. -/
@@ -1424,7 +1423,7 @@ starting from any `u₀ ∈ U ∩ Sr ∩ int C`, the iterates
 Packages the basin theorem `rjnStep_quadratic_basin` together with
 `rjnStep_mem_sphere` into a recursive sequence; interior preservation
 falls out of `U ⊆ C_interior`. The analytic sorries remaining in this
-proof chain are `IsRjnSolution_unique` (paper Proposition 11(a)),
+proof chain are `IsRjnSolution.unique` (paper Proposition 11(a)),
 `rjnDirection_locallyLipschitz` (paper Proposition 11(b)), and
 `rjnDirection_tangent_step_quadratic_bound` (paper Theorem 12,
 Newton-identity half); the retraction half is fully formalized in

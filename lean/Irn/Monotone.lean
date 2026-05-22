@@ -153,9 +153,9 @@ theorem fderiv_range_eq_top [FiniteDimensional ℝ V]
     (hT_C1 : ContDiffOn ℝ 1 T s)
     (u : V) (hu : u ∈ s) :
     (↑(fderiv ℝ T u) : V →ₗ[ℝ] V).range = ⊤ := by
-  refine' Submodule.eq_top_of_finrank_eq _;
-  refine' LinearMap.finrank_range_of_inj _;
-  refine' fun x y hxy => _;
+  refine Submodule.eq_top_of_finrank_eq ?_
+  refine LinearMap.finrank_range_of_inj ?_
+  refine fun x y hxy => ?_
   have := fderiv_inner_lower_bound hs_open hα hT_mono hT_C1 u hu ( x - y ) ; simp_all +decide ;
   exact sub_eq_zero.mp ( norm_eq_zero.mp ( by contrapose! this; positivity ) )
 /-- The image `T '' s` is open (inverse function theorem). -/
@@ -188,7 +188,7 @@ theorem image_isClosed [FiniteDimensional ℝ V]
     (hT_coercive : ∀ x ∈ frontier s,
       Filter.Tendsto (fun u => ‖T u‖) (nhdsWithin x s) Filter.atTop) :
     IsClosed (T '' s) := by
-  refine' isClosed_iff_clusterPt.mpr fun x hx => _;
+  refine isClosed_iff_clusterPt.mpr fun x hx => ?_
   -- By definition of cluster point, there exists a sequence $(u_n)$ in $s$ such that $T(u_n) \to x$.
   obtain ⟨u_n, hu_n_s, hu_n_T⟩ : ∃ (u_n : ℕ → V), (∀ n, u_n n ∈ s) ∧ Filter.Tendsto (fun n => T (u_n n)) Filter.atTop (nhds x) := by
     rw [ clusterPt_principal_iff ] at hx;
@@ -244,7 +244,7 @@ theorem exists_unique_zero_of_stronglyMonotone_C1_coercive
              image_isOpen hs_open hα hT_mono hT_C1⟩;
     exact IsClopen.eq_univ h_image ( Set.Nonempty.image _ hs_nonempty );
   obtain ⟨ u, hu₁, hu₂ ⟩ := show ∃ u ∈ s, T u = 0 from by simpa using Set.ext_iff.mp h_nonempty 0;
-  refine' ⟨ u, ⟨ hu₁, hu₂ ⟩, fun v ⟨ hv₁, hv₂ ⟩ => _ ⟩;
+  refine ⟨u, ⟨hu₁, hu₂⟩, fun v ⟨hv₁, hv₂⟩ => ?_⟩
   have := hT_mono v hv₁ u hu₁; simp_all +decide ;
   exact sub_eq_zero.mp ( norm_eq_zero.mp ( by contrapose! this; positivity ) )
 /- The original theorem statement below is **false** as stated.
