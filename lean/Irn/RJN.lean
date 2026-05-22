@@ -210,25 +210,51 @@ theorem rjnStep_mem_sphere {μ : ℝ} {u_k : H X Y} (hu_k : u_k ∈ 𝓢.sphere)
 
 /-! ### Quadratic contraction basin (paper §5.6 Theorem 12)
 
-The analytic core of Theorem 12. Existence of an open basin
-`U ⊆ C_interior` around `u*(μ)` such that one Riemannian semi-Newton
-step maps `U ∩ Sr` into `U` and contracts the Euclidean distance to
-`u*(μ)` quadratically. Bundling `U ⊆ C_interior` into the basin
-conclusion makes interior preservation a set-inclusion consequence.
+Paper Theorem 12 decomposes into two pieces by triangle inequality:
 
-**Paper proof sketch (Theorem 12).** The tangent solver is a fixed-point
-map `Φ : u_k ↦ u_k + v_k` with `Φ(u*) = u*` and `Φ'(u*) = 0` on
-`T_{u*}Sr` (the Riemannian Jacobian `J* = P_{u*}(∇h(u*) + ∇Ψ(u*)) P_{u*}`
-is `μ`-coercive, and the first-order term of `Φ` cancels by Newton's
-identity). The Taylor remainder gives `‖u_k + v_k − u*‖ = O(‖u_k − u*‖²)`.
-The geodesic retraction is second-order, adding only `O(‖v_k‖²) =
-O(‖u_k − u*‖²)`. Combining yields the quadratic rate.
+* **Tangent step bound** — the (still sorried) Newton-step half:
+  in a basin of `u*(μ)`, the tangent iterate `u + rjnDirection μ u`
+  is quadratically close to `u*(μ)`, and `‖rjnDirection μ u‖` is
+  linearly bounded by `‖u − u*(μ)‖`. This is the IFT-driven part
+  (Φ'(u*) = 0 plus Taylor remainder).
+* **Retraction bound** — the second-order retraction property of
+  `expMap`: `‖expMap u v − (u + v)‖ ≤ ‖v‖²/r`. Proven in
+  `Sphere.expMap_sub_add_norm_le` from the trigonometric identities.
 
-The full Lean proof requires Mathlib-level infrastructure not yet in
-place: a Newton–Kantorovich theorem with self-concordant Lipschitz
-control of `∇²F*` (paper §6.3 step (i); see
-`LHSCB.hessian_dikin_bound` — also a sorry), and Riemannian Newton on
-embedded submanifolds. -/
+`rjnDirection_quadratic_basin` packages the tangent step half as the
+remaining analytic sorry; `rjnStep_quadratic_basin` is then derived
+from it together with the retraction bound. -/
+
+/-- **Tangent step quadratic bound** (sorry — paper §5.6 Theorem 12,
+"tangent step" half). In a basin of `u*(μ)`, the Newton direction
+`rjnDirection μ u` is linearly bounded by the distance to `u*(μ)`
+(constant `C`), and the tangent iterate `u + rjnDirection μ u` is
+quadratically close to `u*(μ)` (constant `K_tan`). The auxiliary
+hypothesis `C * ε ≤ r` ensures `‖rjnDirection μ u‖ ≤ r` throughout
+the basin, so the retraction bound `expMap_sub_add_norm_le` applies.
+
+**Sorry.** Paper proof: `Φ(u) := u + rjnDirection μ u` is `C¹` near
+`u*(μ)` (implicit function theorem on the tangent inclusion), with
+`Φ(u*) = u*` (fixed point at the central-path point) and `Φ'(u*) = 0`
+on `T_{u*}Sr` (Newton-identity cancellation in tangent coordinates).
+Taylor remainder gives the quadratic bound. Requires Riemannian Newton
+infrastructure not yet in Mathlib. -/
+theorem rjnDirection_quadratic_basin {μ : ℝ} (hμ : 0 < μ) :
+    ∃ ε C K_tan : ℝ, 0 < ε ∧ 0 < C ∧ 0 < K_tan ∧
+      C * ε ≤ 𝓢.r ∧
+      Metric.ball (𝓢.centralPathPoint μ hμ) ε ⊆ 𝓢.C_interior ∧
+      (∀ u : H X Y,
+        u ∈ Metric.ball (𝓢.centralPathPoint μ hμ) ε → u ∈ 𝓢.sphere →
+          ‖𝓢.rjnDirection μ u‖ ≤ C * ‖u - 𝓢.centralPathPoint μ hμ‖ ∧
+          ‖u + 𝓢.rjnDirection μ u - 𝓢.centralPathPoint μ hμ‖ ≤
+            K_tan * ‖u - 𝓢.centralPathPoint μ hμ‖ ^ 2) := sorry
+
+/-- **Quadratic basin from tangent + retraction.** Combines
+`rjnDirection_quadratic_basin` (the tangent step half, sorry) with
+`Sphere.expMap_sub_add_norm_le` (the retraction half, proven) via
+triangle inequality. The combined contraction constant is
+`K = C² / r + K_tan`; the self-mapping basin shrinks to
+`min(ε, 1/(2K))/2`. -/
 theorem rjnStep_quadratic_basin {μ : ℝ} (hμ : 0 < μ) :
     ∃ U : Set (H X Y), IsOpen U ∧ 𝓢.centralPathPoint μ hμ ∈ U ∧
       U ⊆ 𝓢.C_interior ∧
@@ -236,7 +262,141 @@ theorem rjnStep_quadratic_basin {μ : ℝ} (hμ : 0 < μ) :
         (∀ u ∈ U, u ∈ 𝓢.sphere → 𝓢.rjnStep μ u ∈ U) ∧
         (∀ u ∈ U, u ∈ 𝓢.sphere →
           ‖𝓢.rjnStep μ u - 𝓢.centralPathPoint μ hμ‖ ≤
-            K * ‖u - 𝓢.centralPathPoint μ hμ‖ ^ 2) := sorry
+            K * ‖u - 𝓢.centralPathPoint μ hμ‖ ^ 2) := by
+  obtain ⟨ε, C, K_tan, hε_pos, hC_pos, hK_tan_pos, hCε_le_r, hε_sub, h_tan⟩ :=
+    𝓢.rjnDirection_quadratic_basin hμ
+  set u_star := 𝓢.centralPathPoint μ hμ
+  have hr_pos : 0 < 𝓢.r := 𝓢.r_pos
+  -- Combined contraction constant K = C² / r + K_tan.
+  set K : ℝ := C ^ 2 / 𝓢.r + K_tan with hK_def
+  have hK_pos : 0 < K := by
+    have h_C2_div : 0 < C ^ 2 / 𝓢.r := div_pos (by positivity) hr_pos
+    linarith
+  -- Shrink ε to make the basin self-mapping: ε' := min(ε, 1/(2K)) / 2.
+  set ε' : ℝ := min ε (1 / (2 * K)) / 2 with hε'_def
+  have h_2K_pos : 0 < 2 * K := by linarith
+  have h_1_2K_pos : 0 < 1 / (2 * K) := by positivity
+  have hε'_pos : 0 < ε' := by
+    apply div_pos _ (by norm_num)
+    exact lt_min hε_pos h_1_2K_pos
+  have hε'_le_ε : ε' ≤ ε := by
+    calc ε' = min ε (1 / (2 * K)) / 2 := rfl
+      _ ≤ ε / 2 := by gcongr; exact min_le_left _ _
+      _ ≤ ε := by linarith
+  have hε'_le : ε' ≤ 1 / (2 * K) := by
+    calc ε' = min ε (1 / (2 * K)) / 2 := rfl
+      _ ≤ (1 / (2 * K)) / 2 := by gcongr; exact min_le_right _ _
+      _ ≤ 1 / (2 * K) := by linarith
+  set U : Set (H X Y) := Metric.ball u_star ε' with hU_def
+  have hU_open : IsOpen U := Metric.isOpen_ball
+  have hU_mem : u_star ∈ U := by
+    rw [hU_def, Metric.mem_ball, dist_self]; exact hε'_pos
+  -- U ⊆ C_interior: U ⊆ ball u_star ε ⊆ C_interior.
+  have hU_sub : U ⊆ 𝓢.C_interior := by
+    refine subset_trans ?_ hε_sub
+    intro u hu
+    rw [Metric.mem_ball] at hu ⊢
+    exact lt_of_lt_of_le hu hε'_le_ε
+  -- The per-point bound for u ∈ U ∩ sphere.
+  have h_perpoint : ∀ u ∈ U, u ∈ 𝓢.sphere →
+      ‖𝓢.rjnStep μ u - u_star‖ ≤ K * ‖u - u_star‖ ^ 2 := by
+    intros u hu_U hu_S
+    have hu_ε : u ∈ Metric.ball u_star ε := by
+      rw [Metric.mem_ball] at hu_U ⊢
+      exact lt_of_lt_of_le hu_U hε'_le_ε
+    obtain ⟨h_dir_bd, h_tangent_bd⟩ := h_tan u hu_ε hu_S
+    have h_dist : ‖u - u_star‖ < ε := by
+      have := hu_ε
+      rw [Metric.mem_ball, dist_eq_norm] at this
+      exact this
+    -- ‖rjnDirection μ u‖ ≤ C * ‖u - u_star‖ < C * ε ≤ r.
+    have h_dir_lt_r : ‖𝓢.rjnDirection μ u‖ < 𝓢.r := by
+      have h1 : C * ‖u - u_star‖ < C * ε :=
+        mul_lt_mul_of_pos_left h_dist hC_pos
+      linarith [h_dir_bd]
+    have h_dir_le_r : ‖𝓢.rjnDirection μ u‖ ≤ 𝓢.r := le_of_lt h_dir_lt_r
+    -- Retraction bound.
+    have h_ret :=
+      𝓢.expMap_sub_add_norm_le hu_S (𝓢.rjnDirection_tangent μ u) h_dir_le_r
+    -- rjnStep μ u = expMap u (rjnDirection μ u).
+    have h_step_eq : 𝓢.rjnStep μ u = 𝓢.expMap u (𝓢.rjnDirection μ u) := rfl
+    rw [h_step_eq]
+    -- Triangle inequality:
+    -- ‖expMap u v - u_star‖ ≤ ‖expMap u v - (u + v)‖ + ‖(u + v) - u_star‖
+    have h_tri : ‖𝓢.expMap u (𝓢.rjnDirection μ u) - u_star‖ ≤
+        ‖𝓢.expMap u (𝓢.rjnDirection μ u) - (u + 𝓢.rjnDirection μ u)‖ +
+          ‖(u + 𝓢.rjnDirection μ u) - u_star‖ := by
+      have h_eq : 𝓢.expMap u (𝓢.rjnDirection μ u) - u_star =
+          (𝓢.expMap u (𝓢.rjnDirection μ u) - (u + 𝓢.rjnDirection μ u)) +
+          ((u + 𝓢.rjnDirection μ u) - u_star) := by abel
+      rw [h_eq]
+      exact norm_add_le _ _
+    -- ‖expMap u v - (u + v)‖ ≤ ‖v‖²/r ≤ (C ‖u - u_star‖)²/r = C² ‖u - u_star‖²/r.
+    have h_ret_quad : ‖𝓢.rjnDirection μ u‖ ^ 2 / 𝓢.r ≤
+        C ^ 2 * ‖u - u_star‖ ^ 2 / 𝓢.r := by
+      have h_dir_nn : 0 ≤ ‖𝓢.rjnDirection μ u‖ := norm_nonneg _
+      have h_C_uu_nn : 0 ≤ C * ‖u - u_star‖ :=
+        mul_nonneg hC_pos.le (norm_nonneg _)
+      have h_sq_le : ‖𝓢.rjnDirection μ u‖ ^ 2 ≤ (C * ‖u - u_star‖) ^ 2 :=
+        pow_le_pow_left₀ h_dir_nn h_dir_bd 2
+      have h_C2 : (C * ‖u - u_star‖) ^ 2 = C ^ 2 * ‖u - u_star‖ ^ 2 := by ring
+      rw [h_C2] at h_sq_le
+      exact div_le_div_of_nonneg_right h_sq_le hr_pos.le
+    -- Combine.
+    calc ‖𝓢.expMap u (𝓢.rjnDirection μ u) - u_star‖
+        ≤ ‖𝓢.expMap u (𝓢.rjnDirection μ u) - (u + 𝓢.rjnDirection μ u)‖ +
+            ‖(u + 𝓢.rjnDirection μ u) - u_star‖ := h_tri
+      _ ≤ ‖𝓢.rjnDirection μ u‖ ^ 2 / 𝓢.r + K_tan * ‖u - u_star‖ ^ 2 := by
+          gcongr
+      _ ≤ C ^ 2 * ‖u - u_star‖ ^ 2 / 𝓢.r + K_tan * ‖u - u_star‖ ^ 2 := by
+          linarith
+      _ = K * ‖u - u_star‖ ^ 2 := by
+          rw [hK_def]; ring
+  -- Self-mapping: u ∈ U ⟹ rjnStep μ u ∈ U.
+  refine ⟨U, hU_open, hU_mem, hU_sub, K, hK_pos, ?_, h_perpoint⟩
+  intros u hu_U hu_S
+  have h_bd := h_perpoint u hu_U hu_S
+  have h_dist : ‖u - u_star‖ < ε' := by
+    have := hu_U
+    rw [Metric.mem_ball, dist_eq_norm] at this
+    exact this
+  -- ‖rjnStep μ u - u_star‖ ≤ K * ε'² ≤ K * (1/(2K)) * ε' ≤ ε'/2 < ε'.
+  have h_dist_nn : 0 ≤ ‖u - u_star‖ := norm_nonneg _
+  have hε'_nn : 0 ≤ ε' := hε'_pos.le
+  have h_sq_lt : ‖u - u_star‖ ^ 2 < ε' ^ 2 := by
+    have : ‖u - u_star‖ ^ 2 ≤ ε' ^ 2 :=
+      pow_le_pow_left₀ h_dist_nn h_dist.le 2
+    have h_ne : ‖u - u_star‖ ^ 2 ≠ ε' ^ 2 := by
+      intro h_eq
+      have : ‖u - u_star‖ = ε' := by
+        have := h_eq
+        nlinarith [h_dist_nn, hε'_nn]
+      linarith
+    exact lt_of_le_of_ne this h_ne
+  have h_K_dist_sq_le : K * ‖u - u_star‖ ^ 2 ≤ K * ε' ^ 2 := by
+    exact mul_le_mul_of_nonneg_left h_sq_lt.le hK_pos.le
+  have h_Kε'_sq : K * ε' ^ 2 ≤ ε' / 2 := by
+    -- K * ε'² ≤ K * ε' * ε' ≤ (1/2) * ε' (using ε' ≤ 1/(2K), so K * ε' ≤ 1/2)
+    have h_K_ε' : K * ε' ≤ 1 / 2 := by
+      have h_le := hε'_le  -- ε' ≤ 1/(2K)
+      have h_mul : K * ε' ≤ K * (1 / (2 * K)) :=
+        mul_le_mul_of_nonneg_left h_le hK_pos.le
+      have h_simp : K * (1 / (2 * K)) = 1 / 2 := by
+        field_simp
+      linarith
+    have hε'_sq_eq : K * ε' ^ 2 = K * ε' * ε' := by ring
+    rw [hε'_sq_eq]
+    have : K * ε' * ε' ≤ (1 / 2) * ε' :=
+      mul_le_mul_of_nonneg_right h_K_ε' hε'_nn
+    linarith
+  have h_total : ‖𝓢.rjnStep μ u - u_star‖ < ε' := by
+    calc ‖𝓢.rjnStep μ u - u_star‖
+        ≤ K * ‖u - u_star‖ ^ 2 := h_bd
+      _ ≤ K * ε' ^ 2 := h_K_dist_sq_le
+      _ ≤ ε' / 2 := h_Kε'_sq
+      _ < ε' := by linarith
+  rw [Metric.mem_ball, dist_eq_norm]
+  exact h_total
 
 /-- **Interior preservation.** For `u_k ∈ U` in the basin of
 `rjnStep_quadratic_basin`, the next iterate stays in `int C`. Trivial
@@ -259,8 +419,10 @@ starting from any `u₀ ∈ U ∩ Sr ∩ int C`, the iterates
 
 Packages the basin theorem `rjnStep_quadratic_basin` together with
 `rjnStep_mem_sphere` into a recursive sequence; interior preservation
-falls out of `U ⊆ C_interior`. The only deep analytic sorry is
-`rjnStep_quadratic_basin`. -/
+falls out of `U ⊆ C_interior`. The only remaining analytic sorry in
+this proof chain is `rjnDirection_quadratic_basin` (the tangent step
+half of Theorem 12); the retraction half is fully formalized in
+`Sphere.expMap_sub_add_norm_le`. -/
 theorem rjnStep_quadratic_convergence {μ : ℝ} (hμ : 0 < μ) :
     ∃ U : Set (H X Y), IsOpen U ∧ 𝓢.centralPathPoint μ hμ ∈ U ∧
       ∀ u₀ ∈ U, u₀ ∈ 𝓢.sphere → u₀ ∈ 𝓢.C_interior →
