@@ -190,6 +190,96 @@ lemma self_concordant_hessian_nonneg {K : Set V} {ν : ℕ} {d : ℕ∞}
     sq_nonneg _
   linarith
 
+/-! ### Dikin-ball Hessian Lipschitz bound (Nesterov–Nemirovski)
+
+The squared self-concordance bound `(D³f)² ≤ 4(D²f)³` integrates to a
+multiplicative bound on the Hessian inside the **Dikin ball** of any
+point. Specifically, for `r = ‖u − u₀‖_{∇²f(u₀)} < 1` and any direction
+`h ∈ V`:
+`(1 − r)² ⟨h, ∇²f(u₀) h⟩ ≤ ⟨h, ∇²f(u) h⟩ ≤ (1 − r)⁻² ⟨h, ∇²f(u₀) h⟩`.
+
+This is **paper §6.3 Lemma 15 step (i)** ("self-concordance of `W`"):
+the Lipschitz constant of `∇²f` in the local SC norm is an absolute
+constant. It is the analytic input that lets the Newton–Kantorovich
+analysis give a basin radius `ρ*` independent of `μ` — without it the
+basin would shrink near `∂K`.
+
+**Standard proof (Nesterov–Nemirovski §2.1):**
+1. **Polarized SC bound.** From `(D³f(x)[h, h, h])² ≤ 4 (D²f(x)[h, h])³`
+   derive, via polarization of the symmetric trilinear form,
+   `|D³f(x)[a, b, c]| ≤ 2 ‖a‖_{∇²f(x)} ‖b‖_{∇²f(x)} ‖c‖_{∇²f(x)}`.
+2. **Diagonal ODE.** Restrict to the line `t ↦ u₀ + t · d` (where
+   `d = u − u₀`). Let `a(t) := ⟨d, ∇²f(u₀ + t·d) d⟩`. Then
+   `a'(t) = D³f(...)[d, d, d]`, and the squared SC bound at direction
+   `d` gives `|a'(t)| ≤ 2 a(t)^(3/2)`. So `φ(t) := a(t)^(−1/2)`
+   satisfies `|φ'(t)| ≤ 1`; integrating gives the diagonal bound
+   `a(s) ≤ a(0) / (1 − s · √a(0))²` for `s · √a(0) < 1`.
+3. **Polarized lift.** For arbitrary `h`, let `ψ(t) := ⟨h, ∇²f(u₀ +
+   t·d) h⟩`. By polarized SC,
+   `|ψ'(t)| = |D³f[d, h, h]| ≤ 2 ‖d‖_{∇²f(u₀+t·d)} · ψ(t)`. Bound
+   `‖d‖_{∇²f(u₀+t·d)} ≤ r/(1 − tr)` by Step 2 (with the displacement
+   `d` itself), giving `|d/dt log ψ(t)| ≤ 2r/(1−tr)`. Integrate from
+   `0` to `1`: `∫₀¹ 2r/(1−sr) ds = −2 log(1−r)`, so `ψ(1)/ψ(0) ∈
+   [(1−r)², (1−r)⁻²]`. -/
+
+omit [CompleteSpace V] in
+/-- **Univariate SC core (step 2's seed).** Squared SC at a fixed
+direction `h` says `(D³f[h,h,h])² ≤ 4 (D²f[h,h])³`. Equivalently, for
+`a := D²f[h,h]` and `b := D³f[h,h,h]`, `|b| ≤ 2 a^(3/2)` (after
+extracting square root, since `a ≥ 0`). This is the form that feeds
+the diagonal ODE `|d/dt (a(t))^(−1/2)| ≤ 1`. -/
+lemma self_concordant_abs_third {K : Set V} {ν : ℕ} {d : ℕ∞}
+    (f : LHSCB V K ν d) (x : V) (hx : x ∈ interior K) (h : V) :
+    |iteratedFDerivWithin ℝ 3 f.f (interior K) x (fun _ => h)| ≤
+      2 * Real.sqrt
+        (iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => h)) ^ 3 := by
+  set a : ℝ := iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => h) with ha_def
+  set b : ℝ := iteratedFDerivWithin ℝ 3 f.f (interior K) x (fun _ => h) with hb_def
+  have ha_nn : 0 ≤ a := f.self_concordant_hessian_nonneg x hx h
+  have hsc : b ^ 2 ≤ 4 * a ^ 3 := f.self_concordant x hx h
+  -- |b|² = b² ≤ 4·a³ = (2·√a³)² = (2·(√a)³)².
+  have h_sqrt_a_nn : 0 ≤ Real.sqrt a := Real.sqrt_nonneg _
+  have h_sqrt_a_cubed_nn : 0 ≤ Real.sqrt a ^ 3 := by positivity
+  have h_rhs_nn : 0 ≤ 2 * Real.sqrt a ^ 3 := by positivity
+  have h_rhs_sq : (2 * Real.sqrt a ^ 3) ^ 2 = 4 * a ^ 3 := by
+    rw [mul_pow, show ((Real.sqrt a) ^ 3) ^ 2 = ((Real.sqrt a) ^ 2) ^ 3 from by ring,
+        Real.sq_sqrt ha_nn]; norm_num
+  have h_abs_sq_le : |b| ^ 2 ≤ (2 * Real.sqrt a ^ 3) ^ 2 := by
+    rw [sq_abs, h_rhs_sq]; exact hsc
+  exact (abs_le_of_sq_le_sq' h_abs_sq_le h_rhs_nn).2
+
+omit [CompleteSpace V] in
+/-- **Dikin-ball Hessian Lipschitz bound (paper §6.3 Lemma 15 step (i)).**
+For `u, u₀ ∈ int K` such that the SC-norm displacement
+`r² := ⟨u − u₀, ∇²f(u₀)(u − u₀)⟩` is less than `1`, the Hessian
+quadratic form satisfies the multiplicative bound
+`(1 − r)² ⟨h, ∇²f(u₀) h⟩ ≤ ⟨h, ∇²f(u) h⟩ ≤ (1 − r)⁻² ⟨h, ∇²f(u₀) h⟩`
+for every direction `h`. The constants depend only on `r` — not on
+`u₀`, `K`, or the LHSCB barrier parameter `ν` — which is what makes
+the LHSCB Newton–Kantorovich basin radius an *absolute* constant.
+
+**Sorry.** Proof outline above; chains polarization of the squared SC
+bound with an ODE argument for the diagonal `a(t)^(−1/2)` derivative,
+plus an integration of `2r/(1−sr)` for the polarized lift. The
+foundational `self_concordant_abs_third` lemma (the un-squared SC form)
+is the un-blocked first step. -/
+theorem hessian_dikin_bound {K : Set V} {ν : ℕ} {d : ℕ∞}
+    (f : LHSCB V K ν d)
+    (u₀ : V) (hu₀ : u₀ ∈ interior K)
+    (u : V) (hu : u ∈ interior K)
+    (_h_segment : ∀ t ∈ Set.Icc (0:ℝ) 1, u₀ + t • (u - u₀) ∈ interior K)
+    (r : ℝ) (_hr_pos : 0 ≤ r) (_hr_lt_one : r < 1)
+    (_h_in_ball :
+      iteratedFDerivWithin ℝ 2 f.f (interior K) u₀ (fun _ => u - u₀) ≤ r ^ 2) :
+    ∀ h : V,
+      (1 - r) ^ 2 *
+          iteratedFDerivWithin ℝ 2 f.f (interior K) u₀ (fun _ => h) ≤
+        iteratedFDerivWithin ℝ 2 f.f (interior K) u (fun _ => h) ∧
+      iteratedFDerivWithin ℝ 2 f.f (interior K) u (fun _ => h) ≤
+        (1 - r) ^ (-2 : ℝ) *
+          iteratedFDerivWithin ℝ 2 f.f (interior K) u₀ (fun _ => h) := by
+  sorry
+
 /-- **Sum of LHSCBs.** A `ν₁`-LHSCB on `K₁` plus a `ν₂`-LHSCB on `K₂`
 is a `(ν₁+ν₂)`-LHSCB on `K₁ ∩ K₂` of smoothness `min d₁ d₂`. -/
 noncomputable def add {K₁ K₂ : Set V} {ν₁ ν₂ : ℕ} {d₁ d₂ : ℕ∞}
