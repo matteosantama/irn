@@ -862,33 +862,85 @@ Mathlib's implicit function theorem. For the quadratic-bound lemma
 function is needed, which requires `d ≥ 4`; that gap is documented
 in the corresponding sorry. -/
 
+set_option maxHeartbeats 1000000 in
 /-- `hess_op` evaluated bilinearly: `(u, v) ↦ hess_op u v` is `C¹` at
 any `(u₀, v₀)` with `u₀ ∈ C_interior`. Two derivatives of `F_lhscb.f`
 (`C^d` with `d ≥ 3`) make the bilinear application `C¹`.
 
-**Sorry — Mathlib instance-synthesis gap.** The natural proof chain
-`F.f ∈ C³` ⟹ `fderiv F.f ∈ C²` ⟹ `fderiv (fderiv F.f) ∈ C¹` runs into
-a typeclass-synthesis failure at the second step: Lean cannot
-synthesize `NormedAddCommGroup (H X Y →L[ℝ] H X Y →L[ℝ] ℝ)` —
-i.e. the iterated CLM codomain. Mathlib's
-`ContinuousLinearMap.toNormedAddCommGroup` should apply recursively
-but the abbrev unfolding of `H X Y = WithLp 2 (X × WithLp 2 (Y × ℝ))`
-seems to block it at this depth.
-
-Workarounds to try:
-* Route through `iteratedFDerivWithin 2 F.f` (codomain
-  `ContinuousMultilinearMap`, different instance setup) and convert
-  via `continuousMultilinearCurryLeftEquiv` at the end.
-* Provide a custom `NormedAddCommGroup` instance for the iterated
-  CLM type directly in the file's preamble.
-* Reformulate the RJN Newton-equation residual to avoid the
-  operator-valued Hessian (e.g., using `hessianBilin` scalars
-  paired with Riesz), so the smoothness proof never goes through
-  the iterated CLM. -/
+**Instance-synthesis workaround.** The natural chain
+`F.f ∈ C^d` ⟹ `fderiv F.f ∈ C^(d-1)` ⟹ `fderiv (fderiv F.f) ∈ C^(d-2)`
+hits a typeclass-synthesis failure: Lean cannot synthesize
+`NormedAddCommGroup (H X Y →L[ℝ] H X Y →L[ℝ] ℝ)` (the `WithLp`
+wrapping in `H X Y` blocks the recursive `ContinuousLinearMap`
+instance at this depth). We route through `iteratedFDeriv ℝ 2 F.f`
+instead: its codomain `ContinuousMultilinearMap` has direct
+normed-group instances unaffected by the diamond. The composite
+`R ∘ continuousMultilinearCurryFin1 ∘ (·.curryLeft v) ∘ iteratedFDeriv ℝ 2 F.f`
+equals `hess_op u v` pointwise (`iteratedFDeriv_two_apply` plus
+the curry identities) and is `C^1` jointly in `(u, v)` by composition
+with bounded bilinear application (`ContDiffAt.clm_apply`) and the
+continuous-linear curry/Riesz equivs. -/
 private lemma hess_op_apply_contDiffAt
     {u₀ : H X Y} (hu₀ : u₀ ∈ 𝓢.C_interior) (v₀ : H X Y) :
     ContDiffAt ℝ 1 (fun p : H X Y × H X Y => 𝓢.hess_op p.1 p.2) (u₀, v₀) := by
-  sorry
+  let CFL := continuousMultilinearCurryLeftEquiv ℝ (fun _ : Fin 2 => H X Y) ℝ
+  let CF1 := continuousMultilinearCurryFin1 ℝ (H X Y) ℝ
+  let R := (InnerProductSpace.toDual ℝ (H X Y)).symm
+  have h_pointwise : (fun p : H X Y × H X Y => 𝓢.hess_op p.1 p.2)
+      = fun p => R (CF1 (CFL (iteratedFDeriv ℝ 2 𝓢.F_lhscb.f p.1) p.2)) := by
+    funext p
+    show ((InnerProductSpace.toDual ℝ (H X Y)).symm.toContinuousLinearMap.comp
+            (fderiv ℝ (fderiv ℝ 𝓢.F_lhscb.f) p.1)) p.2
+      = R (CF1 (CFL (iteratedFDeriv ℝ 2 𝓢.F_lhscb.f p.1) p.2))
+    rw [ContinuousLinearMap.comp_apply]
+    show R ((fderiv ℝ (fderiv ℝ 𝓢.F_lhscb.f) p.1) p.2)
+      = R (CF1 (CFL (iteratedFDeriv ℝ 2 𝓢.F_lhscb.f p.1) p.2))
+    congr 1
+    apply ContinuousLinearMap.ext
+    intro w
+    show (fderiv ℝ (fderiv ℝ 𝓢.F_lhscb.f) p.1) p.2 w
+      = CF1 (CFL (iteratedFDeriv ℝ 2 𝓢.F_lhscb.f p.1) p.2) w
+    rw [show CFL (iteratedFDeriv ℝ 2 𝓢.F_lhscb.f p.1)
+          = (iteratedFDeriv ℝ 2 𝓢.F_lhscb.f p.1).curryLeft from rfl,
+        continuousMultilinearCurryFin1_apply,
+        ContinuousMultilinearMap.curryLeft_apply,
+        iteratedFDeriv_two_apply]
+    simp only [Fin.cons_zero, Fin.cons_one, Fin.snoc_zero]
+  rw [h_pointwise]
+  -- Smoothness of the aux: chain of ContDiffAt 1's.
+  have h_in : u₀ ∈ interior (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted) :=
+    𝓢.C_interior_subset_F_interior hu₀
+  have h_F_on : ContDiffOn ℝ ((𝓢.d : ℕ∞) : WithTop ℕ∞) 𝓢.F_lhscb.f
+      (interior (𝓢.K_f_lifted ∩ 𝓢.K_g_lifted)) := by
+    have h := 𝓢.F_lhscb.contDiff
+    simpa [min_self] using h
+  have h_F_at : ContDiffAt ℝ ((𝓢.d : ℕ∞) : WithTop ℕ∞) 𝓢.F_lhscb.f u₀ :=
+    h_F_on.contDiffAt (isOpen_interior.mem_nhds h_in)
+  have h_3_le : ((1 : WithTop ℕ∞) + 2) ≤ ((𝓢.d : ℕ∞) : WithTop ℕ∞) := by
+    show ((3 : ℕ∞) : WithTop ℕ∞) ≤ ((𝓢.d : ℕ∞) : WithTop ℕ∞)
+    exact_mod_cast 𝓢.hd_ge
+  have h_iter : ContDiffAt ℝ 1 (iteratedFDeriv ℝ 2 𝓢.F_lhscb.f) u₀ :=
+    h_F_at.iteratedFDeriv_right h_3_le
+  have h_iter_p : ContDiffAt ℝ 1
+      (fun p : H X Y × H X Y => iteratedFDeriv ℝ 2 𝓢.F_lhscb.f p.1) (u₀, v₀) :=
+    h_iter.fun_comp _ contDiffAt_fst
+  have h_cfl_smooth : ContDiff ℝ 1 (⇑CFL.toContinuousLinearEquiv) :=
+    ContinuousLinearEquiv.contDiff _
+  have h_after_cfl : ContDiffAt ℝ 1
+      (fun p : H X Y × H X Y => CFL (iteratedFDeriv ℝ 2 𝓢.F_lhscb.f p.1)) (u₀, v₀) :=
+    h_cfl_smooth.contDiffAt.fun_comp _ h_iter_p
+  have h_after_apply : ContDiffAt ℝ 1
+      (fun p : H X Y × H X Y => CFL (iteratedFDeriv ℝ 2 𝓢.F_lhscb.f p.1) p.2) (u₀, v₀) :=
+    h_after_cfl.clm_apply contDiffAt_snd
+  have h_cf1_smooth : ContDiff ℝ 1 (⇑CF1.toContinuousLinearEquiv) :=
+    ContinuousLinearEquiv.contDiff _
+  have h_after_cf1 : ContDiffAt ℝ 1
+      (fun p : H X Y × H X Y =>
+        CF1 (CFL (iteratedFDeriv ℝ 2 𝓢.F_lhscb.f p.1) p.2)) (u₀, v₀) :=
+    h_cf1_smooth.contDiffAt.fun_comp _ h_after_apply
+  have h_R_smooth : ContDiff ℝ 1 (⇑R.toContinuousLinearEquiv) :=
+    ContinuousLinearEquiv.contDiff _
+  exact h_R_smooth.contDiffAt.fun_comp _ h_after_cf1
 
 /-- **The joint RJN system.** Bundles the three RJN residuals (Newton,
 tangency, scalar) into a single function

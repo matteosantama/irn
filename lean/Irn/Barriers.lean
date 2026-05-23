@@ -296,7 +296,11 @@ lemma segment_in_interior {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
     (u₀ : V) (hu₀ : u₀ ∈ interior K)
     (u : V) (hu : u ∈ interior K) :
     ∀ t ∈ Set.Icc (0:ℝ) 1, u₀ + t • (u - u₀) ∈ interior K := by
-  sorry
+  intro t ⟨h0, h1⟩
+  have h_eq : u₀ + t • (u - u₀) = (1 - t) • u₀ + t • u := by
+    rw [smul_sub, sub_smul, one_smul]; abel
+  rw [h_eq]
+  exact hK_convex.interior hu₀ hu (by linarith) h0 (by linarith)
 
 namespace LHSCB
 
