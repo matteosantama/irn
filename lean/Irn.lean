@@ -7,6 +7,8 @@ This is the root module. It re-exports every submodule so that
 The submodules track the structure of `paper/main.tex`:
 
 * `Irn.Barriers`       — paper §2.1     (LHSCB, `φ`, `F*`, `G*`)
+* `Irn.Dikin`          — paper §6.3 Lemma 16(i) (Dikin-ball Hessian
+                                          Lipschitz bound + scaffold)
 * `Irn.Setting`        — paper §1, §2.1 (problem data `(P, A, b, c, K, f)`,
                                           embedding, `Q`, `M`, `φ`)
 * `Irn.Monotone`       — monotone operator API and a strongly-monotone
@@ -22,6 +24,7 @@ The submodules track the structure of `paper/main.tex`:
 -/
 
 import Irn.Barriers
+import Irn.Dikin
 import Irn.Setting
 import Irn.Monotone
 import Irn.CentralPath
