@@ -486,13 +486,18 @@ Hessian quadratic form along the segment in direction `h`) is
 differentiable at any `t ∈ (0, 1)` with derivative
 `iteratedFDerivWithin ℝ 3 f.f (interior K) (u₀ + t·(u−u₀)) ![u−u₀, h, h]`.
 
-Proof outline: `iteratedFDerivWithin ℝ 2 f.f (interior K)` is `C¹` on
-`interior K` (from `f.contDiff₃` and `ContDiffOn.fderivWithin`). On
-the open set `interior K`, `fderivWithin = fderiv`. Apply
-`iteratedFDerivWithin_succ_apply_left` at `n = 2` to identify the
-Fréchet derivative with `iteratedFDerivWithin ℝ 3`. Chain rule with
-the smooth affine path `γ` (velocity `u − u₀`) gives the result. -/
-lemma hess_path_hasDerivAt {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
+Proof: `iteratedFDerivWithin ℝ 2 f.f (interior K)` is `C¹` at `γ t ∈
+interior K` (from `f.contDiff₃` + `ContDiffWithinAt.iteratedFDerivWithin_right`,
+then upgraded to `ContDiffAt` since `interior K` is open). Composing
+its Fréchet derivative with the affine path `γ` (chain rule
+`HasFDerivAt.comp_hasDerivAt`) gives the derivative of
+`s ↦ iteratedFDerivWithin ℝ 2 f.f (interior K) (γ s)`. Composing once
+more with the continuous-linear evaluation `M ↦ M (fun _ => h)`
+(`ContinuousMultilinearMap.apply`) yields the scalar derivative. The
+identification with `iteratedFDerivWithin ℝ 3 …` follows from
+`iteratedFDerivWithin_succ_apply_left` (with `n = 2`) and
+`fderivWithin_of_isOpen` on the open `interior K`. -/
+lemma hess_path_has_deriv_at {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
     {K : Set V} {ν : ℕ} {d : ℕ∞}
     (f : LHSCB V K ν d) (hK_convex : Convex ℝ K)
     (u₀ u h : V) (hu₀ : u₀ ∈ interior K) (hu : u ∈ interior K)
@@ -500,7 +505,65 @@ lemma hess_path_hasDerivAt {V : Type*} [NormedAddCommGroup V] [InnerProductSpace
     HasDerivAt (fun s => hess f.f K (u₀ + s • (u - u₀)) h)
       (iteratedFDerivWithin ℝ 3 f.f (interior K)
         (u₀ + t • (u - u₀)) ![u - u₀, h, h]) t := by
-  sorry
+  set γ : ℝ → V := fun s => u₀ + s • (u - u₀) with hγ_def
+  -- (1) `γ` has derivative `u - u₀` at every point.
+  have hγ_deriv : HasDerivAt γ (u - u₀) t := by
+    have h_smul : HasDerivAt (fun s : ℝ => s • (u - u₀)) (u - u₀) t := by
+      simpa using (hasDerivAt_id t).smul_const (u - u₀)
+    simpa [γ] using h_smul.const_add u₀
+  -- (2) `γ t ∈ interior K`.
+  have ht_Icc : t ∈ Set.Icc (0:ℝ) 1 := ⟨le_of_lt ht.1, le_of_lt ht.2⟩
+  have hγt_in : γ t ∈ interior K :=
+    segment_in_interior hK_convex u₀ hu₀ u hu t ht_Icc
+  -- (3) `iteratedFDerivWithin ℝ 2 f.f (interior K)` is differentiable at `γ t`.
+  have hf_wat : ContDiffWithinAt ℝ 3 f.f (interior K) (γ t) :=
+    f.contDiff₃.contDiffWithinAt hγt_in
+  have h_iter_wat :
+      ContDiffWithinAt ℝ 1 (iteratedFDerivWithin ℝ 2 f.f (interior K))
+        (interior K) (γ t) :=
+    hf_wat.iteratedFDerivWithin_right isOpen_interior.uniqueDiffOn
+      (by norm_num : (1 : WithTop ℕ∞) + 2 ≤ 3) hγt_in
+  have h_iter_at :
+      ContDiffAt ℝ 1 (iteratedFDerivWithin ℝ 2 f.f (interior K)) (γ t) :=
+    h_iter_wat.contDiffAt (isOpen_interior.mem_nhds hγt_in)
+  have h_iter_diff :
+      DifferentiableAt ℝ (iteratedFDerivWithin ℝ 2 f.f (interior K)) (γ t) :=
+    h_iter_at.differentiableAt_one
+  -- (4) Chain rule: HasDerivAt of `iteratedFDerivWithin 2 f.f K ∘ γ` at t.
+  set L : V →L[ℝ] ContinuousMultilinearMap ℝ (fun _ : Fin 2 => V) ℝ :=
+    fderiv ℝ (iteratedFDerivWithin ℝ 2 f.f (interior K)) (γ t) with hL_def
+  have h_fd_at :
+      HasFDerivAt (iteratedFDerivWithin ℝ 2 f.f (interior K)) L (γ t) :=
+    h_iter_diff.hasFDerivAt
+  have h_iter_γ_deriv :
+      HasDerivAt (fun s => iteratedFDerivWithin ℝ 2 f.f (interior K) (γ s))
+        (L (u - u₀)) t :=
+    h_fd_at.comp_hasDerivAt t hγ_deriv
+  -- (5) Compose with the continuous-linear eval `ev : CMM →L[ℝ] ℝ`.
+  set ev : ContinuousMultilinearMap ℝ (fun _ : Fin 2 => V) ℝ →L[ℝ] ℝ :=
+    ContinuousMultilinearMap.apply ℝ (fun _ : Fin 2 => V) ℝ (fun _ => h) with hev_def
+  have h_hess_γ_deriv :
+      HasDerivAt (fun s => ev (iteratedFDerivWithin ℝ 2 f.f (interior K) (γ s)))
+        (ev (L (u - u₀))) t :=
+    (ev.hasFDerivAt (x := iteratedFDerivWithin ℝ 2 f.f (interior K)
+      (γ t))).comp_hasDerivAt t h_iter_γ_deriv
+  -- (6) Identify `ev (L (u - u₀))` with `iteratedFDerivWithin ℝ 3 ... ![u-u₀, h, h]`.
+  have h_tail_eq :
+      Fin.tail (![u - u₀, h, h] : Fin 3 → V) = (fun _ : Fin 2 => h) := by
+    funext i; fin_cases i <;> rfl
+  have h_deriv_eq :
+      iteratedFDerivWithin ℝ 3 f.f (interior K) (γ t) ![u - u₀, h, h]
+        = ev (L (u - u₀)) := by
+    -- `iteratedFDerivWithin_succ_apply_left` is `rfl` (for `n = 2`), unfolding
+    -- the LHS to `fderivWithin … (m 0) (Fin.tail m)`; `(m 0) = u - u₀` is
+    -- defeq via Fin.cases reduction.
+    show fderivWithin ℝ (iteratedFDerivWithin ℝ 2 f.f (interior K))
+          (interior K) (γ t) (u - u₀)
+          (Fin.tail (![u - u₀, h, h] : Fin 3 → V)) = ev (L (u - u₀))
+    rw [fderivWithin_of_isOpen isOpen_interior hγt_in, h_tail_eq]
+    rfl
+  rw [h_deriv_eq]
+  exact h_hess_γ_deriv
 
 /-- **Polarized self-concordance bound.** Off-diagonal cubic-form
 bound: `|D³f(x)[v, h, h]| ≤ 2 · D²f(x)[h, h] · √D²f(x)[v, v]` for any
@@ -525,7 +588,7 @@ lemma self_concordant_polarized {V : Type*} [NormedAddCommGroup V] [InnerProduct
 For `t ∈ [0, 1]` and `r = √(hess f u₀ (u−u₀)) < 1`, the local norm of
 the displacement at `u₀ + t·(u−u₀)` is bounded by `r/(1 − tr)`.
 
-Proved by feeding the chain rule (`hess_path_hasDerivAt` with `h := u − u₀`)
+Proved by feeding the chain rule (`hess_path_has_deriv_at` with `h := u − u₀`)
 and the diagonal SC bound (`self_concordant_abs_third`) into the abstract
 ODE integrator `local_norm_path_bound_from_diagonal_ode`. -/
 lemma dikin_path_metric_bound {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
@@ -549,7 +612,7 @@ lemma dikin_path_metric_bound {V : Type*} [NormedAddCommGroup V] [InnerProductSp
   have ha_deriv : ∀ s ∈ Set.Ioo (0:ℝ) 1, ∃ a', HasDerivAt a a' s ∧
                   |a'| ≤ 2 * (Real.sqrt (a s)) ^ 3 := by
     intro s hs
-    refine ⟨_, hess_path_hasDerivAt f hK_convex u₀ u (u - u₀) hu₀ hu s hs, ?_⟩
+    refine ⟨_, hess_path_has_deriv_at f hK_convex u₀ u (u - u₀) hu₀ hu s hs, ?_⟩
     -- Identify `![u-u₀, u-u₀, u-u₀]` with the constant function and apply diagonal SC.
     have h_diag :
         (![u - u₀, u - u₀, u - u₀] : Fin 3 → V) = (fun _ => u - u₀) := by
@@ -565,7 +628,7 @@ lemma dikin_path_metric_bound {V : Type*} [NormedAddCommGroup V] [InnerProductSp
 the derivative of `t ↦ hess f (u₀ + t·(u−u₀)) h` is bounded by
 `2 · hess f (·) h · local_norm f (·) (u−u₀)`.
 
-Proved by combining the chain rule (`hess_path_hasDerivAt`) with the
+Proved by combining the chain rule (`hess_path_has_deriv_at`) with the
 off-diagonal SC bound (`self_concordant_polarized`). -/
 lemma path_hess_deriv_bound {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
     {K : Set V} {ν : ℕ} {d : ℕ∞}
@@ -576,7 +639,7 @@ lemma path_hess_deriv_bound {V : Type*} [NormedAddCommGroup V] [InnerProductSpac
           |H'| ≤ 2 * hess f.f K (u₀ + t • (u - u₀)) h *
                  local_norm f.f K (u₀ + t • (u - u₀)) (u - u₀) := by
   set γ : ℝ → V := fun t => u₀ + t • (u - u₀) with hγ_def
-  refine ⟨_, hess_path_hasDerivAt f hK_convex u₀ u h hu₀ hu t ht, ?_⟩
+  refine ⟨_, hess_path_has_deriv_at f hK_convex u₀ u h hu₀ hu t ht, ?_⟩
   have ht_Icc : t ∈ Set.Icc (0:ℝ) 1 := ⟨le_of_lt ht.1, le_of_lt ht.2⟩
   have h_in : γ t ∈ interior K :=
     segment_in_interior hK_convex u₀ hu₀ u hu t ht_Icc
