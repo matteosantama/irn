@@ -330,7 +330,84 @@ private lemma b_eps_one_lipschitz
     (ε : ℝ) (hε_pos : 0 < ε) :
     LipschitzOnWith 1 (fun s => 1 / Real.sqrt (a s + ε ^ 2))
       (Set.Icc (0:ℝ) 1) := by
-  sorry
+  set b : ℝ → ℝ := fun s => 1 / Real.sqrt (a s + ε ^ 2) with hb_def
+  have hε_sq_pos : (0 : ℝ) < ε ^ 2 := pow_pos hε_pos 2
+  have h_pos : ∀ s ∈ Set.Icc (0:ℝ) 1, (0:ℝ) < a s + ε ^ 2 := fun s hs => by
+    have := ha_nn s hs; linarith
+  have h_sqrt_pos : ∀ s ∈ Set.Icc (0:ℝ) 1, (0:ℝ) < Real.sqrt (a s + ε ^ 2) :=
+    fun s hs => Real.sqrt_pos.mpr (h_pos s hs)
+  -- Continuity of `b` on `[0, 1]`.
+  have hb_cont : ContinuousOn b (Set.Icc (0:ℝ) 1) := by
+    refine continuousOn_const.div ?_ (fun s hs => ne_of_gt (h_sqrt_pos s hs))
+    exact Real.continuous_sqrt.comp_continuousOn (ha_cont.add continuousOn_const)
+  -- Differentiability + derivative bound on `(0, 1)`.
+  have hb_diff_deriv :
+      ∀ x ∈ Set.Ioo (0:ℝ) 1, DifferentiableAt ℝ b x ∧ ‖deriv b x‖ ≤ 1 := by
+    intro x hx
+    have hx_Icc : x ∈ Set.Icc (0:ℝ) 1 := ⟨le_of_lt hx.1, le_of_lt hx.2⟩
+    obtain ⟨a', hda', hbd⟩ := ha_deriv x hx
+    have h_pos_x := h_pos x hx_Icc
+    have h_sqrt_pos_x := h_sqrt_pos x hx_Icc
+    have h_sqrt_ne_x : Real.sqrt (a x + ε ^ 2) ≠ 0 := ne_of_gt h_sqrt_pos_x
+    have h_pos_ne : (a x + ε ^ 2) ≠ 0 := ne_of_gt h_pos_x
+    -- Chain rule: b'(x) = -(a' / (2·√(a+ε²))) / (√(a+ε²))².
+    have h_add : HasDerivAt (fun s => a s + ε ^ 2) a' x := hda'.add_const _
+    have h_sqrt : HasDerivAt (fun s => Real.sqrt (a s + ε ^ 2))
+        (a' / (2 * Real.sqrt (a x + ε ^ 2))) x := by
+      have h_root :
+          HasDerivAt Real.sqrt (1 / (2 * Real.sqrt (a x + ε ^ 2))) (a x + ε ^ 2) :=
+        Real.hasDerivAt_sqrt h_pos_ne
+      have h_comp := h_root.comp x h_add
+      convert h_comp using 1
+      field_simp
+    have h_inv : HasDerivAt b
+        ((0 * Real.sqrt (a x + ε ^ 2) -
+            1 * (a' / (2 * Real.sqrt (a x + ε ^ 2))))
+          / Real.sqrt (a x + ε ^ 2) ^ 2) x :=
+      (hasDerivAt_const x (1:ℝ)).div h_sqrt h_sqrt_ne_x
+    refine ⟨h_inv.differentiableAt, ?_⟩
+    rw [h_inv.deriv]
+    -- Bound |b'(x)| = |a'| / (2 · (√(a+ε²))³) ≤ 1.
+    have h_a_nn_x : 0 ≤ a x := ha_nn x hx_Icc
+    have h_sqrt_a_nn : 0 ≤ Real.sqrt (a x) := Real.sqrt_nonneg _
+    have h_sqrt_a_le : Real.sqrt (a x) ≤ Real.sqrt (a x + ε ^ 2) :=
+      Real.sqrt_le_sqrt (by linarith)
+    have h_sqrt_a_cubed_le :
+        (Real.sqrt (a x)) ^ 3 ≤ (Real.sqrt (a x + ε ^ 2)) ^ 3 :=
+      pow_le_pow_left₀ h_sqrt_a_nn h_sqrt_a_le 3
+    have h_abs_a'_bd : |a'| ≤ 2 * (Real.sqrt (a x + ε ^ 2)) ^ 3 := by
+      calc |a'|
+          ≤ 2 * (Real.sqrt (a x)) ^ 3 := hbd
+        _ ≤ 2 * (Real.sqrt (a x + ε ^ 2)) ^ 3 := by linarith
+    have h_sqrt_cubed_pos : (0 : ℝ) < (Real.sqrt (a x + ε ^ 2)) ^ 3 :=
+      pow_pos h_sqrt_pos_x 3
+    have h_sqrt_sq_pos : (0 : ℝ) < (Real.sqrt (a x + ε ^ 2)) ^ 2 :=
+      pow_pos h_sqrt_pos_x 2
+    have h_two_sqrt_pos : (0 : ℝ) < 2 * Real.sqrt (a x + ε ^ 2) := by positivity
+    -- Simplify the deriv expression and bound it.
+    have h_eq_deriv :
+        (0 * Real.sqrt (a x + ε ^ 2) - 1 * (a' / (2 * Real.sqrt (a x + ε ^ 2))))
+            / Real.sqrt (a x + ε ^ 2) ^ 2
+          = -a' / (2 * (Real.sqrt (a x + ε ^ 2)) ^ 3) := by
+      field_simp
+      ring
+    rw [h_eq_deriv]
+    rw [Real.norm_eq_abs, abs_div, abs_neg, abs_of_pos (by positivity :
+        (0 : ℝ) < 2 * (Real.sqrt (a x + ε ^ 2)) ^ 3)]
+    rw [div_le_one (by positivity : (0 : ℝ) < 2 * (Real.sqrt (a x + ε ^ 2)) ^ 3)]
+    exact h_abs_a'_bd
+  -- 1-Lipschitz on `Ioo 0 1`.
+  have hb_lip_Ioo : LipschitzOnWith 1 b (Set.Ioo (0:ℝ) 1) :=
+    (convex_Ioo (0:ℝ) 1).lipschitzOnWith_of_nnnorm_deriv_le
+      (fun x hx => (hb_diff_deriv x hx).1)
+      (fun x hx => by
+        have h := (hb_diff_deriv x hx).2; exact_mod_cast h)
+  -- Extend to `Icc 0 1` via continuity.
+  have h_closure : closure (Set.Ioo (0:ℝ) 1) = Set.Icc (0:ℝ) 1 :=
+    closure_Ioo (by norm_num)
+  have hb_cont' : ContinuousOn b (closure (Set.Ioo (0:ℝ) 1)) := h_closure ▸ hb_cont
+  have h := hb_lip_Ioo.closure hb_cont'
+  rwa [h_closure] at h
 
 /-- **Squared diagonal bound from Lipschitz family.** Given the 1-Lipschitz
 family `b_ε := 1/√(a+ε²)` on `[0, 1]` (one per `ε > 0`), conclude the
@@ -349,7 +426,149 @@ private lemma diagonal_ode_squared_bound_via_lipschitz
         LipschitzOnWith 1 (fun s => 1 / Real.sqrt (a s + ε ^ 2))
           (Set.Icc (0:ℝ) 1)) :
     ∀ t ∈ Set.Icc (0:ℝ) 1, (1 - t * r) ^ 2 * a t ≤ r ^ 2 := by
-  sorry
+  intro t ht
+  obtain ⟨ht_nn, ht_le⟩ := ht
+  rcases eq_or_lt_of_le ht_nn with rfl | ht_pos
+  · simpa using ha_0
+  -- Main case: `t > 0`.
+  -- Family of bounds parameterised by `ε ∈ (0, ε_max)`, where
+  -- `ε_max := √(1/t² − r²) > 0`.  Take `ε → 0+` via `le_of_tendsto_of_tendsto'`.
+  set g : ℝ → ℝ := fun ε =>
+    (1 - t * r) ^ 2 * (r ^ 2 + ε ^ 2) / (1 - t * Real.sqrt (r ^ 2 + ε ^ 2)) ^ 2
+    with hg_def
+  have h_1tr_pos : (0 : ℝ) < 1 - t * r := by nlinarith
+  -- `g 0 = r²`.
+  have hg_at_0 : g 0 = r ^ 2 := by
+    simp only [g]
+    rw [show r ^ 2 + (0:ℝ) ^ 2 = r ^ 2 from by ring, Real.sqrt_sq hr_nn]
+    have h_ne : (1 - t * r) ^ 2 ≠ 0 := ne_of_gt (pow_pos h_1tr_pos 2)
+    field_simp
+  -- `g` continuous at `0` (denominator non-zero).
+  have hg_cont : ContinuousAt g 0 := by
+    refine ContinuousAt.div ?_ ?_ ?_
+    · exact ((continuousAt_const).mul ((continuousAt_const).add
+        ((continuousAt_id).pow 2)))
+    · refine ContinuousAt.pow ?_ 2
+      refine (continuousAt_const).sub ((continuousAt_const).mul ?_)
+      exact (Real.continuous_sqrt.continuousAt).comp
+        ((continuousAt_const).add ((continuousAt_id).pow 2))
+    · simp only [show r ^ 2 + (0:ℝ) ^ 2 = r ^ 2 from by ring, Real.sqrt_sq hr_nn]
+      exact ne_of_gt (pow_pos h_1tr_pos 2)
+  -- `g` tends to `r²` as `ε → 0+`.
+  have h_tendsto : Filter.Tendsto g (nhdsWithin (0:ℝ) (Set.Ioi 0)) (nhds (r ^ 2)) := by
+    have h := hg_cont.tendsto
+    rw [hg_at_0] at h
+    exact h.mono_left nhdsWithin_le_nhds
+  -- Useful: `1/t² − r² > 0`.
+  have h_t_sq_pos : (0 : ℝ) < t ^ 2 := pow_pos ht_pos 2
+  have h_t_sq_le_one : t ^ 2 ≤ 1 := by nlinarith
+  have h_inv_t_sq_ge_one : (1 : ℝ) ≤ 1 / t ^ 2 := by
+    rw [one_le_div h_t_sq_pos]; exact h_t_sq_le_one
+  have h_M_pos : (0 : ℝ) < 1 / t ^ 2 - r ^ 2 := by
+    have : r ^ 2 < 1 := by nlinarith
+    linarith
+  set ε_max : ℝ := Real.sqrt (1 / t ^ 2 - r ^ 2) with hε_max_def
+  have hε_max_pos : (0 : ℝ) < ε_max := Real.sqrt_pos.mpr h_M_pos
+  -- For each `ε ∈ (0, ε_max)`, `(1 − t·r)² · a(t) ≤ g ε`.
+  have h_bound : ∀ ε ∈ Set.Ioo (0:ℝ) ε_max, (1 - t * r) ^ 2 * a t ≤ g ε := by
+    intro ε hε
+    obtain ⟨hε_pos, hε_lt_max⟩ := hε
+    -- Positivity of various quantities.
+    have hε_sq_pos : (0 : ℝ) < ε ^ 2 := pow_pos hε_pos 2
+    have hr_eps_sq_pos : (0 : ℝ) < r ^ 2 + ε ^ 2 := by positivity
+    have h_sqrt_r_eps_pos : (0 : ℝ) < Real.sqrt (r ^ 2 + ε ^ 2) :=
+      Real.sqrt_pos.mpr hr_eps_sq_pos
+    -- `ε² < 1/t² − r²` (squaring `ε < ε_max`).
+    have hε_sq_lt : ε ^ 2 < 1 / t ^ 2 - r ^ 2 := by
+      have h_sq_lt : ε ^ 2 < ε_max ^ 2 := by
+        have := mul_self_lt_mul_self (le_of_lt hε_pos) hε_lt_max
+        simpa [sq] using this
+      have hε_max_sq : ε_max ^ 2 = 1 / t ^ 2 - r ^ 2 := by
+        rw [hε_max_def]; exact Real.sq_sqrt (le_of_lt h_M_pos)
+      linarith
+    -- `t·√(r²+ε²) < 1`.
+    have h_t_sqrt_lt_one : t * Real.sqrt (r ^ 2 + ε ^ 2) < 1 := by
+      have h_sqrt_lt_inv_t : Real.sqrt (r ^ 2 + ε ^ 2) < 1 / t := by
+        have h_inv_t_sq : (1 / t) ^ 2 = 1 / t ^ 2 := by field_simp
+        have h_lt_inv_sq : r ^ 2 + ε ^ 2 < (1 / t) ^ 2 := by rw [h_inv_t_sq]; linarith
+        have h_inv_t_nn : 0 ≤ 1 / t := le_of_lt (by positivity)
+        have : Real.sqrt (r ^ 2 + ε ^ 2) < Real.sqrt ((1 / t) ^ 2) :=
+          Real.sqrt_lt_sqrt (le_of_lt hr_eps_sq_pos) h_lt_inv_sq
+        rwa [Real.sqrt_sq h_inv_t_nn] at this
+      have := mul_lt_mul_of_pos_left h_sqrt_lt_inv_t ht_pos
+      rwa [mul_one_div, div_self (ne_of_gt ht_pos)] at this
+    have h_one_minus_pos : (0 : ℝ) < 1 - t * Real.sqrt (r ^ 2 + ε ^ 2) := by linarith
+    -- `1/√(r²+ε²) > t` (used to deduce reciprocal positive).
+    have h_inv_gt_t : t < 1 / Real.sqrt (r ^ 2 + ε ^ 2) := by
+      rw [lt_div_iff₀ h_sqrt_r_eps_pos]
+      linarith
+    -- `b_ε(t) ≥ b_ε(0) - t` via Lipschitz.
+    have h_lip_t : dist (1 / Real.sqrt (a t + ε ^ 2)) (1 / Real.sqrt (a 0 + ε ^ 2)) ≤ t := by
+      have h := (h_lip ε hε_pos).dist_le_mul
+        t (Set.mem_Icc.mpr ⟨le_of_lt ht_pos, ht_le⟩)
+        0 (Set.mem_Icc.mpr ⟨le_refl _, zero_le_one⟩)
+      simpa [Real.dist_eq, abs_of_pos ht_pos] using h
+    have h_b_t_ge_b_0_sub_t :
+        1 / Real.sqrt (a t + ε ^ 2) ≥ 1 / Real.sqrt (a 0 + ε ^ 2) - t := by
+      have h_abs : |1 / Real.sqrt (a t + ε ^ 2) - 1 / Real.sqrt (a 0 + ε ^ 2)| ≤ t :=
+        Real.dist_eq _ _ ▸ h_lip_t
+      linarith [abs_le.mp h_abs]
+    -- `b_ε(0) ≥ 1/√(r²+ε²)`.
+    have h_a_0_nn : 0 ≤ a 0 := ha_nn 0 ⟨le_refl _, zero_le_one⟩
+    have h_a_0_eps_pos : (0 : ℝ) < a 0 + ε ^ 2 := by linarith
+    have h_sqrt_a_0_pos : (0 : ℝ) < Real.sqrt (a 0 + ε ^ 2) :=
+      Real.sqrt_pos.mpr h_a_0_eps_pos
+    have h_a_0_le : a 0 + ε ^ 2 ≤ r ^ 2 + ε ^ 2 := by linarith
+    have h_sqrt_le : Real.sqrt (a 0 + ε ^ 2) ≤ Real.sqrt (r ^ 2 + ε ^ 2) :=
+      Real.sqrt_le_sqrt h_a_0_le
+    have h_b_0_ge : 1 / Real.sqrt (a 0 + ε ^ 2) ≥ 1 / Real.sqrt (r ^ 2 + ε ^ 2) :=
+      one_div_le_one_div_of_le h_sqrt_a_0_pos h_sqrt_le
+    -- Combine: `b_ε(t) ≥ 1/√(r²+ε²) − t > 0`.
+    have h_b_t_pos_bd :
+        1 / Real.sqrt (a t + ε ^ 2) ≥ 1 / Real.sqrt (r ^ 2 + ε ^ 2) - t := by
+      linarith
+    have h_pos_diff : (0 : ℝ) < 1 / Real.sqrt (r ^ 2 + ε ^ 2) - t := by linarith
+    have h_b_t_pos : (0 : ℝ) < 1 / Real.sqrt (a t + ε ^ 2) := by linarith
+    -- `√(a(t)+ε²) ≤ √(r²+ε²)/(1 − t·√(r²+ε²))`.
+    have h_sqrt_a_t_le :
+        Real.sqrt (a t + ε ^ 2) ≤
+          Real.sqrt (r ^ 2 + ε ^ 2) / (1 - t * Real.sqrt (r ^ 2 + ε ^ 2)) := by
+      have h_recip : Real.sqrt (a t + ε ^ 2) = 1 / (1 / Real.sqrt (a t + ε ^ 2)) := by
+        rw [one_div_one_div]
+      rw [h_recip]
+      have h_le : 1 / (1 / Real.sqrt (a t + ε ^ 2)) ≤
+          1 / (1 / Real.sqrt (r ^ 2 + ε ^ 2) - t) :=
+        one_div_le_one_div_of_le h_pos_diff h_b_t_pos_bd
+      apply h_le.trans
+      have h_simp : 1 / (1 / Real.sqrt (r ^ 2 + ε ^ 2) - t) =
+          Real.sqrt (r ^ 2 + ε ^ 2) / (1 - t * Real.sqrt (r ^ 2 + ε ^ 2)) := by
+        field_simp
+      exact le_of_eq h_simp
+    -- Square: `a(t) + ε² ≤ (r²+ε²)/(1 − t·√(r²+ε²))²`.
+    have h_a_t_eps_nn : 0 ≤ a t + ε ^ 2 := by
+      have := ha_nn t ⟨le_of_lt ht_pos, ht_le⟩; linarith
+    have h_sqrt_a_t_nn : 0 ≤ Real.sqrt (a t + ε ^ 2) := Real.sqrt_nonneg _
+    have h_div_nn :
+        0 ≤ Real.sqrt (r ^ 2 + ε ^ 2) / (1 - t * Real.sqrt (r ^ 2 + ε ^ 2)) := by
+      exact div_nonneg (Real.sqrt_nonneg _) (le_of_lt h_one_minus_pos)
+    have h_sq_le :
+        (Real.sqrt (a t + ε ^ 2)) ^ 2 ≤
+          (Real.sqrt (r ^ 2 + ε ^ 2) / (1 - t * Real.sqrt (r ^ 2 + ε ^ 2))) ^ 2 :=
+      pow_le_pow_left₀ h_sqrt_a_t_nn h_sqrt_a_t_le 2
+    rw [Real.sq_sqrt h_a_t_eps_nn,
+        div_pow, Real.sq_sqrt (le_of_lt hr_eps_sq_pos)] at h_sq_le
+    -- Conclude: `(1−tr)²·a(t) ≤ (1−tr)²·(a(t)+ε²) ≤ (1−tr)²·(r²+ε²)/(1−t·√(r²+ε²))² = g ε`.
+    have h_sq_nn : 0 ≤ (1 - t * r) ^ 2 := sq_nonneg _
+    calc (1 - t * r) ^ 2 * a t
+        ≤ (1 - t * r) ^ 2 * (a t + ε ^ 2) := by nlinarith
+      _ ≤ (1 - t * r) ^ 2 *
+            ((r ^ 2 + ε ^ 2) / (1 - t * Real.sqrt (r ^ 2 + ε ^ 2)) ^ 2) :=
+          mul_le_mul_of_nonneg_left h_sq_le h_sq_nn
+      _ = g ε := by rw [hg_def]; ring
+  -- Apply `le_of_tendsto_of_tendsto`.
+  refine le_of_tendsto_of_tendsto tendsto_const_nhds h_tendsto ?_
+  filter_upwards [Ioo_mem_nhdsGT hε_max_pos] with ε hε
+  exact h_bound ε hε
 
 /-- **Squared diagonal ODE bound.** Under the same hypotheses as
 `local_norm_path_bound_from_diagonal_ode` plus continuity of `a` on
