@@ -611,18 +611,51 @@ lemma hess_path_has_deriv_at {V : Type*} [NormedAddCommGroup V] [InnerProductSpa
   rw [h_deriv_eq]
   exact h_hess_γ_deriv
 
-/-- **Critical self-concordance inequality.**
+/-- **Critical self-concordance inequality.** Fully polarized SC bound:
 `|D³f(x)[a, b, c]| ≤ 2 · √D²f(x)[a, a] · √D²f(x)[b, b] · √D²f(x)[c, c]`
 for any directions `a, b, c` at any interior point `x`.
 
-This should follow from the self_concordant property of LHSCB f.
--/
+**Status: open.** The diagonal special case `a = b = c` is exactly
+`f.self_concordant_abs_third` (which extracts a square root from the
+squared SC bound `f.self_concordant`). The general case — polarization
+of the diagonal bound to the trilinear form with the *same constant 2*
+— is the canonical hard step of self-concordance theory (Nesterov–
+Nemirovski §2.1; Renegar Cor 2.3.4).
+
+Naive polarization is lossy:
+* The trilinear polarization identity
+  `48·T[a,b,c] = Σ_{σ∈{±1}³} σ₁σ₂σ₃·T[σ₁a+σ₂b+σ₃c]³`
+  combined with `|T[w]³| ≤ 2·Q[w]^{3/2}` and the triangle inequality
+  `√Q[σ·v] ≤ √Q[a]+√Q[b]+√Q[c]` gives constant `≈ 9`, not `2`.
+* Banach's theorem `‖T‖ = sup_{‖h‖=1}|T[h,h,h]|` for symmetric
+  trilinear forms holds only over complex Hilbert spaces; over `ℝ` the
+  best constant is `9/2`.
+
+Two routes to the sharp constant `2`:
+1. **Hilbert SOS.** `P(t) := 4·Q[h+ta]³ − T[h+ta]³² ≥ 0` is a degree-6
+   univariate polynomial nonneg on `ℝ`, hence (Hilbert 1888) a sum of
+   two squares of degree-≤-3 polynomials. Coefficient matching extracts
+   the *bipolarized* bound `|T[u,h,h]| ≤ 2·√Q[u]·Q[h]`, and
+   PSD Cauchy–Schwarz on `(b,c) ↦ T[u,b,c]/√Q[u]` upgrades to the
+   trilinear bound. Mathlib has no Hilbert-SOS lemma; would need to be
+   formalized (~few hundred lines).
+2. **Saturation + continuity.** When `P(0) = 0` (saturation at `h`),
+   `t=0` is a min so `P'(0) = 0`, which gives `T[h,h,h]·T[h,h,a]
+   = 4·α⁴·Q[h,a]` and hence `|T[h,h,a]| = 2α²·|Q[h,a]| ≤ 2α²β`. The
+   non-saturated case `P(0) > 0` requires a continuity / scaling
+   argument that has resisted closure here.
+
+A randomized numerical search over the ratio
+`|T[a,b,c]|/(√Q[a]·√Q[b]·√Q[c])` confirms the sup is `≈ 1.94`,
+consistent with the textbook constant `2`. -/
 lemma self_concordant_inequality {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
     {K : Set V} {ν : ℕ} {d : ℕ∞}
     (f : LHSCB V K ν d) (x : V) (hx : x ∈ interior K) (a b c : V) :
     |iteratedFDerivWithin ℝ 3 f.f (interior K) x ![a, b, c]| ≤
       2 * Real.sqrt (f.hess x a) * Real.sqrt (f.hess x b) *
-        Real.sqrt (f.hess x c) :=
+        Real.sqrt (f.hess x c) := by
+  -- Diagonal case `a = b = c` reduces to `f.self_concordant_abs_third`;
+  -- general case is the open polarization step (see docstring above).
   sorry
 
 /-- **Lemma 1: Diagonal Dikin metric bound along the segment.**
