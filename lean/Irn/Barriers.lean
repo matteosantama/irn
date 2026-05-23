@@ -310,17 +310,56 @@ and `path_hess_integrated_bound` because they have no self-concordance
 content — they take the ODE inequality as a hypothesis on an abstract
 function `a : ℝ → ℝ` (resp. `H : ℝ → ℝ`) and integrate it. -/
 
+/-- **ε-regularized substitution is 1-Lipschitz.** For any `ε > 0`, the
+function `b_ε(s) := 1/√(a(s) + ε²)` is 1-Lipschitz on `[0, 1]`,
+provided `a` is non-negative, continuous, and differentiable on `(0,1)`
+with `|a'(t)| ≤ 2 (√a(t))³`.
+
+Pure real-analysis fact, no LHSCB context. Expected proof: differentiate
+`b_ε` (composition of `a`, `Real.sqrt`, and reciprocal — all smooth on
+the positive domain), bound `|b_ε'(s)| ≤ 1` via the ODE hypothesis (the
+key cancellation: `|a'|/(2·(a+ε²)^(3/2)) ≤ a^(3/2)/(a+ε²)^(3/2) ≤ 1`),
+then apply `lipschitzOnWith_of_nnnorm_deriv_le` on the convex `Ioo 0 1`
+and `LipschitzOnWith.closure` to extend to `[0, 1]`. -/
+private lemma b_eps_one_lipschitz
+    {a : ℝ → ℝ}
+    (ha_nn : ∀ t ∈ Set.Icc (0:ℝ) 1, 0 ≤ a t)
+    (ha_cont : ContinuousOn a (Set.Icc (0:ℝ) 1))
+    (ha_deriv : ∀ t ∈ Set.Ioo (0:ℝ) 1, ∃ a', HasDerivAt a a' t ∧
+                |a'| ≤ 2 * (Real.sqrt (a t)) ^ 3)
+    (ε : ℝ) (hε_pos : 0 < ε) :
+    LipschitzOnWith 1 (fun s => 1 / Real.sqrt (a s + ε ^ 2))
+      (Set.Icc (0:ℝ) 1) := by
+  sorry
+
+/-- **Squared diagonal bound from Lipschitz family.** Given the 1-Lipschitz
+family `b_ε := 1/√(a+ε²)` on `[0, 1]` (one per `ε > 0`), conclude the
+squared Dikin bound `(1 − t·r)² · a(t) ≤ r²`.
+
+Pure real-analysis limit argument, no derivative computations: from
+1-Lipschitz `|b_ε(t) − b_ε(0)| ≤ t` and `a(0) ≤ r²` (so `b_ε(0) ≥
+1/√(r²+ε²)`), get `√(a(t)+ε²) ≤ 1/(1/√(r²+ε²) − t)` for ε small;
+then take `ε → 0+` via `le_of_tendsto` to obtain the squared bound. -/
+private lemma diagonal_ode_squared_bound_via_lipschitz
+    {a : ℝ → ℝ} {r : ℝ}
+    (hr_nn : 0 ≤ r) (hr_lt_one : r < 1)
+    (ha_nn : ∀ t ∈ Set.Icc (0:ℝ) 1, 0 ≤ a t)
+    (ha_0 : a 0 ≤ r ^ 2)
+    (h_lip : ∀ ε > (0:ℝ),
+        LipschitzOnWith 1 (fun s => 1 / Real.sqrt (a s + ε ^ 2))
+          (Set.Icc (0:ℝ) 1)) :
+    ∀ t ∈ Set.Icc (0:ℝ) 1, (1 - t * r) ^ 2 * a t ≤ r ^ 2 := by
+  sorry
+
 /-- **Squared diagonal ODE bound.** Under the same hypotheses as
 `local_norm_path_bound_from_diagonal_ode` plus continuity of `a` on
 `[0, 1]`, we have `(1 − t·r)² · a(t) ≤ r²` for all `t ∈ [0, 1]`.
 
 This is the squared form of the Dikin estimate; it avoids the
 differentiability obstruction at `a = 0` that the natural `1/√a`
-substitution would face. The expected proof is a "first time of
-failure" barrier argument: at any `t` where the bound `q(t) :=
-(1 − t·r)² · a(t) ≤ r²` holds we have `(1 − t·r) · √a(t) ≤ r`, which
-combined with `|a'(t)| ≤ 2 (√a)³` gives `q'(t) ≤ 0`; hence the set
-`{t : q ≤ r²}` is closed and open in `[0, 1]` and equals `[0, 1]`. -/
+substitution would face. The proof is a trivial composition of
+`b_eps_one_lipschitz` (1-Lipschitz family from the ODE) and
+`diagonal_ode_squared_bound_via_lipschitz` (ε → 0+ limit). -/
 private lemma diagonal_ode_squared_bound
     {a : ℝ → ℝ} {r : ℝ}
     (hr_nn : 0 ≤ r) (hr_lt_one : r < 1)
@@ -329,8 +368,9 @@ private lemma diagonal_ode_squared_bound
     (ha_0 : a 0 ≤ r ^ 2)
     (ha_deriv : ∀ t ∈ Set.Ioo (0:ℝ) 1, ∃ a', HasDerivAt a a' t ∧
                 |a'| ≤ 2 * (Real.sqrt (a t)) ^ 3) :
-    ∀ t ∈ Set.Icc (0:ℝ) 1, (1 - t * r) ^ 2 * a t ≤ r ^ 2 := by
-  sorry
+    ∀ t ∈ Set.Icc (0:ℝ) 1, (1 - t * r) ^ 2 * a t ≤ r ^ 2 :=
+  diagonal_ode_squared_bound_via_lipschitz hr_nn hr_lt_one ha_nn ha_0
+    (fun ε hε => b_eps_one_lipschitz ha_nn ha_cont ha_deriv ε hε)
 
 /-- **ODE integration for the diagonal Dikin estimate.** Suppose
 `a : ℝ → ℝ` is non-negative and continuous on `[0, 1]`, satisfies
