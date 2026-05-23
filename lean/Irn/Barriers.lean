@@ -859,24 +859,90 @@ lemma hess_path_has_deriv_at {V : Type*} [NormedAddCommGroup V] [InnerProductSpa
   rw [h_deriv_eq]
   exact h_hess_γ_deriv
 
+/-- **Abstract polarization of cubic self-concordance.** For a symmetric
+continuous trilinear `T` and a symmetric PSD continuous bilinear `Q` on
+a normed real vector space, if `T` satisfies the diagonal bound
+`|T(w, w, w)| ≤ 2 (√Q(w, w))³` for every `w`, then it satisfies the
+polarized bound `|T(v, h, h)| ≤ 2·Q(h, h)·√Q(v, v)` for every `v, h`.
+
+Pure multilinear-algebra statement: no analysis, no LHSCB. Proof
+strategy (Nesterov–Nemirovski): apply the diagonal bound at the
+direction `h + λ·v`, expand the cubic in `λ` (using full symmetry of
+`T` to combine like terms), extract the coefficient of `λ¹` (which is
+`3·T(v, h, h)`), bound it using the diagonal at `v` and Cauchy–Schwarz
+on `Q`. Optimize over `λ`. -/
+private lemma sc_polarized_abstract
+    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
+    (T : ContinuousMultilinearMap ℝ (fun _ : Fin 3 => V) ℝ)
+    (Q : ContinuousMultilinearMap ℝ (fun _ : Fin 2 => V) ℝ)
+    (hT_sym : ∀ (m : Fin 3 → V) (σ : Equiv.Perm (Fin 3)), T (m ∘ σ) = T m)
+    (hQ_sym : ∀ a b : V, Q ![a, b] = Q ![b, a])
+    (hQ_psd : ∀ w : V, 0 ≤ Q (fun _ => w))
+    (hT_diag : ∀ w : V, |T (fun _ => w)| ≤ 2 * (Real.sqrt (Q (fun _ => w))) ^ 3)
+    (v h : V) :
+    |T ![v, h, h]| ≤ 2 * Q (fun _ => h) * Real.sqrt (Q (fun _ => v)) := by
+  sorry
+
+/-- **Symmetry of the 3rd iterated Fréchet derivative.** For a `C³`
+function on an open set, the iterated Fréchet derivative
+`iteratedFDerivWithin ℝ 3 f s x` is symmetric under permutations of
+its three arguments. (Pure Mathlib statement; the Schwarz theorem
+extension to third derivatives. Follows from the recursive structure
+of `iteratedFDeriv` plus `IsSymmSndFDerivWithinAt` applied to
+`fderiv f`.) -/
+private lemma iteratedFDerivWithin_3_perm_invariant
+    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
+    {f : V → ℝ} {s : Set V} (hs : IsOpen s) (hf : ContDiffOn ℝ 3 f s)
+    {x : V} (hx : x ∈ s) (m : Fin 3 → V) (σ : Equiv.Perm (Fin 3)) :
+    iteratedFDerivWithin ℝ 3 f s x (m ∘ σ) = iteratedFDerivWithin ℝ 3 f s x m := by
+  sorry
+
 /-- **Polarized self-concordance bound.** Off-diagonal cubic-form
 bound: `|D³f(x)[v, h, h]| ≤ 2 · D²f(x)[h, h] · √D²f(x)[v, v]` for any
 directions `v, h` at any interior point `x`.
 
-Proof outline: standard polarization of the diagonal SC bound
-`self_concordant_abs_third` applied to `w = h + λv`, expanding the
-cubic/quadratic forms in `λ` and bounding the coefficient of `λ¹` on
-the LHS (which is `3 D³f[v, h, h]`) against the corresponding term on
-the RHS. Equivalent to the trilinear Nesterov–Nemirovski inequality
-`|D³f[u, v, w]| ≤ 2 √D²f[u,u] · √D²f[v,v] · √D²f[w,w]` specialized
-to `(u, v, w) = (v, h, h)`. -/
+Now proved as a trivial application of the abstract polarization
+(`sc_polarized_abstract`) with `T := iteratedFDerivWithin ℝ 3 f.f
+(interior K) x` and `Q := iteratedFDerivWithin ℝ 2 f.f (interior K) x`.
+Symmetry of `T` comes from `iteratedFDerivWithin_3_perm_invariant`,
+symmetry of `Q` from Mathlib's
+`IsSymmSndFDerivWithinAt.iteratedFDerivWithin_cons`, PSD of `Q` from
+`f.self_concordant_hessian_nonneg`, and diagonal SC from
+`f.self_concordant_abs_third`. -/
 lemma self_concordant_polarized {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
     {K : Set V} {ν : ℕ} {d : ℕ∞}
     (f : LHSCB V K ν d) (x : V) (hx : x ∈ interior K) (v h : V) :
     |iteratedFDerivWithin ℝ 3 f.f (interior K) x ![v, h, h]| ≤
       2 * iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => h) *
         Real.sqrt (iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => v)) := by
-  sorry
+  -- Apply abstract polarization with T, Q as the iterated derivatives.
+  set T := iteratedFDerivWithin ℝ 3 f.f (interior K) x with hT_def
+  set Q := iteratedFDerivWithin ℝ 2 f.f (interior K) x with hQ_def
+  have hf_C3 : ContDiffOn ℝ 3 f.f (interior K) := f.contDiff₃
+  -- Symmetry of `T`: `iteratedFDerivWithin_3_perm_invariant`.
+  have hT_sym : ∀ (m : Fin 3 → V) (σ : Equiv.Perm (Fin 3)), T (m ∘ σ) = T m :=
+    fun m σ => iteratedFDerivWithin_3_perm_invariant isOpen_interior hf_C3 hx m σ
+  -- Symmetry of `Q` (single transposition): from
+  -- `IsSymmSndFDerivWithinAt.iteratedFDerivWithin_cons`.
+  have hQ_sym : ∀ a b : V, Q ![a, b] = Q ![b, a] := by
+    intro a b
+    have h_C2_at : ContDiffAt ℝ 2 f.f x := by
+      have : ContDiffOn ℝ 2 f.f (interior K) :=
+        hf_C3.of_le (by norm_num : (2 : WithTop ℕ∞) ≤ 3)
+      exact (this.contDiffWithinAt hx).contDiffAt (isOpen_interior.mem_nhds hx)
+    have h_symm_at : IsSymmSndFDerivAt ℝ f.f x :=
+      h_C2_at.isSymmSndFDerivAt (by simp : minSmoothness ℝ 2 ≤ (2 : WithTop ℕ∞))
+    have h_symm : IsSymmSndFDerivWithinAt ℝ f.f (interior K) x :=
+      h_symm_at.isSymmSndFDerivWithinAt h_C2_at isOpen_interior.uniqueDiffOn hx
+    exact h_symm.iteratedFDerivWithin_cons isOpen_interior.uniqueDiffOn hx
+  -- PSD of Q.
+  have hQ_psd : ∀ w : V, 0 ≤ Q (fun _ => w) :=
+    fun w => f.self_concordant_hessian_nonneg x hx w
+  -- Diagonal SC.
+  have hT_diag : ∀ w : V, |T (fun _ => w)| ≤ 2 * (Real.sqrt (Q (fun _ => w))) ^ 3 :=
+    fun w => f.self_concordant_abs_third x hx w
+  -- Apply.
+  exact sc_polarized_abstract T Q hT_sym hQ_sym hQ_psd hT_diag v h
 
 /-- **Lemma 1.** Diagonal Dikin metric bound along the segment.
 For `t ∈ [0, 1]` and `r = √(hess f u₀ (u−u₀)) < 1`, the local norm of
