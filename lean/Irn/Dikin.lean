@@ -1081,11 +1081,108 @@ private lemma sc_polarized_via_sos
       _ ≤ (2 * (Real.sqrt (Q (fun _ => h + t • v))) ^ 3) ^ 2 := by
           apply pow_le_pow_left₀ (abs_nonneg _) h1
       _ = 4 * (Q (fun _ => h + t • v)) ^ 3 := by rw [mul_pow]; rw [h_pow6]; ring
-  -- Step 3 (residual sorry): extract |c| ≤ 2·α²·β from the polynomial-positivity
-  -- statement `(g(t))² ≤ 4·(q(t))³ for all t ∈ ℝ`, where g, q are given
-  -- explicitly above. The argument requires either an explicit SOS witness or a
-  -- reduction to the saturated case (`sc_polarized_saturated`) via a
-  -- perturbation that preserves T(v, h, h) and saturates at h.
+  -- Step 3: derive explicit polynomial inequalities by instantiating h_sc_sq
+  -- at rational t values, combined with h_g_expand / h_q_expand.
+  have hα2_nn : 0 ≤ Q (fun _ => h) := hQ_psd h
+  have hβ2_nn : 0 ≤ Q (fun _ => v) := hQ_psd v
+  have h_CS : (Q ![h, v]) ^ 2 ≤ Q (fun _ => h) * Q (fun _ => v) :=
+    psd_cauchy_schwarz Q hQ_sym hQ_psd h v
+  -- Polynomial inequality at t = 0, 1, -1, by expanding h_sc_sq through h_g_expand
+  -- and h_q_expand. These give:
+  --   a² ≤ 4 α⁶                                  (t = 0)
+  --   (a + 3c + 3e + δ)² ≤ 4 (α² + 2γ + β²)³     (t = 1)
+  --   (a − 3c + 3e − δ)² ≤ 4 (α² − 2γ + β²)³     (t = −1)
+  -- (writing a = T(h,h,h), c = T(v,h,h), e = T(h,v,v), δ = T(v,v,v),
+  --  α² = Q(h,h), β² = Q(v,v), γ = Q(h,v))
+  have h_sq_0 : (T (fun _ => h)) ^ 2 ≤ 4 * (Q (fun _ => h)) ^ 3 := by
+    have hsc := h_sc_sq 0
+    have h_g0 : T (fun _ : Fin 3 => h + (0 : ℝ) • v) = T (fun _ : Fin 3 => h) := by
+      congr 1; funext _; rw [zero_smul, add_zero]
+    have h_q0 : Q (fun _ : Fin 2 => h + (0 : ℝ) • v) = Q (fun _ : Fin 2 => h) := by
+      congr 1; funext _; rw [zero_smul, add_zero]
+    rw [h_g0, h_q0] at hsc
+    exact hsc
+  -- The diagonal bound at v (squared):
+  have h_sq_v : (T (fun _ => v)) ^ 2 ≤ 4 * (Q (fun _ => v)) ^ 3 := by
+    have h_d := hT_diag v
+    have h_sqrt_sq6 : ((Real.sqrt (Q (fun _ => v))) ^ 3) ^ 2 =
+        (Q (fun _ => v)) ^ 3 := by
+      rw [show ((Real.sqrt (Q (fun _ => v))) ^ 3) ^ 2 =
+          ((Real.sqrt (Q (fun _ => v))) ^ 2) ^ 3 from by ring, Real.sq_sqrt hβ2_nn]
+    calc (T (fun _ => v)) ^ 2
+        = (|T (fun _ => v)|) ^ 2 := (sq_abs _).symm
+      _ ≤ (2 * (Real.sqrt (Q (fun _ => v))) ^ 3) ^ 2 :=
+          pow_le_pow_left₀ (abs_nonneg _) h_d 2
+      _ = 4 * (Q (fun _ => v)) ^ 3 := by rw [mul_pow]; rw [h_sqrt_sq6]; ring
+  -- Squared form of the target bound: |c| ≤ 2 α² β  ⟺  c² ≤ 4 α⁴ β².
+  have h_target_nn : 0 ≤ 2 * Q (fun _ => h) * Real.sqrt (Q (fun _ => v)) := by
+    have := Real.sqrt_nonneg (Q (fun _ => v)); positivity
+  refine (abs_le_of_sq_le_sq' ?_ h_target_nn).2
+  rw [sq_abs, show (2 * Q (fun _ => h) * Real.sqrt (Q (fun _ => v))) ^ 2 =
+        4 * (Q (fun _ => h)) ^ 2 * Q (fun _ => v) from by
+      rw [mul_pow, mul_pow, Real.sq_sqrt hβ2_nn]; ring]
+  -- Additionally: squared SC at t = 1 and t = -1 give polynomial inequalities
+  -- in the cubic / bilinear coefficients.
+  have h_sq_pos1 : (T (fun _ => h) + 3 * T ![v, h, h] +
+        3 * T ![h, v, v] + T (fun _ => v)) ^ 2 ≤
+      4 * (Q (fun _ => h) + 2 * Q ![h, v] + Q (fun _ => v)) ^ 3 := by
+    have hsc := h_sc_sq 1
+    rw [show T (fun _ => h + (1 : ℝ) • v) =
+        T (fun _ => h) + 3 * T ![v, h, h] + 3 * T ![h, v, v] + T (fun _ => v) from by
+      have := h_g_expand 1; simpa using this,
+      show Q (fun _ => h + (1 : ℝ) • v) =
+          Q (fun _ => h) + 2 * Q ![h, v] + Q (fun _ => v) from by
+        have := h_q_expand 1; simpa using this] at hsc
+    exact hsc
+  have h_sq_neg1 : (T (fun _ => h) - 3 * T ![v, h, h] +
+        3 * T ![h, v, v] - T (fun _ => v)) ^ 2 ≤
+      4 * (Q (fun _ => h) - 2 * Q ![h, v] + Q (fun _ => v)) ^ 3 := by
+    have hsc := h_sc_sq (-1)
+    have h_g_eq : T (fun _ => h + (-1 : ℝ) • v) =
+        T (fun _ => h) - 3 * T ![v, h, h] + 3 * T ![h, v, v] - T (fun _ => v) := by
+      have := h_g_expand (-1); linarith [this]
+    have h_q_eq : Q (fun _ => h + (-1 : ℝ) • v) =
+        Q (fun _ => h) - 2 * Q ![h, v] + Q (fun _ => v) := by
+      have := h_q_expand (-1); linarith [this]
+    rw [h_g_eq, h_q_eq] at hsc
+    exact hsc
+  -- Step 4: attempt the extraction. We try nlinarith with the polynomial
+  -- inequalities at t = 0, ±1, ∞ (v) plus Cauchy-Schwarz. Lean's nlinarith
+  -- is unable to find the Positivstellensatz certificate for the bound
+  -- `c² ≤ 4·α⁴·β²` from a finite set of t-instantiations alone — the
+  -- argument intrinsically uses the symbolic optimum `t* = α/(β·√3)` (at
+  -- which `q(t*) = 4α²/3`), which is transcendental and not extractable by
+  -- nlinarith / polyrith. We leave the algebraic extraction as a sorry and
+  -- describe the missing step explicitly in the docstring above.
+  --
+  -- For reference: the GOAL at this point is
+  --   (T ![v, h, h]) ^ 2 ≤ 4 * (Q (fun _ => h)) ^ 2 * Q (fun _ => v)
+  -- and the hypotheses are:
+  --   h_sq_0    : (T (fun _ => h))² ≤ 4 (Q (fun _ => h))³
+  --   h_sq_v    : (T (fun _ => v))² ≤ 4 (Q (fun _ => v))³
+  --   h_sq_pos1 : (T(h) + 3·T![v,h,h] + 3·T![h,v,v] + T(v))² ≤
+  --                 4·(Q(h) + 2·Q![h,v] + Q(v))³
+  --   h_sq_neg1 : (T(h) − 3·T![v,h,h] + 3·T![h,v,v] − T(v))² ≤
+  --                 4·(Q(h) − 2·Q![h,v] + Q(v))³
+  --   h_CS      : Q![h,v]² ≤ Q(h)·Q(v)
+  --   hα2_nn, hβ2_nn : Q(h) ≥ 0, Q(v) ≥ 0.
+  -- The intermediate algebraic step that closes this involves degree-6
+  -- polynomial reasoning beyond standard tactics. Verified empirically:
+  -- `nlinarith` with the above hints does NOT find the bound. The crux
+  -- is that the optimal `t* = α/(β·√3)` in the polynomial argument is
+  -- transcendental, so finite rational-`t` instantiations are
+  -- insufficient — even at γ = 0 (orthogonal `h, v` in `Q`), the
+  -- combination `t = ±1` yields only the bound `|c| ≤ (2/3)·(4√2 + 2)·α²β
+  -- ≈ 2.55·α²β`, strictly larger than `2·α²β`. The sharp constant `2`
+  -- requires either:
+  -- (a) introducing the transcendental `s := √(α²/(3β²))` symbolically
+  --     and using `h_sc_sq` at `t = ±s` (degree-6 ring manipulations
+  --     with `Real.sqrt`, technically formalizable but tedious), OR
+  -- (b) explicit Hilbert-1888 SOS witnesses for the polynomial
+  --     `P(t) := 4·q(t)³ − g(t)²` (universal formula in
+  --     `(a, c, e, δ, α², β², γ)`, unknown analytically), OR
+  -- (c) a quadratic-form reduction over the 2D subspace `span{h, v}`
+  --     using the Hessian's PSD structure (substantial Lean work).
   sorry
 
 /-- **Route (b): polarized SC via path bootstrap.** For LHSCB `f`, the
