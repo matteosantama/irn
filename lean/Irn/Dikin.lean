@@ -47,7 +47,9 @@ basin would shrink near `∂K`.
   `iteratedFDerivWithin_3_perm_invariant`.
 * **Abstract polarization of cubic self-concordance**:
   `trilinear_expansion`, `bilinear_expansion`, `psd_cauchy_schwarz`,
-  `sc_polarized_abstract` (sorry — pure-algebra polarization).
+  `Q_diag_smul`, `sqrt_Q_seminorm_triangle`, `sc_cubic_odd_diff`,
+  `sc_polarized_per_lambda_bound`,
+  `sc_polarized_abstract` (sorry — final polynomial optimization).
 * **LHSCB-specific scaffold**:
   `LHSCB.hess_path_has_deriv_at` — chain rule along the segment.
   `LHSCB.self_concordant_polarized` — apply abstract polarization at
@@ -826,19 +828,180 @@ private lemma psd_cauchy_schwarz
   · contrapose! h_poly;
     exact ⟨ -Q ![u, v] / Q ( fun _ => v ), by nlinarith [ mul_div_cancel₀ ( -Q ![u, v] ) hQv, hQ_psd u, hQ_psd v ] ⟩
 
+/-- **Scalar absorption.** Multilinearity in both slots of a bilinear
+`Q` gives `Q(s • v, s • v) = s² · Q(v, v)`. Proved by `bilinear_expansion`
+at the basepoint `0`, then using that `Q` vanishes whenever one
+coordinate is zero. -/
+private lemma Q_diag_smul
+    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
+    (Q : ContinuousMultilinearMap ℝ (fun _ : Fin 2 => V) ℝ)
+    (hQ_sym : ∀ a b : V, Q ![a, b] = Q ![b, a])
+    (v : V) (s : ℝ) :
+    Q (fun _ => s • v) = s ^ 2 * Q (fun _ => v) := by
+  have h_expand := bilinear_expansion Q hQ_sym v 0 s
+  -- h_expand : Q (fun _ => 0 + s • v) = Q (fun _ => 0) + 2 * s * Q ![0, v] + s^2 * Q (fun _ => v)
+  have h_zero_diag : Q (fun _ : Fin 2 => (0 : V)) = 0 :=
+    Q.map_coord_zero (0 : Fin 2) rfl
+  have h_zero_off : Q ![(0 : V), v] = 0 :=
+    Q.map_coord_zero (0 : Fin 2) (by simp)
+  rw [h_zero_diag, h_zero_off] at h_expand
+  simpa [zero_add] using h_expand
+
+/-- **Triangle inequality for the `√Q`-seminorm.** For a symmetric PSD
+continuous bilinear form `Q`, the map `w ↦ √Q(w, w)` is a seminorm
+(modulo definiteness), and in particular satisfies
+`√Q(a + b, a + b) ≤ √Q(a, a) + √Q(b, b)`. Proved by squaring,
+expanding via `bilinear_expansion`, and bounding the cross term
+`Q(a, b)` with `psd_cauchy_schwarz`. -/
+private lemma sqrt_Q_seminorm_triangle
+    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
+    (Q : ContinuousMultilinearMap ℝ (fun _ : Fin 2 => V) ℝ)
+    (hQ_sym : ∀ a b : V, Q ![a, b] = Q ![b, a])
+    (hQ_psd : ∀ w : V, 0 ≤ Q (fun _ => w))
+    (a b : V) :
+    Real.sqrt (Q (fun _ => a + b)) ≤
+      Real.sqrt (Q (fun _ => a)) + Real.sqrt (Q (fun _ => b)) := by
+  set α : ℝ := Q (fun _ => a) with hα_def
+  set β : ℝ := Q (fun _ => b) with hβ_def
+  have hα_nn : 0 ≤ α := hQ_psd a
+  have hβ_nn : 0 ≤ β := hQ_psd b
+  have h_sum_nn : 0 ≤ Real.sqrt α + Real.sqrt β := by positivity
+  -- Expand Q (a + b, a + b) = α + 2 Q ![a, b] + β via `bilinear_expansion` at t = 1.
+  have h_expand : Q (fun _ => a + b) = α + 2 * Q ![a, b] + β := by
+    have h := bilinear_expansion Q hQ_sym b a 1
+    have h_rewrite : (fun _ : Fin 2 => a + (1 : ℝ) • b) = fun _ => a + b := by
+      funext _; rw [one_smul]
+    rw [h_rewrite] at h
+    linarith
+  -- Cauchy–Schwarz: Q ![a, b] ≤ √α · √β.
+  have h_CS : Q ![a, b] ≤ Real.sqrt α * Real.sqrt β := by
+    have h_sq : (Q ![a, b]) ^ 2 ≤ α * β := psd_cauchy_schwarz Q hQ_sym hQ_psd a b
+    have h_abs : |Q ![a, b]| ≤ Real.sqrt α * Real.sqrt β := by
+      rw [← Real.sqrt_sq_eq_abs, ← Real.sqrt_mul hα_nn]
+      exact Real.sqrt_le_sqrt h_sq
+    linarith [abs_le.mp h_abs]
+  -- Square the goal and finish.
+  rw [show Real.sqrt α + Real.sqrt β = Real.sqrt ((Real.sqrt α + Real.sqrt β) ^ 2) from
+    (Real.sqrt_sq h_sum_nn).symm]
+  refine Real.sqrt_le_sqrt ?_
+  rw [h_expand, add_pow_two, Real.sq_sqrt hα_nn, Real.sq_sqrt hβ_nn]
+  linarith
+
+/-- **Odd-part identity for the cubic.** Subtracting the trilinear
+expansion at `t` and at `-t` cancels the even-degree terms and leaves
+`6t·T(v, h, h) + 2t³·T(v, v, v)`. -/
+private lemma sc_cubic_odd_diff
+    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
+    (T : ContinuousMultilinearMap ℝ (fun _ : Fin 3 => V) ℝ)
+    (hT_sym : ∀ (m : Fin 3 → V) (σ : Equiv.Perm (Fin 3)), T (m ∘ σ) = T m)
+    (v h : V) (t : ℝ) :
+    T (fun _ => h + t • v) - T (fun _ => h + (-t) • v) =
+      6 * t * T ![v, h, h] + 2 * t ^ 3 * T (fun _ => v) := by
+  have h_pos := trilinear_expansion T hT_sym v h t
+  have h_neg := trilinear_expansion T hT_sym v h (-t)
+  rw [h_pos, h_neg]; ring
+
+/-- **Per-`t` bound on the off-diagonal cubic.** Combining the odd-part
+identity (`sc_cubic_odd_diff`), the diagonal SC bound `hT_diag` at
+`h ± t·v` and at `v`, and the `√Q`-triangle inequality
+(`sqrt_Q_seminorm_triangle`) gives
+`6t·|T(v, h, h)| ≤ 4·(√Q(h) + t·√Q(v))³ + 4t³·(√Q(v))³` for every
+`t > 0`. The final polarized bound `|T(v, h, h)| ≤ 2·Q(h, h)·√Q(v, v)`
+follows by optimizing over `t` — the **only** algebraic step left for
+`sc_polarized_abstract`. -/
+private lemma sc_polarized_per_lambda_bound
+    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
+    (T : ContinuousMultilinearMap ℝ (fun _ : Fin 3 => V) ℝ)
+    (Q : ContinuousMultilinearMap ℝ (fun _ : Fin 2 => V) ℝ)
+    (hT_sym : ∀ (m : Fin 3 → V) (σ : Equiv.Perm (Fin 3)), T (m ∘ σ) = T m)
+    (hQ_sym : ∀ a b : V, Q ![a, b] = Q ![b, a])
+    (hQ_psd : ∀ w : V, 0 ≤ Q (fun _ => w))
+    (hT_diag : ∀ w : V, |T (fun _ => w)| ≤ 2 * (Real.sqrt (Q (fun _ => w))) ^ 3)
+    (v h : V) {t : ℝ} (ht : 0 < t) :
+    6 * t * |T ![v, h, h]| ≤
+      4 * (Real.sqrt (Q (fun _ => h)) + t * Real.sqrt (Q (fun _ => v))) ^ 3 +
+        4 * t ^ 3 * (Real.sqrt (Q (fun _ => v))) ^ 3 := by
+  set α : ℝ := Real.sqrt (Q (fun _ => h)) with hα_def
+  set β : ℝ := Real.sqrt (Q (fun _ => v)) with hβ_def
+  have hα_nn : 0 ≤ α := Real.sqrt_nonneg _
+  have hβ_nn : 0 ≤ β := Real.sqrt_nonneg _
+  have ht_nn : 0 ≤ t := ht.le
+  have h_apb_nn : 0 ≤ α + t * β := by positivity
+  -- Step 1: √Q(s • v) = |s| · β. Apply for s = t and s = -t (both give t·β).
+  have h_sqrt_smul : ∀ s : ℝ, Real.sqrt (Q (fun _ => s • v)) = |s| * β := by
+    intro s
+    rw [Q_diag_smul Q hQ_sym v s,
+        show (s ^ 2 : ℝ) * Q (fun _ : Fin 2 => v) =
+            (|s| * Real.sqrt (Q (fun _ : Fin 2 => v))) ^ 2 from by
+          rw [mul_pow, sq_abs, Real.sq_sqrt (hQ_psd v)],
+        Real.sqrt_sq (by positivity : 0 ≤ |s| * Real.sqrt (Q (fun _ : Fin 2 => v)))]
+  -- Step 2: √Q(h + s•v) ≤ α + |s|·β via triangle inequality.
+  have h_sqrt_path : ∀ s : ℝ, Real.sqrt (Q (fun _ => h + s • v)) ≤ α + |s| * β := by
+    intro s
+    have := sqrt_Q_seminorm_triangle Q hQ_sym hQ_psd h (s • v)
+    rw [h_sqrt_smul s] at this
+    linarith
+  -- Step 3: hT_diag at h + t•v and h + (-t)•v, using the path bound.
+  have h_bound_at : ∀ s : ℝ, |T (fun _ => h + s • v)| ≤ 2 * (α + |s| * β) ^ 3 := by
+    intro s
+    have h1 := hT_diag (h + s • v)
+    have h2 : (Real.sqrt (Q (fun _ => h + s • v))) ^ 3 ≤ (α + |s| * β) ^ 3 := by
+      have hsqrt_nn : 0 ≤ Real.sqrt (Q (fun _ => h + s • v)) := Real.sqrt_nonneg _
+      exact pow_le_pow_left₀ hsqrt_nn (h_sqrt_path s) 3
+    linarith
+  -- For s = t and s = -t, |s| = t.
+  have h_pos_bound : |T (fun _ => h + t • v)| ≤ 2 * (α + t * β) ^ 3 := by
+    have := h_bound_at t; rwa [abs_of_pos ht] at this
+  have h_neg_bound : |T (fun _ => h + (-t) • v)| ≤ 2 * (α + t * β) ^ 3 := by
+    have := h_bound_at (-t); rwa [abs_of_neg (neg_neg_iff_pos.mpr ht), neg_neg] at this
+  -- Step 4: Odd-part identity bounds |6t·T(v,h,h) + 2t³·T(v)|.
+  have h_odd_id := sc_cubic_odd_diff T hT_sym v h t
+  have h_odd_bound :
+      |6 * t * T ![v, h, h] + 2 * t ^ 3 * T (fun _ => v)| ≤
+        4 * (α + t * β) ^ 3 := by
+    rw [← h_odd_id]
+    calc |T (fun _ => h + t • v) - T (fun _ => h + (-t) • v)|
+        ≤ |T (fun _ => h + t • v)| + |T (fun _ => h + (-t) • v)| := abs_sub _ _
+      _ ≤ 2 * (α + t * β) ^ 3 + 2 * (α + t * β) ^ 3 := by linarith
+      _ = 4 * (α + t * β) ^ 3 := by ring
+  -- Step 5: bound |2t³·T(v)| via hT_diag at v.
+  have h_Tv_bound : |T (fun _ => v)| ≤ 2 * β ^ 3 := hT_diag v
+  have h_cubic_v : |2 * t ^ 3 * T (fun _ => v)| ≤ 4 * t ^ 3 * β ^ 3 := by
+    rw [show (2 * t ^ 3 * T (fun _ => v)) = 2 * t ^ 3 * T (fun _ => v) from rfl,
+        abs_mul, abs_mul, abs_of_pos (by norm_num : (0 : ℝ) < 2),
+        abs_of_pos (pow_pos ht 3)]
+    nlinarith [h_Tv_bound, pow_pos ht 3]
+  -- Step 6: triangle inequality on the LHS to isolate 6t·|T(v,h,h)|.
+  have h_6t_pos : 0 < 6 * t := by linarith
+  rw [show 6 * t * |T ![v, h, h]| = |6 * t * T ![v, h, h]| from by
+    rw [abs_mul, abs_of_pos h_6t_pos]]
+  calc |6 * t * T ![v, h, h]|
+      ≤ |6 * t * T ![v, h, h] + 2 * t ^ 3 * T (fun _ => v)| +
+          |2 * t ^ 3 * T (fun _ => v)| := by
+        have := abs_add_le (6 * t * T ![v, h, h] + 2 * t ^ 3 * T (fun _ => v))
+          (-(2 * t ^ 3 * T (fun _ => v)))
+        rw [add_neg_cancel_right] at this
+        simpa [abs_neg] using this
+    _ ≤ 4 * (α + t * β) ^ 3 + 4 * t ^ 3 * β ^ 3 := by linarith
+
 /-- **Abstract polarization of cubic self-concordance.** For a symmetric
 continuous trilinear `T` and a symmetric PSD continuous bilinear `Q` on
 a normed real vector space, if `T` satisfies the diagonal bound
 `|T(w, w, w)| ≤ 2 (√Q(w, w))³` for every `w`, then it satisfies the
 polarized bound `|T(v, h, h)| ≤ 2·Q(h, h)·√Q(v, v)` for every `v, h`.
 
-Pure multilinear-algebra statement: no analysis, no LHSCB. Proof
-strategy (Nesterov–Nemirovski): apply the diagonal bound at the
-direction `h + λ·v`, expand the cubic in `λ` (using full symmetry of
-`T` to combine like terms via `trilinear_expansion`), extract the
-coefficient of `λ¹` (which is `3·T(v, h, h)`), bound it using the
-diagonal at `v` and Cauchy–Schwarz on `Q` (`psd_cauchy_schwarz`).
-Optimize over `λ`. -/
+Pure multilinear-algebra statement: no analysis, no LHSCB. The clean
+algebraic steps — triangle inequality for `√Q`, the odd-part identity
+of the cubic, and the per-`t` bound combining them with the diagonal
+hypothesis — are factored out as `sqrt_Q_seminorm_triangle`,
+`sc_cubic_odd_diff`, and `sc_polarized_per_lambda_bound`. What remains
+is the **polynomial optimization step**: from
+`6t·|T(v, h, h)| ≤ 4·(√Q(h) + t·√Q(v))³ + 4t³·(√Q(v))³` for all `t > 0`,
+extract `|T(v, h, h)| ≤ 2·Q(h, h)·√Q(v, v)`. The naive triangle bound
+above optimizes to a constant strictly larger than `2`; the sharp `2`
+requires a tighter argument exploiting the **squared** SC hypothesis
+`(T(w,w,w))² ≤ 4·(Q(w,w))³` as a polynomial-positivity statement, which
+is left as the residual sorry. -/
 lemma sc_polarized_abstract
     {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
     (T : ContinuousMultilinearMap ℝ (fun _ : Fin 3 => V) ℝ)
@@ -849,6 +1012,9 @@ lemma sc_polarized_abstract
     (hT_diag : ∀ w : V, |T (fun _ => w)| ≤ 2 * (Real.sqrt (Q (fun _ => w))) ^ 3)
     (v h : V) :
     |T ![v, h, h]| ≤ 2 * Q (fun _ => h) * Real.sqrt (Q (fun _ => v)) := by
+  -- The per-`t` bound `sc_polarized_per_lambda_bound` is the analytic
+  -- input. The remaining step is the polynomial optimization to extract
+  -- the sharp constant `2`.
   sorry
 
 namespace LHSCB
