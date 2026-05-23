@@ -1021,17 +1021,28 @@ private lemma sc_polarized_saturated
     sorry
 
 omit [CompleteSpace V] in
-/-- **Route (a): polarized SC via SOS decomposition.** The squared SC
-inequality `(T(h+tv,h+tv,h+tv))² ≤ 4·(Q(h+tv,h+tv))³` is a nonneg
-degree-6 polynomial in `t`. By Hilbert's 1888 theorem on nonneg
-univariate polynomials, there exist real polynomials `p₁, p₂` of
-degree ≤ 3 such that
-`4·q(t)³ − g(t)² = p₁(t)² + p₂(t)²` for all `t ∈ ℝ`.
-Comparing coefficients of `t⁰` and `t¹` and applying Cauchy–Schwarz on
-the pairs `(p₁(0), p₂(0))` and `(p₁'(0), p₂'(0))` yields `|c| ≤ 2α²β`.
-The residual sorry is the *existence* of the SOS witnesses (currently
-beyond Mathlib's polynomial library) plus the coefficient-extraction
-arithmetic. -/
+/-- **Route (a): polarized SC via SOS decomposition.** Set up the
+polynomial framework explicitly: at every `t ∈ ℝ`, squared SC at
+direction `h + t·v` gives `g(t)² ≤ 4·q(t)³` where
+`g(t) := T(h+tv,h+tv,h+tv) = a + 3ct + 3et² + dt³` and
+`q(t) := Q(h+tv,h+tv) = α² + 2γt + β²t²`
+(with `a := T(h,h,h), c := T(v,h,h), e := T(v,v,h), d := T(v,v,v),
+α² := Q(h,h), β² := Q(v,v), γ := Q(h,v)`).
+
+The polarized bound `|c| ≤ 2·α²·β` then reduces to extracting the
+correct coefficient relation from the polynomial-positivity statement
+`P(t) := 4·q(t)³ − g(t)² ≥ 0 (∀ t)`. Two ways to do this:
+* **Saturated case** (`P(0) = 0`, i.e. `a² = 4α⁶`): the
+  `sc_polarized_saturated` lemma above directly gives the bound from
+  the relation `P'(0) = 0 ⇒ ac = 4α⁴γ`.
+* **Non-saturated case** (`P(0) > 0`): perturb `T` by a symmetric
+  trilinear that vanishes on `(v, h, h)` and saturates at `h`, then
+  apply the saturated case. Equivalently (by Hilbert 1888): exhibit
+  degree-3 SOS witnesses `p₁, p₂` with `P = p₁² + p₂²` and read off
+  the bound via Cauchy–Schwarz on the witness coefficients.
+
+The residual sorry covers both the perturbation construction and the
+algebraic extraction. -/
 private lemma sc_polarized_via_sos
     {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
     (T : ContinuousMultilinearMap ℝ (fun _ : Fin 3 => V) ℝ)
@@ -1042,21 +1053,58 @@ private lemma sc_polarized_via_sos
     (hT_diag : ∀ w : V, |T (fun _ => w)| ≤ 2 * (Real.sqrt (Q (fun _ => w))) ^ 3)
     (v h : V) :
     |T ![v, h, h]| ≤ 2 * Q (fun _ => h) * Real.sqrt (Q (fun _ => v)) := by
-  -- Step 1: Squared SC at h + tv gives P(t) := 4 q(t)³ - g(t)² ≥ 0 for all t ∈ ℝ.
-  -- Step 2: By Hilbert's SOS theorem (sorry — needs Mathlib SOS API), there exist
-  --         degree-3 real polynomials p₁, p₂ with P(t) = p₁(t)² + p₂(t)².
-  -- Step 3: Coefficient comparison + Cauchy-Schwarz on (p₁(0), p₂(0)) and
-  --         (p₁'(0), p₂'(0)) yields the polarized bound.
+  -- Step 1: set up the polynomials g(t), q(t) via the trilinear / bilinear
+  -- expansion lemmas. We do not unfold these into a single polynomial — they
+  -- enter via the squared-SC hypothesis as `hg_sq` below.
+  have h_g_expand : ∀ t : ℝ, T (fun _ => h + t • v) =
+      T (fun _ => h) + 3 * t * T ![v, h, h] +
+        3 * t ^ 2 * T ![h, v, v] + t ^ 3 * T (fun _ => v) :=
+    fun t => trilinear_expansion T hT_sym v h t
+  have h_q_expand : ∀ t : ℝ, Q (fun _ => h + t • v) =
+      Q (fun _ => h) + 2 * t * Q ![h, v] + t ^ 2 * Q (fun _ => v) :=
+    fun t => bilinear_expansion Q hQ_sym v h t
+  -- Step 2: squared SC at h + t·v: g(t)² ≤ 4·q(t)³ for all t.
+  have h_sc_sq : ∀ t : ℝ,
+      (T (fun _ => h + t • v)) ^ 2 ≤ 4 * (Q (fun _ => h + t • v)) ^ 3 := by
+    intro t
+    have h1 := hT_diag (h + t • v)
+    have h2 : (Real.sqrt (Q (fun _ => h + t • v))) ^ 3 ≥ 0 := by positivity
+    have h_q_nn : 0 ≤ Q (fun _ => h + t • v) := hQ_psd _
+    have h_sqrt_sq : (Real.sqrt (Q (fun _ => h + t • v))) ^ 2 =
+        Q (fun _ => h + t • v) := Real.sq_sqrt h_q_nn
+    have h_pow6 : ((Real.sqrt (Q (fun _ => h + t • v))) ^ 3) ^ 2 =
+        (Q (fun _ => h + t • v)) ^ 3 := by
+      rw [show ((Real.sqrt (Q (fun _ => h + t • v))) ^ 3) ^ 2 =
+          ((Real.sqrt (Q (fun _ => h + t • v))) ^ 2) ^ 3 from by ring, h_sqrt_sq]
+    calc (T (fun _ => h + t • v)) ^ 2
+        = (|T (fun _ => h + t • v)|) ^ 2 := (sq_abs _).symm
+      _ ≤ (2 * (Real.sqrt (Q (fun _ => h + t • v))) ^ 3) ^ 2 := by
+          apply pow_le_pow_left₀ (abs_nonneg _) h1
+      _ = 4 * (Q (fun _ => h + t • v)) ^ 3 := by rw [mul_pow]; rw [h_pow6]; ring
+  -- Step 3 (residual sorry): extract |c| ≤ 2·α²·β from the polynomial-positivity
+  -- statement `(g(t))² ≤ 4·(q(t))³ for all t ∈ ℝ`, where g, q are given
+  -- explicitly above. The argument requires either an explicit SOS witness or a
+  -- reduction to the saturated case (`sc_polarized_saturated`) via a
+  -- perturbation that preserves T(v, h, h) and saturates at h.
   sorry
 
 /-- **Route (b): polarized SC via path bootstrap.** For LHSCB `f`, the
-function `ψ(τ) := hess f.f K (x + τ·v) h` is C¹ near `τ = 0` with
-`ψ'(0) = D³f(x)[v, h, h]`. Bounding `|ψ'(0)|` by `2·ψ(0)·√D²f(x)[v,v]`
-is equivalent to showing `ψ(τ)/ψ(0)` lies in `[(1 − τ·local_norm)²,
-(1 − τ·local_norm)⁻²]` for small `τ`, i.e., a *local* Hessian
-Lipschitz bound. The sorry is the path-Lipschitz step, which in
-general is exactly the multivariate SC inequality we are trying to
-prove. -/
+function `ψ(τ) := hess f.f K (x + τ·v) h` is C¹ on a neighbourhood of
+`τ = 0` (`x` is interior, so `x + τ·v ∈ interior K` for small `τ`),
+with `ψ'(0) = D³f(x)[v, h, h]` by the chain rule. The polarized bound
+is therefore equivalent to `|ψ'(0)| ≤ 2·ψ(0)·√D²f(x)[v,v]`.
+
+This sub-lemma carries the **derivative identification** through —
+explicitly computing `ψ'(0)` via `HasFDerivAt.comp_hasDerivAt` on the
+straight-line path and the evaluation `ContinuousMultilinearMap.apply`.
+The remaining sorry is the bound on the derivative itself: bounding
+`|ψ'(0)|` by `2·ψ(0)·√D²f(x)[v,v]` is *still* equivalent to the
+polarized SC at the basepoint, because the path-Lipschitz property of
+`ψ` near `τ = 0` is the same algebraic content as the cubic bound at
+`x` (no new information is gained from infinitesimal motion along
+`v`). Closing this step would require a separate input — e.g. a
+finite-τ multiplicative bound on `ψ` obtained from squared SC at
+directions `h + ε·v` for varying `ε`, then differentiation. -/
 private lemma sc_polarized_via_path_bootstrap
     {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
     {K : Set V} {ν : ℕ} {d : ℕ∞}
@@ -1064,13 +1112,60 @@ private lemma sc_polarized_via_path_bootstrap
     |iteratedFDerivWithin ℝ 3 f.f (interior K) x ![v, h, h]| ≤
       2 * iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => h) *
         Real.sqrt (iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => v)) := by
-  -- ψ(τ) := hess f.f K (x + τ•v) h. By hess_path_has_deriv_at:
-  --   ψ'(0) = iteratedFDerivWithin ℝ 3 f.f (interior K) x ![v, h, h].
-  -- The desired bound is |ψ'(0)| ≤ 2·ψ(0)·√D²f(x)[v,v].
-  -- Strategy: prove a multiplicative bound on ψ along the path using the
-  -- squared SC inequality at directions h+εv for varying ε; differentiate
-  -- the bound at τ = 0. This avoids passing through abstract polarization
-  -- but still requires polynomial-positivity reasoning at the basepoint.
+  -- Step 1: identify ψ'(0) = D³f(x)[v, h, h] via the chain rule. We define
+  -- γ s := x + s • v consistently so the basepoint γ 0 = x lines up.
+  have hf_C3 : ContDiffOn ℝ 3 f.f (interior K) := f.contDiff₃
+  set γ : ℝ → V := fun s => x + s • v with hγ_def
+  have hγ_zero : γ 0 = x := by simp [hγ_def]
+  have hγ0_in : γ 0 ∈ interior K := hγ_zero ▸ hx
+  have hγ_deriv : HasDerivAt γ v 0 := by
+    have h_smul : HasDerivAt (fun s : ℝ => s • v) v (0 : ℝ) := by
+      simpa using (hasDerivAt_id (0 : ℝ)).smul_const v
+    simpa [hγ_def] using h_smul.const_add x
+  have h_iter_wat :
+      ContDiffWithinAt ℝ 1 (iteratedFDerivWithin ℝ 2 f.f (interior K))
+        (interior K) (γ 0) :=
+    (hf_C3.contDiffWithinAt hγ0_in).iteratedFDerivWithin_right
+      isOpen_interior.uniqueDiffOn (by norm_num : (1 : WithTop ℕ∞) + 2 ≤ 3) hγ0_in
+  have h_iter_at :
+      ContDiffAt ℝ 1 (iteratedFDerivWithin ℝ 2 f.f (interior K)) (γ 0) :=
+    h_iter_wat.contDiffAt (isOpen_interior.mem_nhds hγ0_in)
+  have h_iter_diff :
+      DifferentiableAt ℝ (iteratedFDerivWithin ℝ 2 f.f (interior K)) (γ 0) :=
+    h_iter_at.differentiableAt_one
+  set L : V →L[ℝ] ContinuousMultilinearMap ℝ (fun _ : Fin 2 => V) ℝ :=
+    fderiv ℝ (iteratedFDerivWithin ℝ 2 f.f (interior K)) (γ 0) with hL_def
+  have h_fd_at :
+      HasFDerivAt (iteratedFDerivWithin ℝ 2 f.f (interior K)) L (γ 0) :=
+    h_iter_diff.hasFDerivAt
+  have h_iter_γ_deriv :
+      HasDerivAt (fun s => iteratedFDerivWithin ℝ 2 f.f (interior K) (γ s))
+        (L v) 0 :=
+    h_fd_at.comp_hasDerivAt 0 hγ_deriv
+  set ev : ContinuousMultilinearMap ℝ (fun _ : Fin 2 => V) ℝ →L[ℝ] ℝ :=
+    ContinuousMultilinearMap.apply ℝ (fun _ : Fin 2 => V) ℝ (fun _ => h) with hev_def
+  have hψ_deriv :
+      HasDerivAt (fun s => ev (iteratedFDerivWithin ℝ 2 f.f (interior K) (γ s)))
+        (ev (L v)) 0 :=
+    (ev.hasFDerivAt (x := iteratedFDerivWithin ℝ 2 f.f (interior K)
+      (γ 0))).comp_hasDerivAt 0 h_iter_γ_deriv
+  -- Step 2: identify D³f(x)[v, h, h] = ev (L v).
+  have h_tail_eq :
+      Fin.tail (![v, h, h] : Fin 3 → V) = (fun _ : Fin 2 => h) := by
+    funext i; fin_cases i <;> rfl
+  have h_deriv_eq :
+      iteratedFDerivWithin ℝ 3 f.f (interior K) (γ 0) ![v, h, h] = ev (L v) := by
+    show fderivWithin ℝ (iteratedFDerivWithin ℝ 2 f.f (interior K))
+          (interior K) (γ 0) v
+          (Fin.tail (![v, h, h] : Fin 3 → V)) = ev (L v)
+    rw [fderivWithin_of_isOpen isOpen_interior hγ0_in, h_tail_eq]
+    rfl
+  rw [show x = γ 0 from hγ_zero.symm, h_deriv_eq]
+  -- Step 3 (residual sorry): bound |ev (L v)| by 2·ψ(γ 0)·√Q(v, v) at γ 0.
+  -- We now have hψ_deriv : HasDerivAt (fun s => hess f.f K (γ s) h) (ev (L v)) 0,
+  -- so |ev (L v)| is the absolute value of the path-derivative of ψ at τ = 0.
+  -- The bound is the polarized SC bound itself, and requires an additional
+  -- input the chain rule alone does not provide.
   sorry
 
 /-- **Polarized self-concordance bound.** Off-diagonal cubic-form
