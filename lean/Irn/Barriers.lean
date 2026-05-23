@@ -302,14 +302,232 @@ lemma segment_in_interior {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
   rw [h_eq]
   exact hK_convex.interior hu₀ hu (by linarith) h0 (by linarith)
 
+/-! ### Path-derivative scaffold (pure real analysis)
+
+Two real-analysis Gronwall/ODE-integration lemmas, isolated from the
+LHSCB context. Both are strictly simpler than `dikin_path_metric_bound`
+and `path_hess_integrated_bound` because they have no self-concordance
+content — they take the ODE inequality as a hypothesis on an abstract
+function `a : ℝ → ℝ` (resp. `H : ℝ → ℝ`) and integrate it. -/
+
+/-- **ODE integration for the diagonal Dikin estimate.** Suppose
+`a : ℝ → ℝ` is non-negative on `[0, 1]`, satisfies `a(0) ≤ r²` (with
+`0 ≤ r < 1`), and `|a'(t)| ≤ 2 · (√a(t))³` on `(0, 1)`. Then
+`√a(t) ≤ r/(1 − t·r)` for all `t ∈ [0, 1]`.
+
+Proof outline: the substitution `b(t) := 1/√a(t)` (when `a(t) > 0`)
+turns `|a'| ≤ 2 a^{3/2}` into `|b'| ≤ 1`. Integrating gives
+`b(t) ≥ b(0) − t ≥ 1/r − t = (1 − t·r)/r`, hence `√a(t) ≤ r/(1 − t·r)`.
+The edge case `a ≡ 0` gives `0 ≤ r/(1 − t·r)` trivially. -/
+lemma local_norm_path_bound_from_diagonal_ode
+    {a : ℝ → ℝ} {r : ℝ}
+    (ha_nn : ∀ t ∈ Set.Icc (0:ℝ) 1, 0 ≤ a t)
+    (ha_0 : a 0 ≤ r ^ 2)
+    (hr_nn : 0 ≤ r) (hr_lt_one : r < 1)
+    (ha_deriv : ∀ t ∈ Set.Ioo (0:ℝ) 1, ∃ a', HasDerivAt a a' t ∧
+                |a'| ≤ 2 * (Real.sqrt (a t)) ^ 3) :
+    ∀ t ∈ Set.Icc (0:ℝ) 1, Real.sqrt (a t) ≤ r / (1 - t * r) := by
+  sorry
+
+/-- **Multiplicative Gronwall along an affine SC path.** Suppose
+`H : ℝ → ℝ` is non-negative and continuous on `[0, 1]` and satisfies the
+log-derivative bound `|H'(t)| ≤ 2 H(t) · r/(1 − t·r)` on `(0, 1)` (with
+`0 ≤ r < 1`). Then `(1 − r)² H(0) ≤ H(1) ≤ (1 − r)⁻² H(0)`.
+
+Proof: monotonicity trick that avoids `log`. The auxiliary function
+`φ(t) := (1 − t·r)² · H(t)` has `φ'(t) ≤ 0` on `(0, 1)` (using
+`(1 − t·r) H'(t) ≤ 2r H(t)` derived from the hypothesis), hence
+`φ` is antitone on `[0, 1]` and `φ(1) ≤ φ(0)` gives
+`(1 − r)² H(1) ≤ H(0)`. Symmetrically, `ψ(t) := H(t) / (1 − t·r)²`
+is monotone, giving the lower bound. -/
+lemma multiplicative_path_bound_from_log_ode
+    {H : ℝ → ℝ} {r : ℝ}
+    (hr_nn : 0 ≤ r) (hr_lt_one : r < 1)
+    (hH_nn : ∀ t ∈ Set.Icc (0:ℝ) 1, 0 ≤ H t)
+    (hH_cont : ContinuousOn H (Set.Icc (0:ℝ) 1))
+    (hH_deriv : ∀ t ∈ Set.Ioo (0:ℝ) 1, ∃ H', HasDerivAt H H' t ∧
+                |H'| ≤ 2 * H t * (r / (1 - t * r))) :
+    (1 - r) ^ 2 * H 0 ≤ H 1 ∧ H 1 ≤ (1 - r) ^ (-2 : ℝ) * H 0 := by
+  -- Positivity setup.
+  have h1r_pos : (0 : ℝ) < 1 - r := by linarith
+  have h1tr_pos : ∀ t ∈ Set.Icc (0:ℝ) 1, (0 : ℝ) < 1 - t * r := by
+    intro t ⟨h0, h1⟩; nlinarith
+  have hsq_pos : ∀ t ∈ Set.Icc (0:ℝ) 1, (0 : ℝ) < (1 - t * r) ^ 2 :=
+    fun t ht => pow_pos (h1tr_pos t ht) 2
+  -- Shared derivative computations.
+  -- d/dt (1 - t·r) = -r.
+  have h_1tr_deriv : ∀ s : ℝ, HasDerivAt (fun u : ℝ => 1 - u * r) (-r) s := by
+    intro s
+    have h_id_mul : HasDerivAt (fun u : ℝ => u * r) r s := by
+      simpa using (hasDerivAt_id s).mul_const r
+    simpa using h_id_mul.const_sub 1
+  -- d/dt (1 - t·r)² = -2r·(1 - t·r).
+  have hsq_deriv : ∀ s : ℝ,
+      HasDerivAt (fun u : ℝ => (1 - u * r) ^ 2) (-(2 * r * (1 - s * r))) s := by
+    intro s
+    have h := (h_1tr_deriv s).pow 2
+    convert h using 1
+    push_cast; ring
+  -- Useful interior-of-Icc identity.
+  have h_interior : interior (Set.Icc (0:ℝ) 1) = Set.Ioo 0 1 := interior_Icc
+  -- ── Upper bound: H 1 ≤ (1 - r)⁻² · H 0 via φ(t) = (1 - t·r)² · H(t). ──
+  have h_upper : H 1 ≤ (1 - r) ^ (-2 : ℝ) * H 0 := by
+    set φ : ℝ → ℝ := fun t => (1 - t * r) ^ 2 * H t with hφ_def
+    -- φ continuous on [0, 1].
+    have hφ_cont : ContinuousOn φ (Set.Icc 0 1) :=
+      (Continuous.continuousOn (by continuity)).mul hH_cont
+    -- φ differentiable on (0, 1) with deriv ≤ 0.
+    have hφ_diff_deriv : ∀ t ∈ Set.Ioo (0:ℝ) 1,
+        DifferentiableAt ℝ φ t ∧ deriv φ t ≤ 0 := by
+      intro t ht
+      obtain ⟨H', hH'_deriv, hH'_bd⟩ := hH_deriv t ht
+      have hφ_deriv_at :
+          HasDerivAt φ (-(2 * r * (1 - t * r)) * H t + (1 - t * r) ^ 2 * H') t :=
+        (hsq_deriv t).mul hH'_deriv
+      refine ⟨hφ_deriv_at.differentiableAt, ?_⟩
+      rw [hφ_deriv_at.deriv]
+      -- Bound: -(2r(1-tr)) H t + (1-tr)² H' ≤ 0.
+      have ht_Icc : t ∈ Set.Icc (0:ℝ) 1 := ⟨le_of_lt ht.1, le_of_lt ht.2⟩
+      have h_1tr := h1tr_pos t ht_Icc
+      have h_H_nn := hH_nn t ht_Icc
+      have h_H'_le : H' ≤ 2 * H t * (r / (1 - t * r)) :=
+        (le_abs_self H').trans hH'_bd
+      have h_step : (1 - t * r) * H' ≤ 2 * H t * r := by
+        have hmul := mul_le_mul_of_nonneg_left h_H'_le (le_of_lt h_1tr)
+        calc (1 - t * r) * H'
+            ≤ (1 - t * r) * (2 * H t * (r / (1 - t * r))) := hmul
+          _ = 2 * H t * r := by field_simp
+      nlinarith [h_step, h_1tr, h_H_nn, hr_nn,
+        mul_le_mul_of_nonneg_left h_step (le_of_lt h_1tr)]
+    have hφ_diff : DifferentiableOn ℝ φ (interior (Set.Icc (0:ℝ) 1)) := by
+      rw [h_interior]
+      intro t ht
+      exact (hφ_diff_deriv t ht).1.differentiableWithinAt
+    have hφ_nonpos : ∀ t ∈ interior (Set.Icc (0:ℝ) 1), deriv φ t ≤ 0 := by
+      rw [h_interior]; intro t ht; exact (hφ_diff_deriv t ht).2
+    have h_anti : AntitoneOn φ (Set.Icc (0:ℝ) 1) :=
+      antitoneOn_of_deriv_nonpos (convex_Icc 0 1) hφ_cont hφ_diff hφ_nonpos
+    have h_phi_le : φ 1 ≤ φ 0 :=
+      h_anti (Set.left_mem_Icc.mpr zero_le_one)
+             (Set.right_mem_Icc.mpr zero_le_one) zero_le_one
+    have hφ_0 : φ 0 = H 0 := by simp [φ]
+    have hφ_1 : φ 1 = (1 - r) ^ 2 * H 1 := by simp [φ]
+    rw [hφ_0, hφ_1] at h_phi_le
+    -- h_phi_le : (1 - r) ^ 2 * H 1 ≤ H 0. Divide by (1 - r)² > 0.
+    have h_sq_pos : (0 : ℝ) < (1 - r) ^ 2 := by positivity
+    have h_div : H 1 ≤ H 0 / (1 - r) ^ 2 := by
+      rw [le_div_iff₀ h_sq_pos]; linarith
+    have h_rpow_eq : (1 - r) ^ (-2 : ℝ) * H 0 = H 0 / (1 - r) ^ 2 := by
+      rw [Real.rpow_neg (le_of_lt h1r_pos), Real.rpow_two]
+      field_simp
+    rw [h_rpow_eq]; exact h_div
+  -- ── Lower bound: (1 - r)² · H 0 ≤ H 1 via ψ(t) = H(t) / (1 - t·r)². ──
+  have h_lower : (1 - r) ^ 2 * H 0 ≤ H 1 := by
+    set ψ : ℝ → ℝ := fun t => H t / (1 - t * r) ^ 2 with hψ_def
+    -- ψ continuous on [0, 1].
+    have hψ_cont : ContinuousOn ψ (Set.Icc 0 1) := by
+      refine ContinuousOn.div hH_cont (Continuous.continuousOn (by continuity)) ?_
+      intro t ht; exact ne_of_gt (hsq_pos t ht)
+    -- ψ differentiable on (0, 1) with deriv ≥ 0.
+    have hψ_diff_deriv : ∀ t ∈ Set.Ioo (0:ℝ) 1,
+        DifferentiableAt ℝ ψ t ∧ 0 ≤ deriv ψ t := by
+      intro t ht
+      obtain ⟨H', hH'_deriv, hH'_bd⟩ := hH_deriv t ht
+      have ht_Icc : t ∈ Set.Icc (0:ℝ) 1 := ⟨le_of_lt ht.1, le_of_lt ht.2⟩
+      have hsq_ne_t : (1 - t * r) ^ 2 ≠ 0 := ne_of_gt (hsq_pos t ht_Icc)
+      have hψ_deriv_at : HasDerivAt ψ
+          ((H' * (1 - t * r) ^ 2 - H t * (-(2 * r * (1 - t * r)))) /
+            ((1 - t * r) ^ 2) ^ 2) t :=
+        hH'_deriv.div (hsq_deriv t) hsq_ne_t
+      refine ⟨hψ_deriv_at.differentiableAt, ?_⟩
+      rw [hψ_deriv_at.deriv]
+      -- Show the quotient is ≥ 0: numerator ≥ 0 and denominator > 0.
+      have h_1tr := h1tr_pos t ht_Icc
+      have h_H_nn := hH_nn t ht_Icc
+      have h_H'_ge : -(2 * H t * (r / (1 - t * r))) ≤ H' := by
+        have := neg_abs_le H'; linarith
+      have h_step : -(2 * H t * r) ≤ (1 - t * r) * H' := by
+        have hmul := mul_le_mul_of_nonneg_left h_H'_ge (le_of_lt h_1tr)
+        have h_eq : (1 - t * r) * (-(2 * H t * (r / (1 - t * r)))) = -(2 * H t * r) := by
+          have h_ne : (1 - t * r) ≠ 0 := ne_of_gt h_1tr
+          field_simp
+        linarith
+      apply div_nonneg _ (sq_nonneg _)
+      nlinarith [h_step, h_1tr, h_H_nn, hr_nn,
+        mul_le_mul_of_nonneg_left h_step (le_of_lt h_1tr)]
+    have hψ_diff : DifferentiableOn ℝ ψ (interior (Set.Icc (0:ℝ) 1)) := by
+      rw [h_interior]
+      intro t ht
+      exact (hψ_diff_deriv t ht).1.differentiableWithinAt
+    have hψ_nonneg : ∀ t ∈ interior (Set.Icc (0:ℝ) 1), 0 ≤ deriv ψ t := by
+      rw [h_interior]; intro t ht; exact (hψ_diff_deriv t ht).2
+    have h_mono : MonotoneOn ψ (Set.Icc (0:ℝ) 1) :=
+      monotoneOn_of_deriv_nonneg (convex_Icc 0 1) hψ_cont hψ_diff hψ_nonneg
+    have h_psi_le : ψ 0 ≤ ψ 1 :=
+      h_mono (Set.left_mem_Icc.mpr zero_le_one)
+             (Set.right_mem_Icc.mpr zero_le_one) zero_le_one
+    have hψ_0 : ψ 0 = H 0 := by simp [ψ]
+    have hψ_1 : ψ 1 = H 1 / (1 - r) ^ 2 := by simp [ψ]
+    rw [hψ_0, hψ_1] at h_psi_le
+    -- h_psi_le : H 0 ≤ H 1 / (1 - r) ^ 2. Multiply by (1 - r)² ≥ 0.
+    have h_sq_pos : (0 : ℝ) < (1 - r) ^ 2 := by positivity
+    rw [le_div_iff₀ h_sq_pos] at h_psi_le
+    linarith
+  exact ⟨h_lower, h_upper⟩
+
 namespace LHSCB
 
 variable {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
   [CompleteSpace V]
 
+/-- **Chain rule along the affine segment.** For an LHSCB `f` and any
+direction `h`, the map `s ↦ hess f.f K (u₀ + s·(u−u₀)) h` (i.e. the
+Hessian quadratic form along the segment in direction `h`) is
+differentiable at any `t ∈ (0, 1)` with derivative
+`iteratedFDerivWithin ℝ 3 f.f (interior K) (u₀ + t·(u−u₀)) ![u−u₀, h, h]`.
+
+Proof outline: `iteratedFDerivWithin ℝ 2 f.f (interior K)` is `C¹` on
+`interior K` (from `f.contDiff₃` and `ContDiffOn.fderivWithin`). On
+the open set `interior K`, `fderivWithin = fderiv`. Apply
+`iteratedFDerivWithin_succ_apply_left` at `n = 2` to identify the
+Fréchet derivative with `iteratedFDerivWithin ℝ 3`. Chain rule with
+the smooth affine path `γ` (velocity `u − u₀`) gives the result. -/
+lemma hess_path_hasDerivAt {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
+    {K : Set V} {ν : ℕ} {d : ℕ∞}
+    (f : LHSCB V K ν d) (hK_convex : Convex ℝ K)
+    (u₀ u h : V) (hu₀ : u₀ ∈ interior K) (hu : u ∈ interior K)
+    (t : ℝ) (ht : t ∈ Set.Ioo (0:ℝ) 1) :
+    HasDerivAt (fun s => hess f.f K (u₀ + s • (u - u₀)) h)
+      (iteratedFDerivWithin ℝ 3 f.f (interior K)
+        (u₀ + t • (u - u₀)) ![u - u₀, h, h]) t := by
+  sorry
+
+/-- **Polarized self-concordance bound.** Off-diagonal cubic-form
+bound: `|D³f(x)[v, h, h]| ≤ 2 · D²f(x)[h, h] · √D²f(x)[v, v]` for any
+directions `v, h` at any interior point `x`.
+
+Proof outline: standard polarization of the diagonal SC bound
+`self_concordant_abs_third` applied to `w = h + λv`, expanding the
+cubic/quadratic forms in `λ` and bounding the coefficient of `λ¹` on
+the LHS (which is `3 D³f[v, h, h]`) against the corresponding term on
+the RHS. Equivalent to the trilinear Nesterov–Nemirovski inequality
+`|D³f[u, v, w]| ≤ 2 √D²f[u,u] · √D²f[v,v] · √D²f[w,w]` specialized
+to `(u, v, w) = (v, h, h)`. -/
+lemma self_concordant_polarized {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
+    {K : Set V} {ν : ℕ} {d : ℕ∞}
+    (f : LHSCB V K ν d) (x : V) (hx : x ∈ interior K) (v h : V) :
+    |iteratedFDerivWithin ℝ 3 f.f (interior K) x ![v, h, h]| ≤
+      2 * iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => h) *
+        Real.sqrt (iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => v)) := by
+  sorry
+
 /-- **Lemma 1.** Diagonal Dikin metric bound along the segment.
 For `t ∈ [0, 1]` and `r = √(hess f u₀ (u−u₀)) < 1`, the local norm of
-the displacement at `u₀ + t·(u−u₀)` is bounded by `r/(1 − tr)`. -/
+the displacement at `u₀ + t·(u−u₀)` is bounded by `r/(1 − tr)`.
+
+Proved by feeding the chain rule (`hess_path_hasDerivAt` with `h := u − u₀`)
+and the diagonal SC bound (`self_concordant_abs_third`) into the abstract
+ODE integrator `local_norm_path_bound_from_diagonal_ode`. -/
 lemma dikin_path_metric_bound {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
     {K : Set V} {ν : ℕ} {d : ℕ∞}
     (f : LHSCB V K ν d) (hK_convex : Convex ℝ K)
@@ -318,11 +536,37 @@ lemma dikin_path_metric_bound {V : Type*} [NormedAddCommGroup V] [InnerProductSp
     (r : ℝ) (hr_pos : 0 ≤ r) (hr_lt_one : r < 1)
     (h_in_ball : hess f.f K u₀ (u - u₀) ≤ r ^ 2) :
     local_norm f.f K (u₀ + t • (u - u₀)) (u - u₀) ≤ r / (1 - t * r) := by
-  sorry
+  set γ : ℝ → V := fun t => u₀ + t • (u - u₀) with hγ_def
+  set a : ℝ → ℝ := fun t => hess f.f K (γ t) (u - u₀) with ha_def
+  have h_in : ∀ s ∈ Set.Icc (0:ℝ) 1, γ s ∈ interior K :=
+    segment_in_interior hK_convex u₀ hu₀ u hu
+  have ha_nn : ∀ s ∈ Set.Icc (0:ℝ) 1, 0 ≤ a s := fun s hs =>
+    f.self_concordant_hessian_nonneg (γ s) (h_in s hs) (u - u₀)
+  have ha_0 : a 0 ≤ r ^ 2 := by
+    show hess f.f K (γ 0) (u - u₀) ≤ r ^ 2
+    have h_γ0 : γ 0 = u₀ := by simp [γ]
+    rw [h_γ0]; exact h_in_ball
+  have ha_deriv : ∀ s ∈ Set.Ioo (0:ℝ) 1, ∃ a', HasDerivAt a a' s ∧
+                  |a'| ≤ 2 * (Real.sqrt (a s)) ^ 3 := by
+    intro s hs
+    refine ⟨_, hess_path_hasDerivAt f hK_convex u₀ u (u - u₀) hu₀ hu s hs, ?_⟩
+    -- Identify `![u-u₀, u-u₀, u-u₀]` with the constant function and apply diagonal SC.
+    have h_diag :
+        (![u - u₀, u - u₀, u - u₀] : Fin 3 → V) = (fun _ => u - u₀) := by
+      funext i; fin_cases i <;> rfl
+    rw [h_diag]
+    have hs_Icc : s ∈ Set.Icc (0:ℝ) 1 := ⟨le_of_lt hs.1, le_of_lt hs.2⟩
+    exact f.self_concordant_abs_third (γ s) (h_in s hs_Icc) (u - u₀)
+  have h_bd := local_norm_path_bound_from_diagonal_ode ha_nn ha_0 hr_pos hr_lt_one ha_deriv
+  show Real.sqrt (a t) ≤ r / (1 - t * r)
+  exact h_bd t ht
 
 /-- **Lemma 2.** Polarized self-concordance bound along the segment:
 the derivative of `t ↦ hess f (u₀ + t·(u−u₀)) h` is bounded by
-`2 · hess f (·) h · local_norm f (·) (u−u₀)`. -/
+`2 · hess f (·) h · local_norm f (·) (u−u₀)`.
+
+Proved by combining the chain rule (`hess_path_hasDerivAt`) with the
+off-diagonal SC bound (`self_concordant_polarized`). -/
 lemma path_hess_deriv_bound {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
     {K : Set V} {ν : ℕ} {d : ℕ∞}
     (f : LHSCB V K ν d) (hK_convex : Convex ℝ K)
@@ -331,10 +575,22 @@ lemma path_hess_deriv_bound {V : Type*} [NormedAddCommGroup V] [InnerProductSpac
     ∃ H', HasDerivAt (fun s => hess f.f K (u₀ + s • (u - u₀)) h) H' t ∧
           |H'| ≤ 2 * hess f.f K (u₀ + t • (u - u₀)) h *
                  local_norm f.f K (u₀ + t • (u - u₀)) (u - u₀) := by
-  sorry
+  set γ : ℝ → V := fun t => u₀ + t • (u - u₀) with hγ_def
+  refine ⟨_, hess_path_hasDerivAt f hK_convex u₀ u h hu₀ hu t ht, ?_⟩
+  have ht_Icc : t ∈ Set.Icc (0:ℝ) 1 := ⟨le_of_lt ht.1, le_of_lt ht.2⟩
+  have h_in : γ t ∈ interior K :=
+    segment_in_interior hK_convex u₀ hu₀ u hu t ht_Icc
+  show |iteratedFDerivWithin ℝ 3 f.f (interior K) (γ t) ![u - u₀, h, h]| ≤
+       2 * iteratedFDerivWithin ℝ 2 f.f (interior K) (γ t) (fun _ => h) *
+         Real.sqrt (iteratedFDerivWithin ℝ 2 f.f (interior K) (γ t)
+           (fun _ => u - u₀))
+  exact f.self_concordant_polarized (γ t) h_in (u - u₀) h
 
 /-- **Lemma 3.** Integrating Lemma 2 against Lemma 1 from `0` to `1`:
-`(1−r)² · hess f u₀ h ≤ hess f u h ≤ (1−r)⁻² · hess f u₀ h`. -/
+`(1−r)² · hess f u₀ h ≤ hess f u h ≤ (1−r)⁻² · hess f u₀ h`.
+
+Proved by combining Lemma 2 (derivative bound) with Lemma 1 (metric
+bound) to satisfy the hypothesis of `multiplicative_path_bound_from_log_ode`. -/
 lemma path_hess_integrated_bound {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
     {K : Set V} {ν : ℕ} {d : ℕ∞}
     (f : LHSCB V K ν d) (hK_convex : Convex ℝ K)
@@ -343,7 +599,60 @@ lemma path_hess_integrated_bound {V : Type*} [NormedAddCommGroup V] [InnerProduc
     (h_in_ball : hess f.f K u₀ (u - u₀) ≤ r ^ 2) :
     (1 - r) ^ 2 * hess f.f K u₀ h ≤ hess f.f K u h ∧
     hess f.f K u h ≤ (1 - r) ^ (-2 : ℝ) * hess f.f K u₀ h := by
-  sorry
+  set γ : ℝ → V := fun t => u₀ + t • (u - u₀) with hγ_def
+  set H : ℝ → ℝ := fun t => hess f.f K (γ t) h with hH_def
+  have h_in : ∀ s ∈ Set.Icc (0:ℝ) 1, γ s ∈ interior K :=
+    segment_in_interior hK_convex u₀ hu₀ u hu
+  have hH_nn : ∀ s ∈ Set.Icc (0:ℝ) 1, 0 ≤ H s := fun s hs =>
+    f.self_concordant_hessian_nonneg (γ s) (h_in s hs) h
+  -- H is continuous on [0, 1]: `iteratedFDerivWithin ℝ 2 f.f (interior K)` is
+  -- continuous on `interior K` (from `f.contDiff₃` plus
+  -- `ContDiffOn.continuousOn_iteratedFDerivWithin`), composed with the
+  -- continuous evaluation `M ↦ M (fun _ => h)` and the continuous affine path γ
+  -- (which maps `[0, 1]` into `interior K` by `segment_in_interior`).
+  have hH_cont : ContinuousOn H (Set.Icc (0:ℝ) 1) := by
+    have h_iter_cont :
+        ContinuousOn (iteratedFDerivWithin ℝ 2 f.f (interior K)) (interior K) :=
+      f.contDiff₃.continuousOn_iteratedFDerivWithin (by norm_num)
+        isOpen_interior.uniqueDiffOn
+    have h_eval_cont :
+        Continuous (fun M : ContinuousMultilinearMap ℝ (fun _ : Fin 2 => V) ℝ =>
+          M (fun _ => h)) :=
+      (ContinuousMultilinearMap.apply ℝ (fun _ : Fin 2 => V) ℝ
+        (fun _ => h)).continuous
+    have h_hess_cont : ContinuousOn (fun x : V => hess f.f K x h) (interior K) :=
+      h_eval_cont.comp_continuousOn h_iter_cont
+    have hγ_cont : Continuous γ := by
+      show Continuous (fun s : ℝ => u₀ + s • (u - u₀))
+      continuity
+    exact h_hess_cont.comp hγ_cont.continuousOn h_in
+  have hH_deriv : ∀ s ∈ Set.Ioo (0:ℝ) 1, ∃ H', HasDerivAt H H' s ∧
+                  |H'| ≤ 2 * H s * (r / (1 - s * r)) := by
+    intro s hs
+    obtain ⟨H', hH'_deriv, hH'_bd⟩ :=
+      f.path_hess_deriv_bound hK_convex u₀ u h hu₀ hu s hs
+    refine ⟨H', hH'_deriv, ?_⟩
+    have hs_Icc : s ∈ Set.Icc (0:ℝ) 1 := ⟨le_of_lt hs.1, le_of_lt hs.2⟩
+    have h_local := f.dikin_path_metric_bound hK_convex u₀ u hu₀ hu s hs_Icc r
+      hr_pos hr_lt_one h_in_ball
+    have h_H_nn := hH_nn s hs_Icc
+    calc |H'|
+        ≤ 2 * H s * local_norm f.f K (γ s) (u - u₀) := hH'_bd
+      _ ≤ 2 * H s * (r / (1 - s * r)) := by
+          have h_factor_nn : 0 ≤ 2 * H s := by positivity
+          exact mul_le_mul_of_nonneg_left h_local h_factor_nn
+  have h_result :=
+    multiplicative_path_bound_from_log_ode hr_pos hr_lt_one hH_nn hH_cont hH_deriv
+  have hH_0 : H 0 = hess f.f K u₀ h := by
+    show hess f.f K (γ 0) h = hess f.f K u₀ h
+    congr 1; simp [γ]
+  have hH_1 : H 1 = hess f.f K u h := by
+    show hess f.f K (γ 1) h = hess f.f K u h
+    congr 1
+    show u₀ + (1 : ℝ) • (u - u₀) = u
+    rw [one_smul]; abel
+  rw [hH_0, hH_1] at h_result
+  exact h_result
 
 omit [CompleteSpace V] in
 /-- **Dikin-ball Hessian Lipschitz bound (paper §6.3 Lemma 16 step (i)).**
