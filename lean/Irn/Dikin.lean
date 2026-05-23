@@ -33,7 +33,6 @@ basin would shrink near `∂K`.
 
 ## File layout
 
-* Convenience defs: `hess`, `local_norm`.
 * `segment_in_interior` — closed segment between two interior points
   stays in `interior K` for convex `K`.
 * **Path-derivative scaffold** (pure real-analysis ODE results):
@@ -41,43 +40,25 @@ basin would shrink near `∂K`.
   `diagonal_ode_squared_bound`,
   `local_norm_path_bound_from_diagonal_ode`,
   `multiplicative_path_bound_from_log_ode`.
-* **Symmetry of the 3rd iterated Fréchet derivative** (Mathlib glue):
-  `fderivWithin_symm_bilinear`, `iteratedFDerivWithin_3_swap_01`,
-  `iteratedFDerivWithin_3_swap_12`,
-  `iteratedFDerivWithin_3_perm_invariant`.
-* **Algebraic toolkit (used by polarization arguments)**:
-  `trilinear_expansion`, `bilinear_expansion`, `psd_cauchy_schwarz`.
 * **LHSCB-specific scaffold**:
+  `LHSCB.hess`, `LHSCB.local_norm` — convenience defs for the Hessian
+    quadratic form and its induced semi-norm; used as `f.hess x h`.
   `LHSCB.hess_path_has_deriv_at` — chain rule along the segment.
-  `LHSCB.sc_polarized_saturated` — saturated case (`a² = 4α⁶`) of
-    the polarized SC bound, proved from `P'(0) = 0`. One sorry
-    remains, in the `Q(h,h) = 0` degenerate edge case.
-  `LHSCB.sc_polarized_via_sos` — route (a) attempt, sorry at SOS
-    decomposition.
-  `LHSCB.sc_polarized_via_path_bootstrap` — route (b) attempt, sorry
-    at path-Lipschitz step.
-  `LHSCB.self_concordant_polarized` — top-level statement, currently
-    routed through route (b).
+  `LHSCB.self_concordant_inequality` — trilinear SC bound
+    `|D³f(x)[a, b, c]| ≤ 2·√Q[a]·√Q[b]·√Q[c]`; currently `sorry`.
   `LHSCB.dikin_path_metric_bound` (Lemma 1) —
-    `local_norm` is bounded by `r/(1−tr)` along the segment.
+    `f.local_norm` is bounded by `r/(1−tr)` along the segment.
   `LHSCB.path_hess_deriv_bound` (Lemma 2) — derivative of
-    `t ↦ hess f (γ t) h` is bounded by `2·hess·local_norm`.
+    `t ↦ f.hess (γ t) h` is bounded by `2·f.hess·f.local_norm`.
   `LHSCB.path_hess_integrated_bound` (Lemma 3) — multiplicative
     Hessian bound along the segment.
   `LHSCB.hessian_dikin_bound` — final theorem.
 
-Three sorries remain, all in the polarized SC bound at the basepoint:
-* `sc_polarized_saturated` — one sorry, in the `Q(h,h) = 0` degenerate
-  edge case (the saturation hypothesis doesn't force `T(v,h,h) = 0`
-  abstractly when `Q(h,h) = 0`; needs an additional reduction).
-* `sc_polarized_via_sos` — one sorry, the explicit Hilbert-1888 SOS
-  decomposition `4·q(t)³ − g(t)² = p₁(t)² + p₂(t)²` plus coefficient
-  extraction.
-* `sc_polarized_via_path_bootstrap` — one sorry, the path-Lipschitz
-  step (equivalent to multivariate SC at the basepoint).
-A randomized numerical search confirms the empirical sup of the
-ratio `|T(v,h,h)| / (Q(h,h)·√Q(v,v))` is `≈ 1.94`, consistent with
-the textbook constant `2`, so the bound itself is sharp.
+One sorry remains, in `self_concordant_inequality` — the trilinear
+polarization of squared SC at the basepoint. A randomized numerical
+search confirms the empirical sup of the ratio
+`|T(a,b,c)| / (√Q[a]·√Q[b]·√Q[c])` is consistent with the textbook
+constant `2`, so the bound itself is sharp.
 -/
 
 import Irn.Barriers
@@ -85,24 +66,6 @@ import Irn.Barriers
 namespace Irn
 
 open scoped BigOperators
-
-/-! ### Hessian quadratic form and local norm -/
-
-/-- The **Hessian quadratic form** `D²f(x)[h, h]` of a scalar function
-`f` on a normed real vector space, computed via `iteratedFDerivWithin`
-on `interior K`. Convenience abbreviation used throughout the Dikin
-scaffold to keep statements readable. -/
-noncomputable def hess
-    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
-    (f : V → ℝ) (K : Set V) (x h : V) : ℝ :=
-  iteratedFDerivWithin ℝ 2 f (interior K) x (fun _ => h)
-
-/-- The **local Hessian-induced (semi)norm** along direction `v`:
-`‖v‖_{∇²f(x)} := √(D²f(x)[v, v])`. Convenience abbreviation. -/
-noncomputable def local_norm
-    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
-    (f : V → ℝ) (K : Set V) (x v : V) : ℝ :=
-  Real.sqrt (hess f K x v)
 
 /-! ### Segment in interior -/
 
@@ -545,307 +508,26 @@ lemma multiplicative_path_bound_from_log_ode
     linarith
   exact ⟨h_lower, h_upper⟩
 
-/-! ### Symmetry of the 3rd iterated Fréchet derivative
-
-The cubic-form polarization argument needs full `Sym(Fin 3)`-symmetry
-of the 3rd iterated Fréchet derivative. We obtain this from Mathlib's
-2-argument symmetry (`IsSymmSndFDerivWithinAt`) by chaining two swap
-lemmas: position 0/1 (Schwarz on `fderivWithin f`) and position 1/2
-(Schwarz on `iteratedFDerivWithin 2 f`, applied via the local
-`fderivWithin_symm_bilinear` helper). -/
-
-/-- If `g : V → ContinuousMultilinearMap ℝ (Fin 2 → V) ℝ` takes
-symmetric values on `s` (i.e., `g(y) ![a, b] = g(y) ![b, a]` for all
-`y ∈ s`), and `g` is differentiable within `s` at `x`, then
-`fderivWithin ℝ g s x v` is also bilinear-symmetric:
-`(fderivWithin ℝ g s x) v ![a, b] = (fderivWithin ℝ g s x) v ![b, a]`.
-
-Used to lift Schwarz's theorem on `iteratedFDerivWithin 2 f` to a
-swap of the last two arguments of `iteratedFDerivWithin 3 f`. -/
-private lemma fderivWithin_symm_bilinear
-    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
-    {g : V → ContinuousMultilinearMap ℝ (fun _ : Fin 2 => V) ℝ}
-    {s : Set V} {x : V} (hs : IsOpen s)
-    (hg_symm : ∀ y ∈ s, ∀ a b : V,
-      g y ![a, b] = g y ![b, a])
-    (hg_diff : DifferentiableWithinAt ℝ g s x) (hx : x ∈ s)
-    (v a b : V) :
-    (fderivWithin ℝ g s x) v ![a, b] =
-      (fderivWithin ℝ g s x) v ![b, a] := by
-  set eval_ab : ContinuousMultilinearMap ℝ (fun _ : Fin 2 => V) ℝ →L[ℝ] ℝ :=
-    ContinuousMultilinearMap.apply ℝ (fun _ : Fin 2 => V) ℝ ![a, b]
-  set eval_ba : ContinuousMultilinearMap ℝ (fun _ : Fin 2 => V) ℝ →L[ℝ] ℝ :=
-    ContinuousMultilinearMap.apply ℝ (fun _ : Fin 2 => V) ℝ ![b, a]
-  have h_eq : ∀ y ∈ s, eval_ab (g y) = eval_ba (g y) := by
-    intro y hy
-    simp [eval_ab, eval_ba, ContinuousMultilinearMap.apply]
-    exact hg_symm y hy a b
-  have h_fderiv_eq : fderivWithin ℝ (fun y => eval_ab (g y)) s x =
-      fderivWithin ℝ (fun y => eval_ba (g y)) s x := by
-    apply fderivWithin_congr
-    · intro y hy; exact h_eq y hy
-    · exact h_eq x hx
-  have h_chain_ab : HasFDerivWithinAt (fun y => eval_ab (g y))
-      (eval_ab.comp (fderivWithin ℝ g s x)) s x := by
-    exact eval_ab.hasFDerivAt.comp_hasFDerivWithinAt x (hg_diff.hasFDerivWithinAt)
-  have h_chain_ba : HasFDerivWithinAt (fun y => eval_ba (g y))
-      (eval_ba.comp (fderivWithin ℝ g s x)) s x := by
-    exact eval_ba.hasFDerivAt.comp_hasFDerivWithinAt x (hg_diff.hasFDerivWithinAt)
-  have hab := h_chain_ab.fderivWithin (hs.uniqueDiffWithinAt hx)
-  have hba := h_chain_ba.fderivWithin (hs.uniqueDiffWithinAt hx)
-  have key : eval_ab.comp (fderivWithin ℝ g s x) = eval_ba.comp (fderivWithin ℝ g s x) := by
-    rw [← hab, ← hba, h_fderiv_eq]
-  have := congr_arg (· v) key
-  simp only [ContinuousLinearMap.comp_apply] at this
-  exact this
-
-/-- **Swap of the last two arguments (positions 1 and 2)** of the 3rd
-iterated Fréchet derivative. By `iteratedFDerivWithin_succ_apply_left`
-(which is `rfl`) and the local `fderivWithin_symm_bilinear` helper:
-`iteratedFDerivWithin 2 f s y` is bilinearly symmetric (Schwarz on `f`),
-so the `fderivWithin` of `iteratedFDerivWithin 2 f s` is also
-bilinearly symmetric in its multilinear argument. -/
-private lemma iteratedFDerivWithin_3_swap_12
-    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
-    {f : V → ℝ} {s : Set V} (hs : IsOpen s) (hf : ContDiffOn ℝ 3 f s)
-    {x : V} (hx : x ∈ s) (m : Fin 3 → V) :
-    iteratedFDerivWithin ℝ 3 f s x ![m 0, m 2, m 1] =
-      iteratedFDerivWithin ℝ 3 f s x m := by
-  set g : V → ContinuousMultilinearMap ℝ (fun _ : Fin 2 => V) ℝ :=
-    iteratedFDerivWithin ℝ 2 f s with hg_def
-  have hg_symm : ∀ y ∈ s, ∀ a b : V, g y ![a, b] = g y ![b, a] := by
-    intro y hy a b
-    have hf2 : ContDiffOn ℝ 2 f s :=
-      hf.of_le (by norm_num : (2 : WithTop ℕ∞) ≤ 3)
-    have hf_at : ContDiffAt ℝ 2 f y :=
-      (hf2.contDiffWithinAt hy).contDiffAt (hs.mem_nhds hy)
-    have h_symm_at : IsSymmSndFDerivAt ℝ f y :=
-      hf_at.isSymmSndFDerivAt (by simp : minSmoothness ℝ 2 ≤ (2 : WithTop ℕ∞))
-    exact (h_symm_at.isSymmSndFDerivWithinAt hf_at hs.uniqueDiffOn hy).iteratedFDerivWithin_cons
-      hs.uniqueDiffOn hy
-  have hg_diff_on : DifferentiableOn ℝ g s :=
-    hf.differentiableOn_iteratedFDerivWithin (by norm_num : (2 : WithTop ℕ∞) < 3)
-      hs.uniqueDiffOn
-  change fderivWithin ℝ g s x (m 0) (Fin.tail (![m 0, m 2, m 1] : Fin 3 → V))
-       = fderivWithin ℝ g s x (m 0) (Fin.tail m)
-  have h_tail_lhs : Fin.tail (![m 0, m 2, m 1] : Fin 3 → V) = ![m 2, m 1] := by
-    funext i; fin_cases i <;> rfl
-  have h_tail_rhs : Fin.tail m = ![m 1, m 2] := by
-    funext i; fin_cases i <;> rfl
-  rw [h_tail_lhs, h_tail_rhs]
-  exact fderivWithin_symm_bilinear hs hg_symm (hg_diff_on x hx) hx (m 0) (m 2) (m 1)
-
-/-- **Swap of the first two arguments (positions 0 and 1)** of the 3rd
-iterated Fréchet derivative. By `iteratedFDerivWithin_succ_apply_right`
-the 3rd derivative is `iteratedFDerivWithin 2 (fderivWithin f) s x (init m) (m 2)`,
-and Schwarz on `fderivWithin f` gives the swap of the first two arguments. -/
-private lemma iteratedFDerivWithin_3_swap_01
-    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
-    {f : V → ℝ} {s : Set V} (hs : IsOpen s) (hf : ContDiffOn ℝ 3 f s)
-    {x : V} (hx : x ∈ s) (m : Fin 3 → V) :
-    iteratedFDerivWithin ℝ 3 f s x ![m 1, m 0, m 2] =
-      iteratedFDerivWithin ℝ 3 f s x m := by
-  have h_swap : ∀ (g : V → V →L[ℝ] ℝ), ContDiffOn ℝ 2 g s → IsSymmSndFDerivWithinAt ℝ g s x := by
-    intro g hg;
-    have hg_diff : ContDiffAt ℝ 2 g x := by
-      exact hg.contDiffAt ( hs.mem_nhds hx );
-    have := hg_diff.isSymmSndFDerivAt;
-    simp_all +decide [ IsSymmSndFDerivWithinAt ];
-    rw [ fderivWithin_of_isOpen hs hx ];
-    rw [ show fderiv ℝ ( fderivWithin ℝ g s ) x = fderiv ℝ ( fderiv ℝ g ) x from Filter.EventuallyEq.fderiv_eq ( Filter.eventuallyEq_of_mem ( hs.mem_nhds hx ) fun y hy => fderivWithin_of_isOpen hs hy ) ] ; aesop;
-  have h_fderiv : ContDiffOn ℝ 2 (fun y => fderivWithin ℝ f s y) s := by
-    exact hf.fderivWithin hs.uniqueDiffOn ( by norm_num );
-  convert ( h_swap _ h_fderiv ).iteratedFDerivWithin_cons _ _ using 1;
-  convert Iff.rfl using 1;
-  rotate_left;
-  exact m 1;
-  exact m 0;
-  · exact hs.uniqueDiffOn;
-  · exact hx;
-  · constructor <;> intro h;
-    · convert congr_arg ( fun g => g ( m 2 ) ) h using 1;
-      · rw [ iteratedFDerivWithin_succ_apply_right ];
-        · congr! 1;
-          congr! 1;
-          exact funext fun i => by fin_cases i <;> rfl;
-        · exact hs.uniqueDiffOn;
-        · exact hx;
-      · rw [ iteratedFDerivWithin_succ_apply_right ];
-        · congr! 2;
-          ext i; fin_cases i <;> rfl;
-        · exact hs.uniqueDiffOn;
-        · exact hx;
-    · convert ( h_swap _ h_fderiv ).iteratedFDerivWithin_cons _ _ using 1;
-      · exact hs.uniqueDiffOn;
-      · exact hx
-
-/-- **Symmetry of the 3rd iterated Fréchet derivative under arbitrary
-permutations.** For a `C³` function on an open set, the 3rd iterated
-Fréchet derivative is invariant under permutations of its three
-arguments. (`Sym(Fin 3)` is generated by the two transpositions
-proven in `iteratedFDerivWithin_3_swap_01` and
-`iteratedFDerivWithin_3_swap_12`.) -/
-lemma iteratedFDerivWithin_3_perm_invariant
-    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
-    {f : V → ℝ} {s : Set V} (hs : IsOpen s) (hf : ContDiffOn ℝ 3 f s)
-    {x : V} (hx : x ∈ s) (m : Fin 3 → V) (σ : Equiv.Perm (Fin 3)) :
-    iteratedFDerivWithin ℝ 3 f s x (m ∘ σ) = iteratedFDerivWithin ℝ 3 f s x m := by
-  have h_symm : ∀ (m : Fin 3 → V), (iteratedFDerivWithin ℝ 3 f s x) ![m 1, m 0, m 2] = (iteratedFDerivWithin ℝ 3 f s x) m ∧ (iteratedFDerivWithin ℝ 3 f s x) ![m 0, m 2, m 1] = (iteratedFDerivWithin ℝ 3 f s x) m := by
-    exact fun m => ⟨ iteratedFDerivWithin_3_swap_01 hs hf hx m, iteratedFDerivWithin_3_swap_12 hs hf hx m ⟩;
-  fin_cases σ <;> simp +decide [ h_symm ];
-  · convert h_symm m |>.2 using 1;
-    exact congr_arg _ ( by ext i; fin_cases i <;> rfl );
-  · convert h_symm m |>.1 using 1;
-    exact congr_arg _ ( by ext i; fin_cases i <;> rfl );
-  · grind;
-  · convert h_symm ( m ∘ ( Equiv.swap 0 1 ) ) |>.2 using 1;
-    · grind;
-    · convert h_symm m |>.1.symm using 1;
-      exact congr_arg _ ( by ext i; fin_cases i <;> rfl );
-  · grind +extAll
-
-/-! ### Abstract polarization of cubic self-concordance
-
-For symmetric trilinear `T` and PSD symmetric bilinear `Q`, the diagonal
-bound `|T(w,w,w)| ≤ 2 (√Q(w,w))³` polarizes to the off-diagonal
-`|T(v,h,h)| ≤ 2·Q(h,h)·√Q(v,v)`. The helpers below set up the polynomial
-expansions used by the Nesterov–Nemirovski argument. -/
-
-/-- **Polynomial expansion of a symmetric trilinear form on `h + t·v`.**
-`T(h + t·v, h + t·v, h + t·v) = T(h,h,h) + 3t·T(v,h,h) + 3t²·T(h,v,v) +
-t³·T(v,v,v)`. Combines the eight terms via multilinearity and
-symmetry. -/
-private lemma trilinear_expansion
-    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
-    (T : ContinuousMultilinearMap ℝ (fun _ : Fin 3 => V) ℝ)
-    (hT_sym : ∀ (m : Fin 3 → V) (σ : Equiv.Perm (Fin 3)), T (m ∘ σ) = T m)
-    (v h : V) (t : ℝ) :
-    T (fun _ => h + t • v) =
-      T (fun _ => h) + 3 * t * T ![v, h, h] +
-        3 * t ^ 2 * T ![h, v, v] + t ^ 3 * T (fun _ => v) := by
-  have h_expand : T (fun _ => h + t • v) = T (fun _ => h) + t * (T ![v, h, h] + T ![h, v, h] + T ![h, h, v]) + t^2 * (T ![v, v, h] + T ![v, h, v] + T ![h, v, v]) + t^3 * T (fun _ => v) := by
-    have h_expand : ∀ (a b c : V), T ![a + b, c, c] = T ![a, c, c] + T ![b, c, c] := by
-      intro a b c;
-      convert T.map_update_add ( fun i => if i = 0 then a else if i = 1 then c else c ) 0 a b using 1;
-      · exact congr_arg _ ( by ext i; fin_cases i <;> rfl );
-      · congr <;> ext i <;> fin_cases i <;> simp +decide;
-    have h_expand : ∀ (a b c d : V), T ![a + b, c + d, c + d] = T ![a, c, c] + T ![a, d, d] + T ![b, c, c] + T ![b, d, d] + T ![a, c, d] + T ![a, d, c] + T ![b, c, d] + T ![b, d, c] := by
-      have h_expand : ∀ (a b c d : V), T ![a + b, c + d, c + d] = T ![a, c + d, c + d] + T ![b, c + d, c + d] := by
-        exact fun a b c d => h_expand a b ( c + d );
-      have h_expand : ∀ (a c d : V), T ![a, c + d, c + d] = T ![a, c, c] + T ![a, d, d] + T ![a, c, d] + T ![a, d, c] := by
-        have h_expand : ∀ (a c d : V), T ![a, c + d, c + d] = T ![a, c, c + d] + T ![a, d, c + d] := by
-          intro a c d; exact (by
-          convert T.map_update_add ( fun i => if i = 1 then c else if i = 2 then c + d else a ) 1 c d using 11;
-          · ext i; fin_cases i <;> simp +decide ;
-          · exact funext fun i => by fin_cases i <;> simp +decide ;
-          · exact funext fun i => by fin_cases i <;> simp +decide ;); ;
-        have h_expand : ∀ (a c d : V), T ![a, c, c + d] = T ![a, c, c] + T ![a, c, d] := by
-          intro a c d; exact (by
-          convert T.map_update_add ( fun i => if i = 0 then a else if i = 1 then c else c ) 2 c d using 1;
-          · exact congr_arg _ ( by ext i; fin_cases i <;> rfl );
-          · congr <;> ext i <;> fin_cases i <;> rfl);
-        grind;
-      grind;
-    have h_expand : ∀ (a b c : V) (t : ℝ), T ![a, b + t • c, b + t • c] = T ![a, b, b] + t * (T ![a, c, b] + T ![a, b, c]) + t^2 * T ![a, c, c] := by
-      intro a b c t; have := h_expand a 0 b ( t • c ) ; simp_all +decide [mul_assoc, mul_left_comm] ; ring;
-      have h_expand : ∀ (a b c : V) (t : ℝ), T ![a, b, t • c] = t * T ![a, b, c] := by
-        intro a b c t; exact (by
-        convert T.map_smul_univ ( fun i => if i = 2 then t else 1 ) ![a, b, c] using 1 <;> simp +decide;
-        exact congr_arg _ ( by ext i; fin_cases i <;> rfl ));
-      have h_expand : ∀ (a b c : V) (t : ℝ), T ![a, t • b, c] = t * T ![a, b, c] := by
-        intro a b c t; exact (by
-        convert h_expand a c b t using 1;
-        · convert hT_sym _ ( Equiv.swap 1 2 ) using 1;
-          exact congr_arg _ ( by ext i; fin_cases i <;> rfl );
-        · convert congr_arg ( fun x => t * x ) ( hT_sym ( fun i => if i = 0 then a else if i = 1 then c else b ) ( Equiv.swap 1 2 ) ) using 1;
-          · exact congr_arg _ ( congr_arg _ ( by ext i; fin_cases i <;> rfl ) );
-          · exact congr_arg _ ( congr_arg _ ( by ext i; fin_cases i <;> rfl ) ));
-      grind;
-    have h_expand : T ![h + t • v, h + t • v, h + t • v] = T ![h, h + t • v, h + t • v] + t * T ![v, h + t • v, h + t • v] := by
-      convert ‹∀ a b c : V, T ![a + b, c, c] = T ![a, c, c] + T ![b, c, c]› h ( t • v ) ( h + t • v ) using 1 ; simp +decide;
-      convert T.map_smul_univ ( fun i => if i = 0 then t else 1 ) ![v, h + t • v, h + t • v] |> Eq.symm using 1 ; simp +decide;
-      exact congr_arg _ ( by ext i; fin_cases i <;> simp +decide );
-    convert h_expand using 1;
-    · exact congr_arg _ ( by ext i; fin_cases i <;> rfl );
-    · rename_i h₁ h₂ h₃;
-      rw [ h₃, h₃ ] ; ring;
-      rw [ show ( fun _ => h : Fin 3 → V ) = ![h, h, h] by ext i; fin_cases i <;> rfl, show ( fun _ => v : Fin 3 → V ) = ![v, v, v] by ext i; fin_cases i <;> rfl ] ; ring!;
-  have h_symm : T ![v, h, h] = T ![h, v, h] ∧ T ![h, v, h] = T ![h, h, v] ∧ T ![v, v, h] = T ![v, h, v] ∧ T ![v, h, v] = T ![h, v, v] := by
-    refine' ⟨ _, _, _, _ ⟩;
-    · convert hT_sym _ ( Equiv.swap 0 1 ) using 1;
-      exact congr_arg _ ( by ext i; fin_cases i <;> rfl );
-    · convert hT_sym _ ( Equiv.swap 1 2 ) using 1;
-      exact congr_arg _ ( by ext i; fin_cases i <;> rfl );
-    · convert hT_sym _ ( Equiv.swap 1 2 ) using 1;
-      exact congr_arg _ ( by ext i; fin_cases i <;> rfl );
-    · convert hT_sym _ ( Equiv.swap 0 1 ) using 1;
-      exact congr_arg _ ( by ext i; fin_cases i <;> rfl );
-  grind +ring
-
-/-- **Polynomial expansion of a symmetric bilinear form on `h + t·v`.**
-`Q(h + t·v, h + t·v) = Q(h, h) + 2t·Q(h, v) + t²·Q(v, v)`. -/
-private lemma bilinear_expansion
-    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
-    (Q : ContinuousMultilinearMap ℝ (fun _ : Fin 2 => V) ℝ)
-    (hQ_sym : ∀ a b : V, Q ![a, b] = Q ![b, a])
-    (v h : V) (t : ℝ) :
-    Q (fun _ => h + t • v) =
-      Q (fun _ => h) + 2 * t * Q ![h, v] + t ^ 2 * Q (fun _ => v) := by
-  have h_expand : Q (fun _ => h + t • v) = Q ![h, h] + Q ![h, t • v] + Q ![t • v, h] + Q ![t • v, t • v] := by
-    have h_expand : Q (fun _ => h + t • v) = Q ![h + t • v, h + t • v] := by
-      convert rfl;
-      rename_i i; fin_cases i <;> rfl;
-    have h_expand : Q ![h + t • v, h + t • v] = Q ![h, h + t • v] + Q ![t • v, h + t • v] := by
-      convert Q.map_update_add ( fun _ => h + t • v ) 0 h ( t • v ) using 1;
-      · exact congr_arg _ ( by ext i; fin_cases i <;> rfl );
-      · congr <;> ext i <;> fin_cases i <;> simp +decide;
-    have h_expand : Q ![h, h + t • v] = Q ![h, h] + Q ![h, t • v] := by
-      convert Q.map_update_add ( fun _ => h ) 1 h ( t • v ) using 1;
-      · exact congr_arg _ ( by ext i; fin_cases i <;> rfl );
-      · congr! 2;
-        · exact funext fun x => by fin_cases x <;> rfl;
-        · exact funext fun x => by fin_cases x <;> rfl;
-    have h_expand' : Q ![t • v, h + t • v] = Q ![t • v, h] + Q ![t • v, t • v] := by
-      convert Q.map_update_add ( fun _ => t • v ) 1 h ( t • v ) using 1;
-      · exact congr_arg _ ( by ext i; fin_cases i <;> rfl );
-      · congr <;> ext i <;> fin_cases i <;> rfl
-    linarith;
-  have h_simplify : Q ![h, t • v] = t * Q ![h, v] ∧ Q ![t • v, h] = t * Q ![h, v] ∧ Q ![t • v, t • v] = t^2 * Q ![v, v] := by
-    have h_simplify : ∀ (a b : V) (t : ℝ), Q ![a, t • b] = t * Q ![a, b] := by
-      intro a b t;
-      convert Q.map_update_smul ( fun _ => a ) 1 t b using 1;
-      · exact congr_arg _ ( by ext i; fin_cases i <;> rfl );
-      · congr ; ext i ; fin_cases i <;> rfl;
-    grind;
-  convert h_expand using 1 ; rw [ h_simplify.1, h_simplify.2.1, h_simplify.2.2 ] ; ring;
-  rw [ show ( fun _ : Fin 2 => h ) = ![h, h] by ext i; fin_cases i <;> rfl, show ( fun _ : Fin 2 => v ) = ![v, v] by ext i; fin_cases i <;> rfl ] ; ring!;
-
-/-- **Cauchy–Schwarz for PSD symmetric bilinear forms**:
-`Q(u, v)² ≤ Q(u, u) · Q(v, v)` when `Q` is symmetric and PSD on
-diagonals. Proof: the polynomial `Q(u + t·v, u + t·v) = Q(u,u) +
-2t·Q(u,v) + t²·Q(v,v) ≥ 0` for all `t`; its discriminant is therefore
-non-positive. -/
-private lemma psd_cauchy_schwarz
-    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
-    (Q : ContinuousMultilinearMap ℝ (fun _ : Fin 2 => V) ℝ)
-    (hQ_sym : ∀ a b : V, Q ![a, b] = Q ![b, a])
-    (hQ_psd : ∀ w : V, 0 ≤ Q (fun _ => w))
-    (u v : V) :
-    Q ![u, v] ^ 2 ≤ Q (fun _ => u) * Q (fun _ => v) := by
-  have h_poly : ∀ t : ℝ, Q (fun _ => u + t • v) ≥ 0 := by
-    exact fun t => hQ_psd _;
-  have h_expand : ∀ t : ℝ, Q (fun _ => u + t • v) = Q (fun _ => u) + 2 * t * Q ![u, v] + t ^ 2 * Q (fun _ => v) := by
-    exact fun t => bilinear_expansion Q hQ_sym v u t;
-  by_cases hQv : Q (fun _ => v) = 0 <;> simp_all +decide;
-  · contrapose! h_poly;
-    exact ⟨ ( -Q ( fun _ => u ) - 1 ) / ( 2 * Q ![ u, v ] ), by linarith [ mul_div_cancel₀ ( -Q ( fun _ => u ) - 1 ) ( mul_ne_zero two_ne_zero h_poly ) ] ⟩;
-  · contrapose! h_poly;
-    exact ⟨ -Q ![u, v] / Q ( fun _ => v ), by nlinarith [ mul_div_cancel₀ ( -Q ![u, v] ) hQv, hQ_psd u, hQ_psd v ] ⟩
-
 namespace LHSCB
 
 variable {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
   [CompleteSpace V]
+
+/-! ### Hessian quadratic form and local norm -/
+
+/-- The **Hessian quadratic form** `D²f(x)[h, h]` of an LHSCB barrier,
+computed via `iteratedFDerivWithin` on `interior K`. Used with
+dot notation: `f.hess x h`. -/
+noncomputable def hess {K : Set V} {ν : ℕ} {d : ℕ∞}
+    (f : LHSCB V K ν d) (x h : V) : ℝ :=
+  iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => h)
+
+/-- The **local Hessian-induced (semi)norm** along direction `v`:
+`‖v‖_{∇²f(x)} := √(D²f(x)[v, v])`. Used with dot notation:
+`f.local_norm x v`. -/
+noncomputable def local_norm {K : Set V} {ν : ℕ} {d : ℕ∞}
+    (f : LHSCB V K ν d) (x v : V) : ℝ :=
+  Real.sqrt (f.hess x v)
 
 /-! ### LHSCB-specific Dikin scaffold
 
@@ -854,7 +536,7 @@ above plus `f.contDiff₃`, `f.self_concordant_hessian_nonneg`, and
 `f.self_concordant_abs_third` from `Irn.Barriers`. -/
 
 /-- **Chain rule along the affine segment.** For an LHSCB `f` and any
-direction `h`, the map `s ↦ hess f.f K (u₀ + s·(u−u₀)) h` (i.e. the
+direction `h`, the map `s ↦ f.hess (u₀ + s·(u−u₀)) h` (i.e. the
 Hessian quadratic form along the segment in direction `h`) is
 differentiable at any `t ∈ (0, 1)` with derivative
 `iteratedFDerivWithin ℝ 3 f.f (interior K) (u₀ + t·(u−u₀)) ![u−u₀, h, h]`.
@@ -875,7 +557,7 @@ lemma hess_path_has_deriv_at {V : Type*} [NormedAddCommGroup V] [InnerProductSpa
     (f : LHSCB V K ν d) (hK_convex : Convex ℝ K)
     (u₀ u h : V) (hu₀ : u₀ ∈ interior K) (hu : u ∈ interior K)
     (t : ℝ) (ht : t ∈ Set.Ioo (0:ℝ) 1) :
-    HasDerivAt (fun s => hess f.f K (u₀ + s • (u - u₀)) h)
+    HasDerivAt (fun s => f.hess (u₀ + s • (u - u₀)) h)
       (iteratedFDerivWithin ℝ 3 f.f (interior K)
         (u₀ + t • (u - u₀)) ![u - u₀, h, h]) t := by
   set γ : ℝ → V := fun s => u₀ + s • (u - u₀) with hγ_def
@@ -929,360 +611,22 @@ lemma hess_path_has_deriv_at {V : Type*} [NormedAddCommGroup V] [InnerProductSpa
   rw [h_deriv_eq]
   exact h_hess_γ_deriv
 
-/-! ### Polarized SC: two attempted proof routes
+/-- **Critical self-concordance inequality.**
+`|D³f(x)[a, b, c]| ≤ 2 · √D²f(x)[a, a] · √D²f(x)[b, b] · √D²f(x)[c, c]`
+for any directions `a, b, c` at any interior point `x`.
 
-The polarized SC bound `|D³f(x)[v, h, h]| ≤ 2·D²f(x)[h, h]·√D²f(x)[v, v]`
-**is** provable from the diagonal SC hypothesis
-`(D³f(x)[w, w, w])² ≤ 4·(D²f(x)[w, w])³` (a randomized search confirms
-the empirical sup of the ratio is `≈ 1.94`, consistent with the
-textbook constant `2`). However, the proof is *not* the naïve
-triangle/odd-part argument — that route optimizes only to `≈ 4.65`. We
-sketch two routes that should close the gap, each isolated as a
-sub-lemma with a single residual sorry.
-
-**Route (a) — explicit SOS.** Squared SC at `w = h + t·v` for `t ∈ ℝ`
-is the degree-6 polynomial inequality `P(t) := 4·q(t)³ − g(t)² ≥ 0`
-(with `g(t) := T(h+tv,h+tv,h+tv)`, `q(t) := Q(h+tv,h+tv)`). By
-Hilbert's theorem on nonneg univariate polynomials, `P = p₁² + p₂²`
-for degree-≤-3 polynomials. The polarized bound on `c := T(v,h,h)`
-follows by extracting the coefficient of `t¹` in `P` (which encodes
-`24α⁴γ − 6ac`) and Cauchy–Schwarz on the SOS witnesses.
-
-**Route (b) — saturation + continuity.** The bound is provably tight
-when `P(0) = 0` ("saturation at `h`", i.e., `a² = 4α⁶`): the
-non-negativity of `P` forces `P'(0) = 0`, which gives `c = 2γ/α·sgn(a)`,
-hence `|c| ≤ 2α²β` by Cauchy–Schwarz on `Q`. Extending to the
-non-saturated case `P(0) > 0` requires a compactness / continuity
-argument on the feasible cone of cubics. -/
-
-omit [CompleteSpace V] in
-/-- **Saturated case of the polarized SC bound.** When the diagonal SC
-bound is saturated at `h` — i.e., `(T(h,h,h))² = 4·(Q(h,h))³` — the
-polynomial `P(t) := 4·q(t)³ − g(t)² ≥ 0` has a zero at `t = 0`, hence
-`P'(0) = 0`. Equating gives `T(h,h,h)·T(v,h,h) = 4·Q(h,h)²·Q(h,v)`,
-from which the bound `|T(v,h,h)| ≤ 2·Q(h,h)·√Q(v,v)` follows directly
-by Cauchy–Schwarz on `Q` (`psd_cauchy_schwarz`). No sorry. -/
-private lemma sc_polarized_saturated
-    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
-    (T : ContinuousMultilinearMap ℝ (fun _ : Fin 3 => V) ℝ)
-    (Q : ContinuousMultilinearMap ℝ (fun _ : Fin 2 => V) ℝ)
-    (hT_sym : ∀ (m : Fin 3 → V) (σ : Equiv.Perm (Fin 3)), T (m ∘ σ) = T m)
-    (hQ_sym : ∀ a b : V, Q ![a, b] = Q ![b, a])
-    (hQ_psd : ∀ w : V, 0 ≤ Q (fun _ => w))
-    (v h : V)
-    (h_sat : T (fun _ => h) * T (fun _ => h) = 4 * Q (fun _ => h) ^ 3)
-    (h_match : T (fun _ => h) * T ![v, h, h] = 4 * Q (fun _ => h) ^ 2 * Q ![h, v]) :
-    |T ![v, h, h]| ≤ 2 * Q (fun _ => h) * Real.sqrt (Q (fun _ => v)) := by
-  -- Abbreviations (no `set`, to keep arithmetic transparent).
-  have hα2_nn : 0 ≤ Q (fun _ => h) := hQ_psd h
-  have hβ2_nn : 0 ≤ Q (fun _ => v) := hQ_psd v
-  have h_CS : Q ![h, v] ^ 2 ≤ Q (fun _ => h) * Q (fun _ => v) :=
-    psd_cauchy_schwarz Q hQ_sym hQ_psd h v
-  have h_target_nn : 0 ≤ 2 * Q (fun _ => h) * Real.sqrt (Q (fun _ => v)) := by
-    have := Real.sqrt_nonneg (Q (fun _ => v)); positivity
-  -- Goal: |c| ≤ 2·α²·√β² where c := T ![v, h, h], α² := Q(h,h), β² := Q(v,v).
-  -- Square both sides: c² ≤ 4·α⁴·β². Use h_match² + h_sat to derive c² = 4·α²·γ²
-  -- (when α² > 0), then Cauchy-Schwarz γ² ≤ α²·β² closes.
-  refine (abs_le_of_sq_le_sq' ?_ h_target_nn).2
-  -- Goal: T ![v, h, h] ^ 2 ≤ (2 * Q(h,h) * √Q(v,v)) ^ 2.
-  by_cases hα2_pos : 0 < Q (fun _ => h)
-  · -- Non-degenerate: α² > 0, so a² = 4α⁶ > 0 ⇒ a ≠ 0. Derive c² = 4·α²·γ².
-    have h_α6_pos : 0 < Q (fun _ => h) ^ 3 := by positivity
-    have h_a_sq : T (fun _ => h) ^ 2 = 4 * Q (fun _ => h) ^ 3 := by
-      have := h_sat; nlinarith [this]
-    -- (a·c)² = 16·α⁴·γ² from squaring h_match.
-    have h_ac_sq : (T (fun _ => h) * T ![v, h, h]) ^ 2 =
-        (4 * Q (fun _ => h) ^ 2 * Q ![h, v]) ^ 2 := by rw [h_match]
-    -- Expand: a²·c² = 16·α⁴·γ². Combined with a² = 4·α³: 4·α³·c² = 16·α⁴·γ²,
-    -- i.e., c² = 4·α·γ² (since α³ > 0).
-    have h_c_sq : T ![v, h, h] ^ 2 = 4 * Q (fun _ => h) * Q ![h, v] ^ 2 := by
-      have hac : T (fun _ => h) ^ 2 * T ![v, h, h] ^ 2 =
-          16 * Q (fun _ => h) ^ 4 * Q ![h, v] ^ 2 := by
-        nlinarith [h_ac_sq]
-      have : 4 * Q (fun _ => h) ^ 3 * T ![v, h, h] ^ 2 =
-          16 * Q (fun _ => h) ^ 4 * Q ![h, v] ^ 2 := by
-        rw [← h_a_sq]; exact hac
-      nlinarith [this, h_α6_pos]
-    -- (2·α²·√β²)² = 4·α⁴·β².
-    have h_target_sq : (2 * Q (fun _ => h) * Real.sqrt (Q (fun _ => v))) ^ 2 =
-        4 * Q (fun _ => h) ^ 2 * Q (fun _ => v) := by
-      rw [mul_pow, mul_pow, Real.sq_sqrt hβ2_nn]; ring
-    rw [sq_abs, h_target_sq, h_c_sq]
-    -- 4·α·γ² ≤ 4·α²·β² (need 4·Q(h,h)·γ² ≤ 4·Q(h,h)²·Q(v,v)). Use h_CS: γ² ≤ α·β².
-    nlinarith [h_CS, hα2_pos, hβ2_nn]
-  · -- Degenerate: Q(h,h) = 0. Then 2·Q(h,h)·√Q(v,v) = 0 and we'd need T ![v,h,h] = 0.
-    -- The saturation hypothesis alone doesn't force this; needs a separate argument
-    -- (e.g., from the full diagonal SC bound at h + tv via degree-counting).
-    push_neg at hα2_pos
-    have hα2_zero : Q (fun _ => h) = 0 := le_antisymm hα2_pos hα2_nn
-    -- Goal becomes: T ![v, h, h] ^ 2 ≤ (2 * 0 * √Q(v,v))^2 = 0.
-    -- So we need T ![v, h, h] = 0, which is NOT implied by the saturation
-    -- hypotheses alone when Q(h,h) = 0. Sorry for this degenerate edge case.
-    sorry
-
-omit [CompleteSpace V] in
-/-- **Route (a): polarized SC via SOS decomposition.** Set up the
-polynomial framework explicitly: at every `t ∈ ℝ`, squared SC at
-direction `h + t·v` gives `g(t)² ≤ 4·q(t)³` where
-`g(t) := T(h+tv,h+tv,h+tv) = a + 3ct + 3et² + dt³` and
-`q(t) := Q(h+tv,h+tv) = α² + 2γt + β²t²`
-(with `a := T(h,h,h), c := T(v,h,h), e := T(v,v,h), d := T(v,v,v),
-α² := Q(h,h), β² := Q(v,v), γ := Q(h,v)`).
-
-The polarized bound `|c| ≤ 2·α²·β` then reduces to extracting the
-correct coefficient relation from the polynomial-positivity statement
-`P(t) := 4·q(t)³ − g(t)² ≥ 0 (∀ t)`. Two ways to do this:
-* **Saturated case** (`P(0) = 0`, i.e. `a² = 4α⁶`): the
-  `sc_polarized_saturated` lemma above directly gives the bound from
-  the relation `P'(0) = 0 ⇒ ac = 4α⁴γ`.
-* **Non-saturated case** (`P(0) > 0`): perturb `T` by a symmetric
-  trilinear that vanishes on `(v, h, h)` and saturates at `h`, then
-  apply the saturated case. Equivalently (by Hilbert 1888): exhibit
-  degree-3 SOS witnesses `p₁, p₂` with `P = p₁² + p₂²` and read off
-  the bound via Cauchy–Schwarz on the witness coefficients.
-
-The residual sorry covers both the perturbation construction and the
-algebraic extraction. -/
-private lemma sc_polarized_via_sos
-    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
-    (T : ContinuousMultilinearMap ℝ (fun _ : Fin 3 => V) ℝ)
-    (Q : ContinuousMultilinearMap ℝ (fun _ : Fin 2 => V) ℝ)
-    (hT_sym : ∀ (m : Fin 3 → V) (σ : Equiv.Perm (Fin 3)), T (m ∘ σ) = T m)
-    (hQ_sym : ∀ a b : V, Q ![a, b] = Q ![b, a])
-    (hQ_psd : ∀ w : V, 0 ≤ Q (fun _ => w))
-    (hT_diag : ∀ w : V, |T (fun _ => w)| ≤ 2 * (Real.sqrt (Q (fun _ => w))) ^ 3)
-    (v h : V) :
-    |T ![v, h, h]| ≤ 2 * Q (fun _ => h) * Real.sqrt (Q (fun _ => v)) := by
-  -- Step 1: set up the polynomials g(t), q(t) via the trilinear / bilinear
-  -- expansion lemmas. We do not unfold these into a single polynomial — they
-  -- enter via the squared-SC hypothesis as `hg_sq` below.
-  have h_g_expand : ∀ t : ℝ, T (fun _ => h + t • v) =
-      T (fun _ => h) + 3 * t * T ![v, h, h] +
-        3 * t ^ 2 * T ![h, v, v] + t ^ 3 * T (fun _ => v) :=
-    fun t => trilinear_expansion T hT_sym v h t
-  have h_q_expand : ∀ t : ℝ, Q (fun _ => h + t • v) =
-      Q (fun _ => h) + 2 * t * Q ![h, v] + t ^ 2 * Q (fun _ => v) :=
-    fun t => bilinear_expansion Q hQ_sym v h t
-  -- Step 2: squared SC at h + t·v: g(t)² ≤ 4·q(t)³ for all t.
-  have h_sc_sq : ∀ t : ℝ,
-      (T (fun _ => h + t • v)) ^ 2 ≤ 4 * (Q (fun _ => h + t • v)) ^ 3 := by
-    intro t
-    have h1 := hT_diag (h + t • v)
-    have h2 : (Real.sqrt (Q (fun _ => h + t • v))) ^ 3 ≥ 0 := by positivity
-    have h_q_nn : 0 ≤ Q (fun _ => h + t • v) := hQ_psd _
-    have h_sqrt_sq : (Real.sqrt (Q (fun _ => h + t • v))) ^ 2 =
-        Q (fun _ => h + t • v) := Real.sq_sqrt h_q_nn
-    have h_pow6 : ((Real.sqrt (Q (fun _ => h + t • v))) ^ 3) ^ 2 =
-        (Q (fun _ => h + t • v)) ^ 3 := by
-      rw [show ((Real.sqrt (Q (fun _ => h + t • v))) ^ 3) ^ 2 =
-          ((Real.sqrt (Q (fun _ => h + t • v))) ^ 2) ^ 3 from by ring, h_sqrt_sq]
-    calc (T (fun _ => h + t • v)) ^ 2
-        = (|T (fun _ => h + t • v)|) ^ 2 := (sq_abs _).symm
-      _ ≤ (2 * (Real.sqrt (Q (fun _ => h + t • v))) ^ 3) ^ 2 := by
-          apply pow_le_pow_left₀ (abs_nonneg _) h1
-      _ = 4 * (Q (fun _ => h + t • v)) ^ 3 := by rw [mul_pow]; rw [h_pow6]; ring
-  -- Step 3: derive explicit polynomial inequalities by instantiating h_sc_sq
-  -- at rational t values, combined with h_g_expand / h_q_expand.
-  have hα2_nn : 0 ≤ Q (fun _ => h) := hQ_psd h
-  have hβ2_nn : 0 ≤ Q (fun _ => v) := hQ_psd v
-  have h_CS : (Q ![h, v]) ^ 2 ≤ Q (fun _ => h) * Q (fun _ => v) :=
-    psd_cauchy_schwarz Q hQ_sym hQ_psd h v
-  -- Polynomial inequality at t = 0, 1, -1, by expanding h_sc_sq through h_g_expand
-  -- and h_q_expand. These give:
-  --   a² ≤ 4 α⁶                                  (t = 0)
-  --   (a + 3c + 3e + δ)² ≤ 4 (α² + 2γ + β²)³     (t = 1)
-  --   (a − 3c + 3e − δ)² ≤ 4 (α² − 2γ + β²)³     (t = −1)
-  -- (writing a = T(h,h,h), c = T(v,h,h), e = T(h,v,v), δ = T(v,v,v),
-  --  α² = Q(h,h), β² = Q(v,v), γ = Q(h,v))
-  have h_sq_0 : (T (fun _ => h)) ^ 2 ≤ 4 * (Q (fun _ => h)) ^ 3 := by
-    have hsc := h_sc_sq 0
-    have h_g0 : T (fun _ : Fin 3 => h + (0 : ℝ) • v) = T (fun _ : Fin 3 => h) := by
-      congr 1; funext _; rw [zero_smul, add_zero]
-    have h_q0 : Q (fun _ : Fin 2 => h + (0 : ℝ) • v) = Q (fun _ : Fin 2 => h) := by
-      congr 1; funext _; rw [zero_smul, add_zero]
-    rw [h_g0, h_q0] at hsc
-    exact hsc
-  -- The diagonal bound at v (squared):
-  have h_sq_v : (T (fun _ => v)) ^ 2 ≤ 4 * (Q (fun _ => v)) ^ 3 := by
-    have h_d := hT_diag v
-    have h_sqrt_sq6 : ((Real.sqrt (Q (fun _ => v))) ^ 3) ^ 2 =
-        (Q (fun _ => v)) ^ 3 := by
-      rw [show ((Real.sqrt (Q (fun _ => v))) ^ 3) ^ 2 =
-          ((Real.sqrt (Q (fun _ => v))) ^ 2) ^ 3 from by ring, Real.sq_sqrt hβ2_nn]
-    calc (T (fun _ => v)) ^ 2
-        = (|T (fun _ => v)|) ^ 2 := (sq_abs _).symm
-      _ ≤ (2 * (Real.sqrt (Q (fun _ => v))) ^ 3) ^ 2 :=
-          pow_le_pow_left₀ (abs_nonneg _) h_d 2
-      _ = 4 * (Q (fun _ => v)) ^ 3 := by rw [mul_pow]; rw [h_sqrt_sq6]; ring
-  -- Squared form of the target bound: |c| ≤ 2 α² β  ⟺  c² ≤ 4 α⁴ β².
-  have h_target_nn : 0 ≤ 2 * Q (fun _ => h) * Real.sqrt (Q (fun _ => v)) := by
-    have := Real.sqrt_nonneg (Q (fun _ => v)); positivity
-  refine (abs_le_of_sq_le_sq' ?_ h_target_nn).2
-  rw [sq_abs, show (2 * Q (fun _ => h) * Real.sqrt (Q (fun _ => v))) ^ 2 =
-        4 * (Q (fun _ => h)) ^ 2 * Q (fun _ => v) from by
-      rw [mul_pow, mul_pow, Real.sq_sqrt hβ2_nn]; ring]
-  -- Additionally: squared SC at t = 1 and t = -1 give polynomial inequalities
-  -- in the cubic / bilinear coefficients.
-  have h_sq_pos1 : (T (fun _ => h) + 3 * T ![v, h, h] +
-        3 * T ![h, v, v] + T (fun _ => v)) ^ 2 ≤
-      4 * (Q (fun _ => h) + 2 * Q ![h, v] + Q (fun _ => v)) ^ 3 := by
-    have hsc := h_sc_sq 1
-    rw [show T (fun _ => h + (1 : ℝ) • v) =
-        T (fun _ => h) + 3 * T ![v, h, h] + 3 * T ![h, v, v] + T (fun _ => v) from by
-      have := h_g_expand 1; simpa using this,
-      show Q (fun _ => h + (1 : ℝ) • v) =
-          Q (fun _ => h) + 2 * Q ![h, v] + Q (fun _ => v) from by
-        have := h_q_expand 1; simpa using this] at hsc
-    exact hsc
-  have h_sq_neg1 : (T (fun _ => h) - 3 * T ![v, h, h] +
-        3 * T ![h, v, v] - T (fun _ => v)) ^ 2 ≤
-      4 * (Q (fun _ => h) - 2 * Q ![h, v] + Q (fun _ => v)) ^ 3 := by
-    have hsc := h_sc_sq (-1)
-    have h_g_eq : T (fun _ => h + (-1 : ℝ) • v) =
-        T (fun _ => h) - 3 * T ![v, h, h] + 3 * T ![h, v, v] - T (fun _ => v) := by
-      have := h_g_expand (-1); linarith [this]
-    have h_q_eq : Q (fun _ => h + (-1 : ℝ) • v) =
-        Q (fun _ => h) - 2 * Q ![h, v] + Q (fun _ => v) := by
-      have := h_q_expand (-1); linarith [this]
-    rw [h_g_eq, h_q_eq] at hsc
-    exact hsc
-  -- Step 4: attempt the extraction. We try nlinarith with the polynomial
-  -- inequalities at t = 0, ±1, ∞ (v) plus Cauchy-Schwarz. Lean's nlinarith
-  -- is unable to find the Positivstellensatz certificate for the bound
-  -- `c² ≤ 4·α⁴·β²` from a finite set of t-instantiations alone — the
-  -- argument intrinsically uses the symbolic optimum `t* = α/(β·√3)` (at
-  -- which `q(t*) = 4α²/3`), which is transcendental and not extractable by
-  -- nlinarith / polyrith. We leave the algebraic extraction as a sorry and
-  -- describe the missing step explicitly in the docstring above.
-  --
-  -- For reference: the GOAL at this point is
-  --   (T ![v, h, h]) ^ 2 ≤ 4 * (Q (fun _ => h)) ^ 2 * Q (fun _ => v)
-  -- and the hypotheses are:
-  --   h_sq_0    : (T (fun _ => h))² ≤ 4 (Q (fun _ => h))³
-  --   h_sq_v    : (T (fun _ => v))² ≤ 4 (Q (fun _ => v))³
-  --   h_sq_pos1 : (T(h) + 3·T![v,h,h] + 3·T![h,v,v] + T(v))² ≤
-  --                 4·(Q(h) + 2·Q![h,v] + Q(v))³
-  --   h_sq_neg1 : (T(h) − 3·T![v,h,h] + 3·T![h,v,v] − T(v))² ≤
-  --                 4·(Q(h) − 2·Q![h,v] + Q(v))³
-  --   h_CS      : Q![h,v]² ≤ Q(h)·Q(v)
-  --   hα2_nn, hβ2_nn : Q(h) ≥ 0, Q(v) ≥ 0.
-  -- The intermediate algebraic step that closes this involves degree-6
-  -- polynomial reasoning beyond standard tactics. Verified empirically:
-  -- `nlinarith` with the above hints does NOT find the bound. The crux
-  -- is that the optimal `t* = α/(β·√3)` in the polynomial argument is
-  -- transcendental, so finite rational-`t` instantiations are
-  -- insufficient — even at γ = 0 (orthogonal `h, v` in `Q`), the
-  -- combination `t = ±1` yields only the bound `|c| ≤ (2/3)·(4√2 + 2)·α²β
-  -- ≈ 2.55·α²β`, strictly larger than `2·α²β`. The sharp constant `2`
-  -- requires either:
-  -- (a) introducing the transcendental `s := √(α²/(3β²))` symbolically
-  --     and using `h_sc_sq` at `t = ±s` (degree-6 ring manipulations
-  --     with `Real.sqrt`, technically formalizable but tedious), OR
-  -- (b) explicit Hilbert-1888 SOS witnesses for the polynomial
-  --     `P(t) := 4·q(t)³ − g(t)²` (universal formula in
-  --     `(a, c, e, δ, α², β², γ)`, unknown analytically), OR
-  -- (c) a quadratic-form reduction over the 2D subspace `span{h, v}`
-  --     using the Hessian's PSD structure (substantial Lean work).
-  sorry
-
-/-- **Route (b): polarized SC via path bootstrap.** For LHSCB `f`, the
-function `ψ(τ) := hess f.f K (x + τ·v) h` is C¹ on a neighbourhood of
-`τ = 0` (`x` is interior, so `x + τ·v ∈ interior K` for small `τ`),
-with `ψ'(0) = D³f(x)[v, h, h]` by the chain rule. The polarized bound
-is therefore equivalent to `|ψ'(0)| ≤ 2·ψ(0)·√D²f(x)[v,v]`.
-
-This sub-lemma carries the **derivative identification** through —
-explicitly computing `ψ'(0)` via `HasFDerivAt.comp_hasDerivAt` on the
-straight-line path and the evaluation `ContinuousMultilinearMap.apply`.
-The remaining sorry is the bound on the derivative itself: bounding
-`|ψ'(0)|` by `2·ψ(0)·√D²f(x)[v,v]` is *still* equivalent to the
-polarized SC at the basepoint, because the path-Lipschitz property of
-`ψ` near `τ = 0` is the same algebraic content as the cubic bound at
-`x` (no new information is gained from infinitesimal motion along
-`v`). Closing this step would require a separate input — e.g. a
-finite-τ multiplicative bound on `ψ` obtained from squared SC at
-directions `h + ε·v` for varying `ε`, then differentiation. -/
-private lemma sc_polarized_via_path_bootstrap
-    {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
+This should follow from the self_concordant property of LHSCB f.
+-/
+lemma self_concordant_inequality {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
     {K : Set V} {ν : ℕ} {d : ℕ∞}
-    (f : LHSCB V K ν d) (x : V) (hx : x ∈ interior K) (v h : V) :
-    |iteratedFDerivWithin ℝ 3 f.f (interior K) x ![v, h, h]| ≤
-      2 * iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => h) *
-        Real.sqrt (iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => v)) := by
-  -- Step 1: identify ψ'(0) = D³f(x)[v, h, h] via the chain rule. We define
-  -- γ s := x + s • v consistently so the basepoint γ 0 = x lines up.
-  have hf_C3 : ContDiffOn ℝ 3 f.f (interior K) := f.contDiff₃
-  set γ : ℝ → V := fun s => x + s • v with hγ_def
-  have hγ_zero : γ 0 = x := by simp [hγ_def]
-  have hγ0_in : γ 0 ∈ interior K := hγ_zero ▸ hx
-  have hγ_deriv : HasDerivAt γ v 0 := by
-    have h_smul : HasDerivAt (fun s : ℝ => s • v) v (0 : ℝ) := by
-      simpa using (hasDerivAt_id (0 : ℝ)).smul_const v
-    simpa [hγ_def] using h_smul.const_add x
-  have h_iter_wat :
-      ContDiffWithinAt ℝ 1 (iteratedFDerivWithin ℝ 2 f.f (interior K))
-        (interior K) (γ 0) :=
-    (hf_C3.contDiffWithinAt hγ0_in).iteratedFDerivWithin_right
-      isOpen_interior.uniqueDiffOn (by norm_num : (1 : WithTop ℕ∞) + 2 ≤ 3) hγ0_in
-  have h_iter_at :
-      ContDiffAt ℝ 1 (iteratedFDerivWithin ℝ 2 f.f (interior K)) (γ 0) :=
-    h_iter_wat.contDiffAt (isOpen_interior.mem_nhds hγ0_in)
-  have h_iter_diff :
-      DifferentiableAt ℝ (iteratedFDerivWithin ℝ 2 f.f (interior K)) (γ 0) :=
-    h_iter_at.differentiableAt_one
-  set L : V →L[ℝ] ContinuousMultilinearMap ℝ (fun _ : Fin 2 => V) ℝ :=
-    fderiv ℝ (iteratedFDerivWithin ℝ 2 f.f (interior K)) (γ 0) with hL_def
-  have h_fd_at :
-      HasFDerivAt (iteratedFDerivWithin ℝ 2 f.f (interior K)) L (γ 0) :=
-    h_iter_diff.hasFDerivAt
-  have h_iter_γ_deriv :
-      HasDerivAt (fun s => iteratedFDerivWithin ℝ 2 f.f (interior K) (γ s))
-        (L v) 0 :=
-    h_fd_at.comp_hasDerivAt 0 hγ_deriv
-  set ev : ContinuousMultilinearMap ℝ (fun _ : Fin 2 => V) ℝ →L[ℝ] ℝ :=
-    ContinuousMultilinearMap.apply ℝ (fun _ : Fin 2 => V) ℝ (fun _ => h) with hev_def
-  have hψ_deriv :
-      HasDerivAt (fun s => ev (iteratedFDerivWithin ℝ 2 f.f (interior K) (γ s)))
-        (ev (L v)) 0 :=
-    (ev.hasFDerivAt (x := iteratedFDerivWithin ℝ 2 f.f (interior K)
-      (γ 0))).comp_hasDerivAt 0 h_iter_γ_deriv
-  -- Step 2: identify D³f(x)[v, h, h] = ev (L v).
-  have h_tail_eq :
-      Fin.tail (![v, h, h] : Fin 3 → V) = (fun _ : Fin 2 => h) := by
-    funext i; fin_cases i <;> rfl
-  have h_deriv_eq :
-      iteratedFDerivWithin ℝ 3 f.f (interior K) (γ 0) ![v, h, h] = ev (L v) := by
-    show fderivWithin ℝ (iteratedFDerivWithin ℝ 2 f.f (interior K))
-          (interior K) (γ 0) v
-          (Fin.tail (![v, h, h] : Fin 3 → V)) = ev (L v)
-    rw [fderivWithin_of_isOpen isOpen_interior hγ0_in, h_tail_eq]
-    rfl
-  rw [show x = γ 0 from hγ_zero.symm, h_deriv_eq]
-  -- Step 3 (residual sorry): bound |ev (L v)| by 2·ψ(γ 0)·√Q(v, v) at γ 0.
-  -- We now have hψ_deriv : HasDerivAt (fun s => hess f.f K (γ s) h) (ev (L v)) 0,
-  -- so |ev (L v)| is the absolute value of the path-derivative of ψ at τ = 0.
-  -- The bound is the polarized SC bound itself, and requires an additional
-  -- input the chain rule alone does not provide.
+    (f : LHSCB V K ν d) (x : V) (hx : x ∈ interior K) (a b c : V) :
+    |iteratedFDerivWithin ℝ 3 f.f (interior K) x ![a, b, c]| ≤
+      2 * Real.sqrt (f.hess x a) * Real.sqrt (f.hess x b) *
+        Real.sqrt (f.hess x c) :=
   sorry
-
-/-- **Polarized self-concordance bound.** Off-diagonal cubic-form
-bound: `|D³f(x)[v, h, h]| ≤ 2 · D²f(x)[h, h] · √D²f(x)[v, v]` for any
-directions `v, h` at any interior point `x`.
-
-Currently routed through `sc_polarized_via_path_bootstrap` (route (b)
-above). The two attempted routes `sc_polarized_via_sos` and
-`sc_polarized_via_path_bootstrap` are kept side-by-side so either can
-be filled in independently. -/
-lemma self_concordant_polarized {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
-    {K : Set V} {ν : ℕ} {d : ℕ∞}
-    (f : LHSCB V K ν d) (x : V) (hx : x ∈ interior K) (v h : V) :
-    |iteratedFDerivWithin ℝ 3 f.f (interior K) x ![v, h, h]| ≤
-      2 * iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => h) *
-        Real.sqrt (iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => v)) :=
-  sc_polarized_via_path_bootstrap f x hx v h
 
 /-- **Lemma 1: Diagonal Dikin metric bound along the segment.**
-For `t ∈ [0, 1]` and `r := √hess f u₀ (u−u₀) < 1`, the local norm of
+For `t ∈ [0, 1]` and `r := √f.hess u₀ (u−u₀) < 1`, the local norm of
 the displacement at `u₀ + t·(u−u₀)` is bounded by `r/(1 − t·r)`.
 
 Proved by feeding the chain rule (`hess_path_has_deriv_at` with `h := u − u₀`)
@@ -1294,10 +638,10 @@ lemma dikin_path_metric_bound {V : Type*} [NormedAddCommGroup V] [InnerProductSp
     (u₀ u : V) (hu₀ : u₀ ∈ interior K) (hu : u ∈ interior K)
     (t : ℝ) (ht : t ∈ Set.Icc (0:ℝ) 1)
     (r : ℝ) (hr_pos : 0 ≤ r) (hr_lt_one : r < 1)
-    (h_in_ball : hess f.f K u₀ (u - u₀) ≤ r ^ 2) :
-    local_norm f.f K (u₀ + t • (u - u₀)) (u - u₀) ≤ r / (1 - t * r) := by
+    (h_in_ball : f.hess u₀ (u - u₀) ≤ r ^ 2) :
+    f.local_norm (u₀ + t • (u - u₀)) (u - u₀) ≤ r / (1 - t * r) := by
   set γ : ℝ → V := fun t => u₀ + t • (u - u₀) with hγ_def
-  set a : ℝ → ℝ := fun t => hess f.f K (γ t) (u - u₀) with ha_def
+  set a : ℝ → ℝ := fun t => f.hess (γ t) (u - u₀) with ha_def
   have h_in : ∀ s ∈ Set.Icc (0:ℝ) 1, γ s ∈ interior K :=
     segment_in_interior hK_convex u₀ hu₀ u hu
   have ha_nn : ∀ s ∈ Set.Icc (0:ℝ) 1, 0 ≤ a s := fun s hs =>
@@ -1313,14 +657,14 @@ lemma dikin_path_metric_bound {V : Type*} [NormedAddCommGroup V] [InnerProductSp
       (ContinuousMultilinearMap.apply ℝ (fun _ : Fin 2 => V) ℝ
         (fun _ => u - u₀)).continuous
     have h_hess_cont :
-        ContinuousOn (fun x : V => hess f.f K x (u - u₀)) (interior K) :=
+        ContinuousOn (fun x : V => f.hess x (u - u₀)) (interior K) :=
       h_eval_cont.comp_continuousOn h_iter_cont
     have hγ_cont : Continuous γ := by
       show Continuous (fun s : ℝ => u₀ + s • (u - u₀))
       continuity
     exact h_hess_cont.comp hγ_cont.continuousOn h_in
   have ha_0 : a 0 ≤ r ^ 2 := by
-    show hess f.f K (γ 0) (u - u₀) ≤ r ^ 2
+    show f.hess (γ 0) (u - u₀) ≤ r ^ 2
     have h_γ0 : γ 0 = u₀ := by simp [γ]
     rw [h_γ0]; exact h_in_ball
   have ha_deriv : ∀ s ∈ Set.Ioo (0:ℝ) 1, ∃ a', HasDerivAt a a' s ∧
@@ -1338,33 +682,45 @@ lemma dikin_path_metric_bound {V : Type*} [NormedAddCommGroup V] [InnerProductSp
   exact h_bd t ht
 
 /-- **Lemma 2: Polarized self-concordance bound along the segment.**
-The derivative of `t ↦ hess f (u₀ + t·(u−u₀)) h` is bounded by
-`2 · hess f (·) h · local_norm f (·) (u−u₀)`.
+The derivative of `t ↦ f.hess (u₀ + t·(u−u₀)) h` is bounded by
+`2 · f.hess (·) h · f.local_norm (·) (u−u₀)`.
 
 Proved by combining the chain rule (`hess_path_has_deriv_at`) with the
-off-diagonal SC bound (`self_concordant_polarized`). -/
+trilinear SC bound (`self_concordant_inequality`) specialised at
+`(u−u₀, h, h)`. Since `f.hess (γt) h ≥ 0`, the two `√Q[h]` factors
+collapse to `Q[h]`, matching the goal modulo reordering. -/
 lemma path_hess_deriv_bound {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
     {K : Set V} {ν : ℕ} {d : ℕ∞}
     (f : LHSCB V K ν d) (hK_convex : Convex ℝ K)
     (u₀ u h : V) (hu₀ : u₀ ∈ interior K) (hu : u ∈ interior K)
     (t : ℝ) (ht : t ∈ Set.Ioo (0:ℝ) 1) :
-    ∃ H', HasDerivAt (fun s => hess f.f K (u₀ + s • (u - u₀)) h) H' t ∧
-          |H'| ≤ 2 * hess f.f K (u₀ + t • (u - u₀)) h *
-                 local_norm f.f K (u₀ + t • (u - u₀)) (u - u₀) := by
+    ∃ H', HasDerivAt (fun s => f.hess (u₀ + s • (u - u₀)) h) H' t ∧
+          |H'| ≤ 2 * f.hess (u₀ + t • (u - u₀)) h *
+                 f.local_norm (u₀ + t • (u - u₀)) (u - u₀) := by
   set γ : ℝ → V := fun t => u₀ + t • (u - u₀) with hγ_def
   refine ⟨_, hess_path_has_deriv_at f hK_convex u₀ u h hu₀ hu t ht, ?_⟩
   have ht_Icc : t ∈ Set.Icc (0:ℝ) 1 := ⟨le_of_lt ht.1, le_of_lt ht.2⟩
   have h_in : γ t ∈ interior K :=
     segment_in_interior hK_convex u₀ hu₀ u hu t ht_Icc
+  have hQh_nn : 0 ≤ f.hess (γ t) h :=
+    f.self_concordant_hessian_nonneg (γ t) h_in h
+  have h_sq : Real.sqrt (f.hess (γ t) h) * Real.sqrt (f.hess (γ t) h)
+            = f.hess (γ t) h :=
+    Real.mul_self_sqrt hQh_nn
   show |iteratedFDerivWithin ℝ 3 f.f (interior K) (γ t) ![u - u₀, h, h]| ≤
-       2 * iteratedFDerivWithin ℝ 2 f.f (interior K) (γ t) (fun _ => h) *
-         Real.sqrt (iteratedFDerivWithin ℝ 2 f.f (interior K) (γ t)
-           (fun _ => u - u₀))
-  exact f.self_concordant_polarized (γ t) h_in (u - u₀) h
+       2 * f.hess (γ t) h * Real.sqrt (f.hess (γ t) (u - u₀))
+  calc |iteratedFDerivWithin ℝ 3 f.f (interior K) (γ t) ![u - u₀, h, h]|
+      ≤ 2 * Real.sqrt (f.hess (γ t) (u - u₀))
+            * Real.sqrt (f.hess (γ t) h)
+            * Real.sqrt (f.hess (γ t) h) :=
+        f.self_concordant_inequality (γ t) h_in (u - u₀) h h
+    _ = 2 * f.hess (γ t) h * Real.sqrt (f.hess (γ t) (u - u₀)) := by
+        conv_rhs => rw [← h_sq]
+        ring
 
 /-- **Lemma 3: Integrated multiplicative Hessian bound along the segment.**
 Integrating Lemma 2 against Lemma 1 from `0` to `1`:
-`(1−r)² · hess f u₀ h ≤ hess f u h ≤ (1−r)⁻² · hess f u₀ h`.
+`(1−r)² · f.hess u₀ h ≤ f.hess u h ≤ (1−r)⁻² · f.hess u₀ h`.
 
 Proved by combining Lemma 2 (derivative bound) with Lemma 1 (metric
 bound) to satisfy the hypothesis of `multiplicative_path_bound_from_log_ode`. -/
@@ -1373,11 +729,11 @@ lemma path_hess_integrated_bound {V : Type*} [NormedAddCommGroup V] [InnerProduc
     (f : LHSCB V K ν d) (hK_convex : Convex ℝ K)
     (u₀ u h : V) (hu₀ : u₀ ∈ interior K) (hu : u ∈ interior K)
     (r : ℝ) (hr_pos : 0 ≤ r) (hr_lt_one : r < 1)
-    (h_in_ball : hess f.f K u₀ (u - u₀) ≤ r ^ 2) :
-    (1 - r) ^ 2 * hess f.f K u₀ h ≤ hess f.f K u h ∧
-    hess f.f K u h ≤ (1 - r) ^ (-2 : ℝ) * hess f.f K u₀ h := by
+    (h_in_ball : f.hess u₀ (u - u₀) ≤ r ^ 2) :
+    (1 - r) ^ 2 * f.hess u₀ h ≤ f.hess u h ∧
+    f.hess u h ≤ (1 - r) ^ (-2 : ℝ) * f.hess u₀ h := by
   set γ : ℝ → V := fun t => u₀ + t • (u - u₀) with hγ_def
-  set H : ℝ → ℝ := fun t => hess f.f K (γ t) h with hH_def
+  set H : ℝ → ℝ := fun t => f.hess (γ t) h with hH_def
   have h_in : ∀ s ∈ Set.Icc (0:ℝ) 1, γ s ∈ interior K :=
     segment_in_interior hK_convex u₀ hu₀ u hu
   have hH_nn : ∀ s ∈ Set.Icc (0:ℝ) 1, 0 ≤ H s := fun s hs =>
@@ -1392,7 +748,7 @@ lemma path_hess_integrated_bound {V : Type*} [NormedAddCommGroup V] [InnerProduc
           M (fun _ => h)) :=
       (ContinuousMultilinearMap.apply ℝ (fun _ : Fin 2 => V) ℝ
         (fun _ => h)).continuous
-    have h_hess_cont : ContinuousOn (fun x : V => hess f.f K x h) (interior K) :=
+    have h_hess_cont : ContinuousOn (fun x : V => f.hess x h) (interior K) :=
       h_eval_cont.comp_continuousOn h_iter_cont
     have hγ_cont : Continuous γ := by
       show Continuous (fun s : ℝ => u₀ + s • (u - u₀))
@@ -1409,17 +765,17 @@ lemma path_hess_integrated_bound {V : Type*} [NormedAddCommGroup V] [InnerProduc
       hr_pos hr_lt_one h_in_ball
     have h_H_nn := hH_nn s hs_Icc
     calc |H'|
-        ≤ 2 * H s * local_norm f.f K (γ s) (u - u₀) := hH'_bd
+        ≤ 2 * H s * f.local_norm (γ s) (u - u₀) := hH'_bd
       _ ≤ 2 * H s * (r / (1 - s * r)) := by
           have h_factor_nn : 0 ≤ 2 * H s := by positivity
           exact mul_le_mul_of_nonneg_left h_local h_factor_nn
   have h_result :=
     multiplicative_path_bound_from_log_ode hr_pos hr_lt_one hH_nn hH_cont hH_deriv
-  have hH_0 : H 0 = hess f.f K u₀ h := by
-    show hess f.f K (γ 0) h = hess f.f K u₀ h
+  have hH_0 : H 0 = f.hess u₀ h := by
+    show f.hess (γ 0) h = f.hess u₀ h
     congr 1; simp [γ]
-  have hH_1 : H 1 = hess f.f K u h := by
-    show hess f.f K (γ 1) h = hess f.f K u h
+  have hH_1 : H 1 = f.hess u h := by
+    show f.hess (γ 1) h = f.hess u h
     congr 1
     show u₀ + (1 : ℝ) • (u - u₀) = u
     rw [one_smul]; abel
@@ -1443,15 +799,10 @@ theorem hessian_dikin_bound {K : Set V} {ν : ℕ} {d : ℕ∞}
     (u₀ : V) (hu₀ : u₀ ∈ interior K)
     (u : V) (hu : u ∈ interior K)
     (r : ℝ) (hr_pos : 0 ≤ r) (hr_lt_one : r < 1)
-    (h_in_ball :
-      iteratedFDerivWithin ℝ 2 f.f (interior K) u₀ (fun _ => u - u₀) ≤ r ^ 2) :
+    (h_in_ball : f.hess u₀ (u - u₀) ≤ r ^ 2) :
     ∀ h : V,
-      (1 - r) ^ 2 *
-          iteratedFDerivWithin ℝ 2 f.f (interior K) u₀ (fun _ => h) ≤
-        iteratedFDerivWithin ℝ 2 f.f (interior K) u (fun _ => h) ∧
-      iteratedFDerivWithin ℝ 2 f.f (interior K) u (fun _ => h) ≤
-        (1 - r) ^ (-2 : ℝ) *
-          iteratedFDerivWithin ℝ 2 f.f (interior K) u₀ (fun _ => h) := by
+      (1 - r) ^ 2 * f.hess u₀ h ≤ f.hess u h ∧
+      f.hess u h ≤ (1 - r) ^ (-2 : ℝ) * f.hess u₀ h := by
   intro h
   exact path_hess_integrated_bound f hK_convex u₀ u h hu₀ hu r hr_pos hr_lt_one h_in_ball
 
