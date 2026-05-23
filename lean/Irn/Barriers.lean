@@ -310,24 +310,59 @@ and `path_hess_integrated_bound` because they have no self-concordance
 content — they take the ODE inequality as a hypothesis on an abstract
 function `a : ℝ → ℝ` (resp. `H : ℝ → ℝ`) and integrate it. -/
 
-/-- **ODE integration for the diagonal Dikin estimate.** Suppose
-`a : ℝ → ℝ` is non-negative on `[0, 1]`, satisfies `a(0) ≤ r²` (with
-`0 ≤ r < 1`), and `|a'(t)| ≤ 2 · (√a(t))³` on `(0, 1)`. Then
-`√a(t) ≤ r/(1 − t·r)` for all `t ∈ [0, 1]`.
+/-- **Squared diagonal ODE bound.** Under the same hypotheses as
+`local_norm_path_bound_from_diagonal_ode` plus continuity of `a` on
+`[0, 1]`, we have `(1 − t·r)² · a(t) ≤ r²` for all `t ∈ [0, 1]`.
 
-Proof outline: the substitution `b(t) := 1/√a(t)` (when `a(t) > 0`)
-turns `|a'| ≤ 2 a^{3/2}` into `|b'| ≤ 1`. Integrating gives
-`b(t) ≥ b(0) − t ≥ 1/r − t = (1 − t·r)/r`, hence `√a(t) ≤ r/(1 − t·r)`.
-The edge case `a ≡ 0` gives `0 ≤ r/(1 − t·r)` trivially. -/
+This is the squared form of the Dikin estimate; it avoids the
+differentiability obstruction at `a = 0` that the natural `1/√a`
+substitution would face. The expected proof is a "first time of
+failure" barrier argument: at any `t` where the bound `q(t) :=
+(1 − t·r)² · a(t) ≤ r²` holds we have `(1 − t·r) · √a(t) ≤ r`, which
+combined with `|a'(t)| ≤ 2 (√a)³` gives `q'(t) ≤ 0`; hence the set
+`{t : q ≤ r²}` is closed and open in `[0, 1]` and equals `[0, 1]`. -/
+private lemma diagonal_ode_squared_bound
+    {a : ℝ → ℝ} {r : ℝ}
+    (hr_nn : 0 ≤ r) (hr_lt_one : r < 1)
+    (ha_nn : ∀ t ∈ Set.Icc (0:ℝ) 1, 0 ≤ a t)
+    (ha_cont : ContinuousOn a (Set.Icc (0:ℝ) 1))
+    (ha_0 : a 0 ≤ r ^ 2)
+    (ha_deriv : ∀ t ∈ Set.Ioo (0:ℝ) 1, ∃ a', HasDerivAt a a' t ∧
+                |a'| ≤ 2 * (Real.sqrt (a t)) ^ 3) :
+    ∀ t ∈ Set.Icc (0:ℝ) 1, (1 - t * r) ^ 2 * a t ≤ r ^ 2 := by
+  sorry
+
+/-- **ODE integration for the diagonal Dikin estimate.** Suppose
+`a : ℝ → ℝ` is non-negative and continuous on `[0, 1]`, satisfies
+`a(0) ≤ r²` (with `0 ≤ r < 1`), and `|a'(t)| ≤ 2 · (√a(t))³` on `(0, 1)`.
+Then `√a(t) ≤ r/(1 − t·r)` for all `t ∈ [0, 1]`.
+
+Proved by taking square roots of the squared form
+(`diagonal_ode_squared_bound`): from `(1 − t·r)² · a(t) ≤ r²`,
+`√` is monotone, then `√(x² · y) = |x| · √y = (1 − t·r) · √y` (positive),
+and the bound is rearranged by dividing by `(1 − t·r) > 0`. -/
 lemma local_norm_path_bound_from_diagonal_ode
     {a : ℝ → ℝ} {r : ℝ}
     (ha_nn : ∀ t ∈ Set.Icc (0:ℝ) 1, 0 ≤ a t)
+    (ha_cont : ContinuousOn a (Set.Icc (0:ℝ) 1))
     (ha_0 : a 0 ≤ r ^ 2)
     (hr_nn : 0 ≤ r) (hr_lt_one : r < 1)
     (ha_deriv : ∀ t ∈ Set.Ioo (0:ℝ) 1, ∃ a', HasDerivAt a a' t ∧
                 |a'| ≤ 2 * (Real.sqrt (a t)) ^ 3) :
     ∀ t ∈ Set.Icc (0:ℝ) 1, Real.sqrt (a t) ≤ r / (1 - t * r) := by
-  sorry
+  intro t ht
+  have h_1tr_pos : (0 : ℝ) < 1 - t * r := by
+    obtain ⟨h0, h1⟩ := ht; nlinarith
+  have h_sq := diagonal_ode_squared_bound hr_nn hr_lt_one ha_nn ha_cont ha_0 ha_deriv t ht
+  -- `h_sq : (1 - t * r) ^ 2 * a t ≤ r ^ 2`. Take square roots.
+  have h_sqrt_le :
+      Real.sqrt ((1 - t * r) ^ 2 * a t) ≤ Real.sqrt (r ^ 2) :=
+    Real.sqrt_le_sqrt h_sq
+  rw [Real.sqrt_mul (sq_nonneg _), Real.sqrt_sq h_1tr_pos.le,
+      Real.sqrt_sq hr_nn] at h_sqrt_le
+  -- `h_sqrt_le : (1 - t * r) * Real.sqrt (a t) ≤ r`. Divide by `(1 - t * r) > 0`.
+  rw [le_div_iff₀ h_1tr_pos, mul_comm]
+  exact h_sqrt_le
 
 /-- **Multiplicative Gronwall along an affine SC path.** Suppose
 `H : ℝ → ℝ` is non-negative and continuous on `[0, 1]` and satisfies the
@@ -605,6 +640,26 @@ lemma dikin_path_metric_bound {V : Type*} [NormedAddCommGroup V] [InnerProductSp
     segment_in_interior hK_convex u₀ hu₀ u hu
   have ha_nn : ∀ s ∈ Set.Icc (0:ℝ) 1, 0 ≤ a s := fun s hs =>
     f.self_concordant_hessian_nonneg (γ s) (h_in s hs) (u - u₀)
+  -- `a` is continuous on `[0, 1]`: `iteratedFDerivWithin 2 f.f (interior K)` is
+  -- continuous on `interior K` (from `f.contDiff₃`), composed with the
+  -- continuous CMM evaluation and the continuous affine path `γ`.
+  have ha_cont : ContinuousOn a (Set.Icc (0:ℝ) 1) := by
+    have h_iter_cont :
+        ContinuousOn (iteratedFDerivWithin ℝ 2 f.f (interior K)) (interior K) :=
+      f.contDiff₃.continuousOn_iteratedFDerivWithin (by norm_num)
+        isOpen_interior.uniqueDiffOn
+    have h_eval_cont :
+        Continuous (fun M : ContinuousMultilinearMap ℝ (fun _ : Fin 2 => V) ℝ =>
+          M (fun _ => u - u₀)) :=
+      (ContinuousMultilinearMap.apply ℝ (fun _ : Fin 2 => V) ℝ
+        (fun _ => u - u₀)).continuous
+    have h_hess_cont :
+        ContinuousOn (fun x : V => hess f.f K x (u - u₀)) (interior K) :=
+      h_eval_cont.comp_continuousOn h_iter_cont
+    have hγ_cont : Continuous γ := by
+      show Continuous (fun s : ℝ => u₀ + s • (u - u₀))
+      continuity
+    exact h_hess_cont.comp hγ_cont.continuousOn h_in
   have ha_0 : a 0 ≤ r ^ 2 := by
     show hess f.f K (γ 0) (u - u₀) ≤ r ^ 2
     have h_γ0 : γ 0 = u₀ := by simp [γ]
@@ -620,7 +675,7 @@ lemma dikin_path_metric_bound {V : Type*} [NormedAddCommGroup V] [InnerProductSp
     rw [h_diag]
     have hs_Icc : s ∈ Set.Icc (0:ℝ) 1 := ⟨le_of_lt hs.1, le_of_lt hs.2⟩
     exact f.self_concordant_abs_third (γ s) (h_in s hs_Icc) (u - u₀)
-  have h_bd := local_norm_path_bound_from_diagonal_ode ha_nn ha_0 hr_pos hr_lt_one ha_deriv
+  have h_bd := local_norm_path_bound_from_diagonal_ode ha_nn ha_cont ha_0 hr_pos hr_lt_one ha_deriv
   show Real.sqrt (a t) ≤ r / (1 - t * r)
   exact h_bd t ht
 
