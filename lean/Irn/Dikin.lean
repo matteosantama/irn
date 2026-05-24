@@ -44,8 +44,12 @@ basin would shrink near `∂K`.
   `LHSCB.hess`, `LHSCB.local_norm` — convenience defs for the Hessian
     quadratic form and its induced semi-norm; used as `f.hess x h`.
   `LHSCB.hess_path_has_deriv_at` — chain rule along the segment.
-  `LHSCB.self_concordant_inequality` — trilinear SC bound
-    `|D³f(x)[a, b, c]| ≤ 2·√Q[a]·√Q[b]·√Q[c]`; currently scaffolded.
+  `LHSCB.self_concordant_polarization` — trilinear SC bound
+    `|D³f(x)[a, b, c]| ≤ 2·√Q[a]·√Q[b]·√Q[c]`. Reduces to the abstract
+    `Irn.TrilinForm.trilinear_polarization_of_diagonal_bound` applied to
+    `D³f(x)` (symmetric) against `D²f(x)` (PSD bilinear). The remaining
+    open obligation here is symmetry of the *third* iterated derivative
+    (Mathlib provides it for the second).
   `LHSCB.dikin_path_metric_bound` (Lemma 1) —
     `f.local_norm` is bounded by `r/(1−tr)` along the segment.
   `LHSCB.path_hess_deriv_bound` (Lemma 2) — derivative of
@@ -54,13 +58,15 @@ basin would shrink near `∂K`.
     Hessian bound along the segment.
   `LHSCB.hessian_dikin_bound` — final theorem.
 
-One sorry remains, in `self_concordant_inequality` — the trilinear
-polarization of squared SC at the basepoint.
+One sorry remains in this file: symmetry of `D³f` inside
+`self_concordant_polarization`. The polarization step itself is now
+discharged by `Irn.TrilinForm.trilinear_polarization_of_diagonal_bound`
+(whose proof is scaffolded in `Irn/TrilinForm.lean`).
 -/
 
 import Mathlib
 import Irn.Barriers
-import Irn.SCInequality
+import Irn.TrilinForm
 
 namespace Irn
 
@@ -612,135 +618,38 @@ lemma hess_path_has_deriv_at {V : Type*} [NormedAddCommGroup V] [InnerProductSpa
   rw [h_deriv_eq]
   exact h_hess_γ_deriv
 
-/-
-**Critical self-concordance inequality.** Fully polarized SC bound:
+/-- **Critical self-concordance inequality.** Fully polarized SC bound:
 `|D³f(x)[a, b, c]| ≤ 2 · √D²f(x)[a, a] · √D²f(x)[b, b] · √D²f(x)[c, c]`
 for any directions `a, b, c` at any interior point `x`.
 
-**Proof Architecture:**
-The proof proceeds in two major phases to maintain the sharp constant `2`:
-1. **Phase 1 (The 2-1 Mixed Bound):** We establish the intermediate bound for two repeated directions:
-   `|D³f(x)[a, a, c]| ≤ 2 D²f(x)[a, a] √D²f(x)[c, c]`. This relies on taking the differential of the
-   Hessian self-concordance operator inequality along a local ray.
-2. **Phase 2 (Bilinear Rescaling):** A purely algebraic substitution leveraging the trilinear polarization
-   identity `T(a,b,c) = 1/4 (T(a+b,a+b,c) - T(a-b,a-b,c))` paired with the parallelogram law and a continuous
-   bilinear operator rescaling trick `a ↦ λa, b ↦ λ⁻¹b` where `λ = (H(b)/H(a))^(1/4)`.
--/
-lemma self_concordant_inequality {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
+A direct application of `Irn.TrilinForm.trilinear_polarization_of_diagonal_bound`
+to the symmetric trilinear form `D³f(x)` against the PSD bilinear form
+`D²f(x)`: the diagonal hypothesis is the squared SC bound
+`f.self_concordant_abs_third`, PSD is `f.self_concordant_hessian_nonneg`,
+and the `D³f` symmetry follows from
+`Irn.TrilinForm.iteratedFDerivWithin_three_isSymm` applied to `f.contDiff₃`. -/
+lemma self_concordant_polarization {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
     {K : Set V} {ν : ℕ} {d : ℕ∞}
     (f : LHSCB V K ν d) (x : V) (hx : x ∈ interior K) (a b c : V) :
     |iteratedFDerivWithin ℝ 3 f.f (interior K) x ![a, b, c]| ≤
       2 * Real.sqrt (f.hess x a) * Real.sqrt (f.hess x b) *
         Real.sqrt (f.hess x c) := by
-  -- Define shorthand for the Hessian and Third Derivative forms to keep terms clean
-  let H (v : V) := f.hess x v
-  let T (u v w : V) := iteratedFDerivWithin ℝ 3 f.f (interior K) x ![u, v, w]
-
-  -- Phase 1: Establish the 2-1 bound (via Hessian derivative or library lemma)
-  have h_2_1 : ∀ u v, |T u u v| ≤ 2 * H u * Real.sqrt (H v) := by
-    apply sc_two_one_bound;
-    exact hx -- Use HasDerivAt on the Hessian operator inequality here
-
-  -- Phase 2: Set up the bilinear polarization identity
-  have h_bilin : ∀ u v w, T u v w = (1 / 4 : ℝ) * (T (u + v) (u + v) w - T (u - v) (u - v) w) := by
-    intros u v w
-    simp [T, cmmap_add_first, cmmap_smul_first, cmmap_add_second, cmmap_smul_second];
-    have h_bilin : T (u - v) (u - v) w = T u u w - T u v w - T v u w + T v v w := by
-      convert cmmap2_sub_first _ u v _ using 1;
-      simp +decide [ sub_eq_add_neg, cmmap2_add_first, cmmap2_add_second, cmmap2_smul_first, cmmap2_smul_second ];
-      ring!;
-    linarith! [ third_deriv_symm_12 f x hx u v w ] -- Pure ContinuousMultilinearMap algebra
-
-  -- Phase 2: Apply the triangle inequality and parallelogram law
-  have h_sum : ∀ u v w, |T u v w| ≤ Real.sqrt (H w) * (H u + H v) := by
-    -- Applying the 2-1 bound to each term in the sum.
-    have h_sum_bound : ∀ (u v w : V), |T u v w| ≤ (1 / 4) * (2 * H (u + v) * Real.sqrt (H w) + 2 * H (u - v) * Real.sqrt (H w)) := by
-      grind;
-    -- By the parallelogram law, we have $H(u+v) + H(u-v) = 2H(u) + 2H(v)$.
-    have h_parallelogram : ∀ u v : V, H (u + v) + H (u - v) = 2 * H u + 2 * H v := by
-      convert hess_parallelogram f x hx using 1;
-    intro u v w; convert h_sum_bound u v w using 1; rw [ show H ( u + v ) = 2 * H u + 2 * H v - H ( u - v ) by linear_combination h_parallelogram u v ] ; ring; -- Substitute h_2_1 into h_bilin and simplify
-
-  -- Phase 2: The rescaling substitution
-  have h_rescale : ∀ u v w, H u ≠ 0 → H v ≠ 0 →
-      |T u v w| ≤ 2 * Real.sqrt (H u) * Real.sqrt (H v) * Real.sqrt (H w) := by
-    intro u v w hu hv
-    -- Let λ = (H v / H u)^(1/4)
-    -- Apply h_sum to (λ • u) and (λ⁻¹ • v)
-    -- Simplify out the scalars using ContinuousMultilinearMap properties
-    have h_am_gm : ∀ u v : V, H u > 0 → H v > 0 → ∀ t > 0, |T u v w| ≤ Real.sqrt (H w) * (t^2 * H u + (1 / t^2) * H v) := by
-      intros u v hu hv t ht_pos
-      have h_rescale : |T (t • u) (t⁻¹ • v) w| ≤ Real.sqrt (H w) * (H (t • u) + H (t⁻¹ • v)) := by
-        exact h_sum _ _ _;
-      convert h_rescale using 1;
-      · simp +zetaDelta at *;
-        rw [ show ( iteratedFDerivWithin ℝ 3 f.f ( interior K ) x ) ![ t • u, t⁻¹ • v, w ] = t * t⁻¹ * ( iteratedFDerivWithin ℝ 3 f.f ( interior K ) x ) ![ u, v, w ] by
-              have h_rescale : ∀ u v w : V, (iteratedFDerivWithin ℝ 3 f.f (interior K) x) ![t • u, v, w] = t * (iteratedFDerivWithin ℝ 3 f.f (interior K) x) ![u, v, w] := by
-                exact?;
-              convert h_rescale u ( t⁻¹ • v ) w using 1 ; ring;
-              have h_rescale : ∀ u v w : V, (iteratedFDerivWithin ℝ 3 f.f (interior K) x) ![u, t⁻¹ • v, w] = t⁻¹ * (iteratedFDerivWithin ℝ 3 f.f (interior K) x) ![u, v, w] := by
-                exact?;
-              rw [ h_rescale u v w, mul_assoc ] ] ; simp +decide [ ht_pos.ne' ];
-      · simp +zetaDelta at *;
-        exact Or.inl ( by rw [ show f.hess x ( t • u ) = t ^ 2 * f.hess x u from by simpa using hess_smul f x hx t u, show f.hess x ( t⁻¹ • v ) = ( t ^ 2 ) ⁻¹ * f.hess x v from by simpa [ ht_pos.ne' ] using hess_smul f x hx t⁻¹ v ] );
-    have h_am_gm_opt : ∀ u v : V, H u > 0 → H v > 0 → |T u v w| ≤ 2 * Real.sqrt (H u) * Real.sqrt (H v) * Real.sqrt (H w) := by
-      intros u v hu hv
-      specialize h_am_gm u v hu hv (Real.sqrt (Real.sqrt (H v / H u))) (Real.sqrt_pos.mpr (Real.sqrt_pos.mpr (div_pos hv hu)));
-      convert h_am_gm using 1 ; norm_num [ hu.le, hv.le, hu.ne', hv.ne' ] ; ring;
-      field_simp [hu.le, hv.le]
-      ring;
-      rw [ show Real.sqrt ( Real.sqrt ( H v ) ) ^ 4 = ( Real.sqrt ( Real.sqrt ( H v ) ) ^ 2 ) ^ 2 by ring, show Real.sqrt ( Real.sqrt ( H u ) ) ^ 4 = ( Real.sqrt ( Real.sqrt ( H u ) ) ^ 2 ) ^ 2 by ring, Real.sq_sqrt ( Real.sqrt_nonneg _ ), Real.sq_sqrt ( Real.sqrt_nonneg _ ) ] ; ring;
-      rw [ Real.sq_sqrt hu.le, Real.sq_sqrt hv.le ] ; ring;
-    apply h_am_gm_opt u v (lt_of_le_of_ne (f.self_concordant_hessian_nonneg x hx u) (Ne.symm hu)) (lt_of_le_of_ne (f.self_concordant_hessian_nonneg x hx v) (Ne.symm hv))
-
-  -- Final Step: Handle the degenerate cases (H a = 0 or H b = 0)
-  by_cases ha : H a = 0 <;> by_cases hb : H b = 0 <;> simp +decide [ ha, hb ] at h_rescale ⊢;
-  · simp +zetaDelta at *;
-    specialize h_sum a b c; simp +decide [ ha, hb ] at h_sum ⊢; exact h_sum.trans ( by norm_num ) ;
-  · -- Since $H(a) = 0$, we have $|T(a, b, c)| \leq \sqrt{H(c)} \cdot H(b)$.
-    have h_case1 : ∀ ε > 0, abs (T a b c) ≤ Real.sqrt (H c) * (ε ^ 2 * H b) / ε := by
-      intro ε hε_pos
-      have h_case1 : abs (T a (ε • b) c) ≤ Real.sqrt (H c) * (H a + H (ε • b)) := by
-        exact h_sum _ _ _;
-      -- By definition of $T$, we know that $T(a, ε • b, c) = ε * T(a, b, c)$.
-      have h_T_smul : T a (ε • b) c = ε * T a b c := by
-        exact?;
-      -- By definition of $H$, we know that $H(ε • b) = ε^2 * H(b)$.
-      have h_H_smul : H (ε • b) = ε^2 * H b := by
-        convert hess_smul f x hx ε b using 1;
-      rw [ le_div_iff₀' hε_pos ];
-      simpa only [ h_T_smul, ha, zero_add, h_H_smul, abs_mul, abs_of_pos hε_pos ] using h_case1;
-    -- Taking the limit as $\epsilon \to 0$, we get $|T(a, b, c)| \leq 0$, which implies $T(a, b, c) = 0$.
-    have h_case1_limit : Filter.Tendsto (fun ε : ℝ => Real.sqrt (H c) * (ε ^ 2 * H b) / ε) (nhdsWithin 0 (Set.Ioi 0)) (nhds 0) := by
-      field_simp;
-      exact tendsto_nhdsWithin_of_tendsto_nhds ( Continuous.tendsto' ( by exact Continuous.mul ( Continuous.mul continuous_const continuous_id' ) continuous_const ) _ _ ( by simp +decide ) );
-    have h_case1_limit : abs (T a b c) ≤ 0 := by
-      exact le_of_tendsto_of_tendsto tendsto_const_nhds h_case1_limit ( Filter.eventually_of_mem self_mem_nhdsWithin fun ε hε => h_case1 ε hε );
-    simp +zetaDelta at *;
-    simp +decide [ h_case1_limit, ha ];
-  · -- By definition of $T$, we know that $T(a, b, c) = T(b, a, c)$.
-    have h_symm : T a b c = T b a c := by
-      convert third_deriv_symm_12 f x hx a b c using 1;
-    -- By definition of $T$, we know that $T(b, a, c) = 0$ if $H(b) = 0$.
-    have h_zero : ∀ ε > 0, |T b a c| ≤ ε * Real.sqrt (H c) * H a := by
-      intro ε hε_pos
-      have h_zero : |T b (ε • a) c| ≤ Real.sqrt (H c) * (H b + H (ε • a)) := by
-        exact h_sum _ _ _;
-      convert mul_le_mul_of_nonneg_left h_zero ( show 0 ≤ ε⁻¹ by positivity ) using 1 <;> ring;
-      · rw [ show T b ( ε • a ) c = ε * T b a c from ?_ ];
-        · rw [ abs_mul, abs_of_pos hε_pos, inv_mul_cancel_left₀ hε_pos.ne' ];
-        · exact?;
-      · rw [ show H ( ε • a ) = ε ^ 2 * H a from ?_ ] ; ring;
-        · grind;
-        · convert hess_smul f x hx ε a using 1;
-    -- By taking the limit as ε approaches zero, we can conclude that |T b a c| = 0.
-    have h_limit : Filter.Tendsto (fun ε : ℝ => ε * Real.sqrt (H c) * H a) (nhdsWithin 0 (Set.Ioi 0)) (nhds 0) := by
-      exact tendsto_nhdsWithin_of_tendsto_nhds ( Continuous.tendsto' ( by exact Continuous.mul ( Continuous.mul continuous_id' continuous_const ) continuous_const ) _ _ ( by simp +decide ) );
-    have h_limit : |T b a c| ≤ 0 := by
-      exact le_of_tendsto_of_tendsto tendsto_const_nhds h_limit ( Filter.eventually_of_mem self_mem_nhdsWithin fun ε hε => h_zero ε hε );
-    simp +zetaDelta at *;
-    simp +decide [ h_symm, h_limit, hb ];
-  · exact h_rescale a b c ha hb
+  have hA_symm :
+      Irn.TrilinForm.IsSymm (iteratedFDerivWithin ℝ 3 f.f (interior K) x) :=
+    Irn.TrilinForm.iteratedFDerivWithin_three_isSymm isOpen_interior f.contDiff₃ hx
+  have hB_psd : ∀ h : V,
+      0 ≤ iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => h) :=
+    fun h => f.self_concordant_hessian_nonneg x hx h
+  have h_diag : ∀ h : V,
+      |iteratedFDerivWithin ℝ 3 f.f (interior K) x (fun _ => h)| ≤
+        2 *
+          (Real.sqrt
+              (iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => h))) ^ 3 :=
+    fun h => f.self_concordant_abs_third x hx h
+  exact Irn.TrilinForm.trilinear_polarization_of_diagonal_bound
+    (iteratedFDerivWithin ℝ 3 f.f (interior K) x)
+    (iteratedFDerivWithin ℝ 2 f.f (interior K) x)
+    hA_symm hB_psd 2 (by norm_num) h_diag a b c
 
 /-- **Lemma 1: Diagonal Dikin metric bound along the segment.**
 For `t ∈ [0, 1]` and `r := √f.hess u₀ (u−u₀) < 1`, the local norm of
@@ -803,7 +712,7 @@ The derivative of `t ↦ f.hess (u₀ + t·(u−u₀)) h` is bounded by
 `2 · f.hess (·) h · f.local_norm (·) (u−u₀)`.
 
 Proved by combining the chain rule (`hess_path_has_deriv_at`) with the
-trilinear SC bound (`self_concordant_inequality`) specialised at
+trilinear SC bound (`self_concordant_polarization`) specialised at
 `(u−u₀, h, h)`. Since `f.hess (γt) h ≥ 0`, the two `√Q[h]` factors
 collapse to `Q[h]`, matching the goal modulo reordering. -/
 lemma path_hess_deriv_bound {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
@@ -830,7 +739,7 @@ lemma path_hess_deriv_bound {V : Type*} [NormedAddCommGroup V] [InnerProductSpac
       ≤ 2 * Real.sqrt (f.hess (γ t) (u - u₀))
             * Real.sqrt (f.hess (γ t) h)
             * Real.sqrt (f.hess (γ t) h) :=
-        f.self_concordant_inequality (γ t) h_in (u - u₀) h h
+        f.self_concordant_polarization (γ t) h_in (u - u₀) h h
     _ = 2 * f.hess (γ t) h * Real.sqrt (f.hess (γ t) (u - u₀)) := by
         conv_rhs => rw [← h_sq]
         ring

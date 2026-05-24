@@ -7,9 +7,8 @@ This is the root module. It re-exports every submodule so that
 The submodules track the structure of `paper/main.tex`:
 
 * `Irn.Barriers`       — paper §2.1     (LHSCB, `φ`, `F*`, `G*`)
-* `Irn.HilbertSOS`     — Hilbert 1888: nonneg ℝ[X] is a sum of two
-                                          polynomial squares (used by
-                                          the polarized SC bound)
+* `Irn.TrilinForm`     — polarization of a symmetric `k`-linear form
+                                          by a PSD bilinear form
 * `Irn.Dikin`          — paper §6.3 Lemma 16(i) (Dikin-ball Hessian
                                           Lipschitz bound + scaffold)
 * `Irn.Setting`        — paper §1, §2.1 (problem data `(P, A, b, c, K, f)`,
@@ -27,7 +26,7 @@ The submodules track the structure of `paper/main.tex`:
 -/
 
 import Irn.Barriers
-import Irn.HilbertSOS
+import Irn.TrilinForm
 import Irn.Dikin
 import Irn.Setting
 import Irn.Monotone
