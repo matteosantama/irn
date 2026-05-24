@@ -619,7 +619,7 @@ The proof proceeds in two major phases to maintain the sharp constant `2`:
    Hessian self-concordance operator inequality along a local ray.
 2. **Phase 2 (Bilinear Rescaling):** A purely algebraic substitution leveraging the trilinear polarization
    identity `T(a,b,c) = 1/4 (T(a+b,a+b,c) - T(a-b,a-b,c))` paired with the parallelogram law and a continuous
-   bilinear operator rescaling trick `a ↦ λa, b ↦ λ⁻¹b` where `λ = (H(b)/H(a))^(1/4)`.
+   bilinear operator rescaling trick `a ↦ lama, b ↦ lam⁻¹b` where `lam = (H(b)/H(a))^(1/4)`.
 -/
 lemma self_concordant_inequality {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
     {K : Set V} {ν : ℕ} {d : ℕ∞}
@@ -639,21 +639,121 @@ lemma self_concordant_inequality {V : Type*} [NormedAddCommGroup V] [InnerProduc
   have h_bilin : ∀ u v w, T u v w = (1 / 4 : ℝ) * (T (u + v) (u + v) w - T (u - v) (u - v) w) := by
     sorry -- Pure ContinuousMultilinearMap algebra
 
+  -- Parallelogram law for H (Hessian is symmetric bilinear, so this holds).
+  have h_parallelogram : ∀ u v, H (u + v) + H (u - v) = 2 * H u + 2 * H v := by
+    sorry -- bilinearity of f.hess + symmetry of D²f
+
+  -- Hessian non-negativity (squared SC consequence).
+  have h_H_nn : ∀ v, 0 ≤ H v := fun v =>
+    f.self_concordant_hessian_nonneg x hx v
+
   -- Phase 2: Apply the triangle inequality and parallelogram law
   have h_sum : ∀ u v w, |T u v w| ≤ Real.sqrt (H w) * (H u + H v) := by
-    sorry -- Substitute h_2_1 into h_bilin and simplify
+    intro u v w
+    -- T(u, v, w) = (1/4)(T(u+v, u+v, w) - T(u-v, u-v, w)) by h_bilin
+    rw [h_bilin u v w]
+    -- Pull out 1/4, apply triangle inequality.
+    have h_tri : |(1 / 4 : ℝ) * (T (u + v) (u + v) w - T (u - v) (u - v) w)| ≤
+        (1 / 4 : ℝ) * (|T (u + v) (u + v) w| + |T (u - v) (u - v) w|) := by
+      rw [abs_mul]
+      have : |(1 / 4 : ℝ)| = 1 / 4 := abs_of_pos (by norm_num)
+      rw [this]
+      exact mul_le_mul_of_nonneg_left (abs_sub _ _) (by norm_num)
+    calc |(1 / 4 : ℝ) * (T (u + v) (u + v) w - T (u - v) (u - v) w)|
+        ≤ (1 / 4 : ℝ) * (|T (u + v) (u + v) w| + |T (u - v) (u - v) w|) := h_tri
+      _ ≤ (1 / 4 : ℝ) *
+            (2 * H (u + v) * Real.sqrt (H w) + 2 * H (u - v) * Real.sqrt (H w)) := by
+          apply mul_le_mul_of_nonneg_left _ (by norm_num : (0:ℝ) ≤ 1/4)
+          exact add_le_add (h_2_1 (u + v) w) (h_2_1 (u - v) w)
+      _ = Real.sqrt (H w) * (H (u + v) + H (u - v)) / 2 := by ring
+      _ = Real.sqrt (H w) * (H u + H v) := by
+          rw [h_parallelogram]; ring
 
   -- Phase 2: The rescaling substitution
+  -- For u, v with H(u), H(v) > 0: substitute u → lamu, v → lam⁻¹v with
+  -- lam² = √(H v / H u). Then T(lamu, lam⁻¹v, w) = T(u, v, w) by trilinearity
+  -- (the lam factors cancel). And H(lamu) + H(lam⁻¹v) = lam² H u + lam⁻² H v.
+  -- AM-GM at the optimal lam gives the minimum 2 √(H u · H v).
+  have h_T_rescale : ∀ (u v w : V) (lam : ℝ), lam > 0 →
+      T (lam • u) (lam⁻¹ • v) w = T u v w := by
+    sorry -- Trilinearity of `iteratedFDerivWithin ℝ 3 f.f` in args 0, 1
+
+  have h_H_smul : ∀ (u : V) (lam : ℝ), H (lam • u) = lam ^ 2 * H u := by
+    sorry -- Bilinearity of `f.hess` (homogeneity of degree 2)
+
   have h_rescale : ∀ u v w, H u ≠ 0 → H v ≠ 0 →
       |T u v w| ≤ 2 * Real.sqrt (H u) * Real.sqrt (H v) * Real.sqrt (H w) := by
     intro u v w hu hv
-    -- Let λ = (H v / H u)^(1/4)
-    -- Apply h_sum to (λ • u) and (λ⁻¹ • v)
-    -- Simplify out the scalars using ContinuousMultilinearMap properties
-    sorry
+    -- Define lam² := √(H v / H u). Need H u > 0, H v > 0.
+    have hHu_pos : 0 < H u := lt_of_le_of_ne (h_H_nn u) (Ne.symm hu)
+    have hHv_pos : 0 < H v := lt_of_le_of_ne (h_H_nn v) (Ne.symm hv)
+    have hHw_nn : 0 ≤ H w := h_H_nn w
+    -- lam := (H v / H u)^(1/4)
+    set lam : ℝ := (H v / H u) ^ ((1 : ℝ) / 4) with hlam_def
+    have hlam_pos : 0 < lam := by
+      rw [hlam_def]; exact Real.rpow_pos_of_pos (div_pos hHv_pos hHu_pos) _
+    -- lam² = √(H v / H u)
+    have hlam_sq : lam ^ 2 = Real.sqrt (H v / H u) := by
+      rw [hlam_def, ← Real.rpow_natCast, ← Real.rpow_mul (le_of_lt (div_pos hHv_pos hHu_pos))]
+      rw [Real.sqrt_eq_rpow]
+      congr 1
+      norm_num
+    -- Apply h_sum to (lam•u, lam⁻¹•v, w):
+    have h_sum_rescaled : |T (lam • u) (lam⁻¹ • v) w| ≤
+        Real.sqrt (H w) * (H (lam • u) + H (lam⁻¹ • v)) := h_sum _ _ _
+    -- LHS = |T u v w| via h_T_rescale.
+    rw [h_T_rescale u v w lam hlam_pos] at h_sum_rescaled
+    -- RHS: H(lam•u) + H(lam⁻¹•v) = lam²·H u + lam⁻²·H v.
+    rw [h_H_smul u lam, h_H_smul v lam⁻¹] at h_sum_rescaled
+    -- AM-GM: lam² · H u + lam⁻² · H v ≥ 2 √(H u · H v), with equality at lam² = √(H v / H u).
+    -- In our choice, lam² = √(H v / H u), so lam² H u = √(H v · H u) = √(H u · H v), and
+    -- lam⁻² H v = (1/√(H v / H u)) · H v = √(H u / H v) · H v = √(H u · H v).
+    -- So both terms equal √(H u · H v), and the sum is exactly 2√(H u · H v).
+    have h_sum_eq : lam ^ 2 * H u + (lam⁻¹) ^ 2 * H v = 2 * Real.sqrt (H u * H v) := by
+      have hlam_inv_sq : (lam⁻¹) ^ 2 = Real.sqrt (H u / H v) := by
+        rw [inv_pow, hlam_sq, ← Real.sqrt_inv, inv_div]
+      rw [hlam_sq, hlam_inv_sq]
+      -- √(H v / H u) * H u = √(H u · H v) via squaring + sqrt_sq.
+      have hHu_nn := h_H_nn u
+      have hHv_nn := h_H_nn v
+      have e1 : Real.sqrt (H v / H u) * H u = Real.sqrt (H u * H v) := by
+        have h_nn : 0 ≤ Real.sqrt (H v / H u) * H u :=
+          mul_nonneg (Real.sqrt_nonneg _) hHu_nn
+        have h_sq : (Real.sqrt (H v / H u) * H u) ^ 2 = H u * H v := by
+          rw [mul_pow, Real.sq_sqrt (le_of_lt (div_pos hHv_pos hHu_pos))]
+          field_simp
+        calc Real.sqrt (H v / H u) * H u
+            = Real.sqrt ((Real.sqrt (H v / H u) * H u) ^ 2) := (Real.sqrt_sq h_nn).symm
+          _ = Real.sqrt (H u * H v) := by rw [h_sq]
+      have e2 : Real.sqrt (H u / H v) * H v = Real.sqrt (H u * H v) := by
+        have h_nn : 0 ≤ Real.sqrt (H u / H v) * H v :=
+          mul_nonneg (Real.sqrt_nonneg _) hHv_nn
+        have h_sq : (Real.sqrt (H u / H v) * H v) ^ 2 = H u * H v := by
+          rw [mul_pow, Real.sq_sqrt (le_of_lt (div_pos hHu_pos hHv_pos))]
+          field_simp
+        calc Real.sqrt (H u / H v) * H v
+            = Real.sqrt ((Real.sqrt (H u / H v) * H v) ^ 2) := (Real.sqrt_sq h_nn).symm
+          _ = Real.sqrt (H u * H v) := by rw [h_sq]
+      rw [e1, e2]; ring
+    rw [h_sum_eq] at h_sum_rescaled
+    -- Final: |T u v w| ≤ √H w · 2 √(H u · H v) = 2 √H u √H v √H w.
+    calc |T u v w| ≤ Real.sqrt (H w) * (2 * Real.sqrt (H u * H v)) := h_sum_rescaled
+      _ = 2 * Real.sqrt (H u * H v) * Real.sqrt (H w) := by ring
+      _ = 2 * Real.sqrt (H u) * Real.sqrt (H v) * Real.sqrt (H w) := by
+          rw [Real.sqrt_mul (h_H_nn u)]; ring
 
-  -- Final Step: Handle the degenerate cases (H a = 0 or H b = 0)
-  sorry
+  -- Final Step: Combine non-degenerate case + handle degenerate cases.
+  by_cases ha : H a = 0
+  · -- H a = 0: by squared SC, T(a)³ = 0, and a contributes 0 to T(a, b, c).
+    sorry  -- degenerate: need T a b c = 0 when H a = 0
+  · by_cases hb : H b = 0
+    · sorry  -- degenerate
+    · by_cases hc : H c = 0
+      · sorry  -- degenerate
+      · -- Non-degenerate: apply h_rescale (well, swapped form for (b, c) pair).
+        -- We have h_rescale u v w bounds T u v w by √(H u · H v · H w) ≤ ...
+        -- Need bound at (a, b, c). Apply h_rescale a b c.
+        exact h_rescale a b c ha hb
 
 /-- **Lemma 1: Diagonal Dikin metric bound along the segment.**
 For `t ∈ [0, 1]` and `r := √f.hess u₀ (u−u₀) < 1`, the local norm of
