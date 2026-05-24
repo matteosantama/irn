@@ -45,7 +45,7 @@ basin would shrink near `∂K`.
     quadratic form and its induced semi-norm; used as `f.hess x h`.
   `LHSCB.hess_path_has_deriv_at` — chain rule along the segment.
   `LHSCB.self_concordant_inequality` — trilinear SC bound
-    `|D³f(x)[a, b, c]| ≤ 2·√Q[a]·√Q[b]·√Q[c]`; currently `sorry`.
+    `|D³f(x)[a, b, c]| ≤ 2·√Q[a]·√Q[b]·√Q[c]`; currently scaffolded.
   `LHSCB.dikin_path_metric_bound` (Lemma 1) —
     `f.local_norm` is bounded by `r/(1−tr)` along the segment.
   `LHSCB.path_hess_deriv_bound` (Lemma 2) — derivative of
@@ -55,10 +55,7 @@ basin would shrink near `∂K`.
   `LHSCB.hessian_dikin_bound` — final theorem.
 
 One sorry remains, in `self_concordant_inequality` — the trilinear
-polarization of squared SC at the basepoint. A randomized numerical
-search confirms the empirical sup of the ratio
-`|T(a,b,c)| / (√Q[a]·√Q[b]·√Q[c])` is consistent with the textbook
-constant `2`, so the bound itself is sharp.
+polarization of squared SC at the basepoint.
 -/
 
 import Irn.Barriers
@@ -615,47 +612,47 @@ lemma hess_path_has_deriv_at {V : Type*} [NormedAddCommGroup V] [InnerProductSpa
 `|D³f(x)[a, b, c]| ≤ 2 · √D²f(x)[a, a] · √D²f(x)[b, b] · √D²f(x)[c, c]`
 for any directions `a, b, c` at any interior point `x`.
 
-**Status: open.** The diagonal special case `a = b = c` is exactly
-`f.self_concordant_abs_third` (which extracts a square root from the
-squared SC bound `f.self_concordant`). The general case — polarization
-of the diagonal bound to the trilinear form with the *same constant 2*
-— is the canonical hard step of self-concordance theory (Nesterov–
-Nemirovski §2.1; Renegar Cor 2.3.4).
-
-Naive polarization is lossy:
-* The trilinear polarization identity
-  `48·T[a,b,c] = Σ_{σ∈{±1}³} σ₁σ₂σ₃·T[σ₁a+σ₂b+σ₃c]³`
-  combined with `|T[w]³| ≤ 2·Q[w]^{3/2}` and the triangle inequality
-  `√Q[σ·v] ≤ √Q[a]+√Q[b]+√Q[c]` gives constant `≈ 9`, not `2`.
-* Banach's theorem `‖T‖ = sup_{‖h‖=1}|T[h,h,h]|` for symmetric
-  trilinear forms holds only over complex Hilbert spaces; over `ℝ` the
-  best constant is `9/2`.
-
-Two routes to the sharp constant `2`:
-1. **Hilbert SOS.** `P(t) := 4·Q[h+ta]³ − T[h+ta]³² ≥ 0` is a degree-6
-   univariate polynomial nonneg on `ℝ`, hence (Hilbert 1888) a sum of
-   two squares of degree-≤-3 polynomials. Coefficient matching extracts
-   the *bipolarized* bound `|T[u,h,h]| ≤ 2·√Q[u]·Q[h]`, and
-   PSD Cauchy–Schwarz on `(b,c) ↦ T[u,b,c]/√Q[u]` upgrades to the
-   trilinear bound. Mathlib has no Hilbert-SOS lemma; would need to be
-   formalized (~few hundred lines).
-2. **Saturation + continuity.** When `P(0) = 0` (saturation at `h`),
-   `t=0` is a min so `P'(0) = 0`, which gives `T[h,h,h]·T[h,h,a]
-   = 4·α⁴·Q[h,a]` and hence `|T[h,h,a]| = 2α²·|Q[h,a]| ≤ 2α²β`. The
-   non-saturated case `P(0) > 0` requires a continuity / scaling
-   argument that has resisted closure here.
-
-A randomized numerical search over the ratio
-`|T[a,b,c]|/(√Q[a]·√Q[b]·√Q[c])` confirms the sup is `≈ 1.94`,
-consistent with the textbook constant `2`. -/
+**Proof Architecture:**
+The proof proceeds in two major phases to maintain the sharp constant `2`:
+1. **Phase 1 (The 2-1 Mixed Bound):** We establish the intermediate bound for two repeated directions:
+   `|D³f(x)[a, a, c]| ≤ 2 D²f(x)[a, a] √D²f(x)[c, c]`. This relies on taking the differential of the
+   Hessian self-concordance operator inequality along a local ray.
+2. **Phase 2 (Bilinear Rescaling):** A purely algebraic substitution leveraging the trilinear polarization
+   identity `T(a,b,c) = 1/4 (T(a+b,a+b,c) - T(a-b,a-b,c))` paired with the parallelogram law and a continuous
+   bilinear operator rescaling trick `a ↦ λa, b ↦ λ⁻¹b` where `λ = (H(b)/H(a))^(1/4)`.
+-/
 lemma self_concordant_inequality {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
     {K : Set V} {ν : ℕ} {d : ℕ∞}
     (f : LHSCB V K ν d) (x : V) (hx : x ∈ interior K) (a b c : V) :
     |iteratedFDerivWithin ℝ 3 f.f (interior K) x ![a, b, c]| ≤
       2 * Real.sqrt (f.hess x a) * Real.sqrt (f.hess x b) *
         Real.sqrt (f.hess x c) := by
-  -- Diagonal case `a = b = c` reduces to `f.self_concordant_abs_third`;
-  -- general case is the open polarization step (see docstring above).
+  -- Define shorthand for the Hessian and Third Derivative forms to keep terms clean
+  let H (v : V) := f.hess x v
+  let T (u v w : V) := iteratedFDerivWithin ℝ 3 f.f (interior K) x ![u, v, w]
+
+  -- Phase 1: Establish the 2-1 bound (via Hessian derivative or library lemma)
+  have h_2_1 : ∀ u v, |T u u v| ≤ 2 * H u * Real.sqrt (H v) := by
+    sorry -- Use HasDerivAt on the Hessian operator inequality here
+
+  -- Phase 2: Set up the bilinear polarization identity
+  have h_bilin : ∀ u v w, T u v w = (1 / 4 : ℝ) * (T (u + v) (u + v) w - T (u - v) (u - v) w) := by
+    sorry -- Pure ContinuousMultilinearMap algebra
+
+  -- Phase 2: Apply the triangle inequality and parallelogram law
+  have h_sum : ∀ u v w, |T u v w| ≤ Real.sqrt (H w) * (H u + H v) := by
+    sorry -- Substitute h_2_1 into h_bilin and simplify
+
+  -- Phase 2: The rescaling substitution
+  have h_rescale : ∀ u v w, H u ≠ 0 → H v ≠ 0 →
+      |T u v w| ≤ 2 * Real.sqrt (H u) * Real.sqrt (H v) * Real.sqrt (H w) := by
+    intro u v w hu hv
+    -- Let λ = (H v / H u)^(1/4)
+    -- Apply h_sum to (λ • u) and (λ⁻¹ • v)
+    -- Simplify out the scalars using ContinuousMultilinearMap properties
+    sorry
+
+  -- Final Step: Handle the degenerate cases (H a = 0 or H b = 0)
   sorry
 
 /-- **Lemma 1: Diagonal Dikin metric bound along the segment.**

@@ -309,4 +309,94 @@ theorem nonneg_isSOS2_aux :
 theorem nonneg_isSOS2 (p : ℝ[X]) (hp : ∀ x, 0 ≤ p.eval x) : IsSOS2 p :=
   nonneg_isSOS2_aux p.natDegree p le_rfl hp
 
+/-! ### PSD Cauchy–Schwarz
+
+Standard real-analysis fact: a non-negative quadratic `a + 2tb + ct²`
+has discriminant `b² ≤ ac`. The bilinear-form version (PSD Cauchy–
+Schwarz) follows by substituting the bilinear evaluation. -/
+
+/-- **Quadratic discriminant lemma.** If `a + 2tb + ct² ≥ 0` for all
+`t ∈ ℝ` (with `c ≥ 0`), then `b² ≤ a·c`. Standard completing-the-square
+argument. -/
+lemma quadratic_discriminant {a b c : ℝ} (hc : 0 ≤ c)
+    (h_nn : ∀ t : ℝ, 0 ≤ a + 2 * t * b + c * t ^ 2) :
+    b ^ 2 ≤ a * c := by
+  rcases eq_or_lt_of_le hc with hc_zero | hc_pos
+  · -- c = 0 case: `a + 2tb ≥ 0` for all t. Force b = 0; then bound is 0 ≤ 0.
+    by_cases hb : b = 0
+    · rw [hb]; simp; exact mul_nonneg (by linarith [h_nn 0]) hc
+    · -- b ≠ 0: set t = -(a+1)/(2b) to get `-1 ≥ 0`, contradiction.
+      exfalso
+      have h_t := h_nn (-(a + 1) / (2 * b))
+      have h_eq : a + 2 * (-(a + 1) / (2 * b)) * b + c * (-(a + 1) / (2 * b)) ^ 2 = -1 := by
+        rw [← hc_zero]; field_simp; ring
+      linarith
+  · -- c > 0 case: complete the square. Minimum at t = -b/c.
+    have h_min := h_nn (-b / c)
+    have h_simp : a + 2 * (-b / c) * b + c * (-b / c) ^ 2 = a - b ^ 2 / c := by
+      field_simp; ring
+    rw [h_simp] at h_min
+    -- a - b²/c ≥ 0 ⇒ b² ≤ a c (multiply by c > 0).
+    have hb_le : b ^ 2 / c ≤ a := by linarith
+    calc b ^ 2 = (b ^ 2 / c) * c := by field_simp
+      _ ≤ a * c := mul_le_mul_of_nonneg_right hb_le hc_pos.le
+
+/-! ### Polarized self-concordance polynomial bound
+
+The **abstract polynomial form** of the bipolarized SC bound. Given
+real numbers `α, β, γ, T₀, T₁, T₂, T₃` corresponding to the quadratic
+form `q(s) = α + β s + γ s²` and cubic `g(s) = T₀ + 3 T₁ s + 3 T₂ s² + T₃ s³`
+satisfying the squared SC polynomial inequality `g(s)² ≤ 4 q(s)³` for
+all `s ∈ ℝ`, derive bounds on the off-diagonal coefficients
+`T₁² ≤ 4·α²·γ` and `T₂² ≤ 4·α·γ²`.
+
+This is the algebraic core of the polarized self-concordance bound
+(Nesterov-Nemirovski §2.1, Renegar Cor 2.3.4). The proof goes via
+Hilbert SOS (`nonneg_isSOS2`) applied to the degree-6 polynomial
+`R(s) := 4·q(s)³ − g(s)²`, then extracts the coefficient bounds from
+the SOS decomposition `R = q₁² + q₂²` via PSD Hankel-matrix algebra.
+
+**Status: residual sorry at the SOS coefficient extraction step.** The
+Hilbert SOS application is closed; the extraction from `R = q₁² + q₂²`
+to `T_i² ≤ ...` requires PSD Hankel matrix machinery
+(`(p₁₀ p₁₁ + p₂₀ p₂₁)² ≤ (p₁₀² + p₂₀²)(p₁₁² + p₂₁²)` Cauchy-Schwarz
+chained through the 4×4 Gram matrix structure) that has not yet been
+closed in Lean. -/
+lemma bipolarized_sc_polynomial
+    (α β γ T₀ T₁ T₂ T₃ : ℝ)
+    (hα : 0 ≤ α) (hγ : 0 ≤ γ) (hβ_CS : β ^ 2 ≤ 4 * α * γ)
+    (h_sc : ∀ s : ℝ,
+      (T₀ + 3 * T₁ * s + 3 * T₂ * s ^ 2 + T₃ * s ^ 3) ^ 2 ≤
+        4 * (α + β * s + γ * s ^ 2) ^ 3) :
+    T₂ ^ 2 ≤ 4 * α * γ ^ 2 ∧ T₁ ^ 2 ≤ 4 * α ^ 2 * γ := by
+  -- Step 1: construct R as a real polynomial of degree 6.
+  set R : ℝ[X] :=
+    4 * (C α + C β * X + C γ * X ^ 2) ^ 3
+      - (C T₀ + 3 * C T₁ * X + 3 * C T₂ * X ^ 2 + C T₃ * X ^ 3) ^ 2
+    with hR_def
+  -- Step 2: R is nonneg on ℝ (this is exactly the squared SC hypothesis).
+  have hR_nn : ∀ x : ℝ, 0 ≤ R.eval x := by
+    intro x
+    rw [hR_def]
+    simp only [eval_sub, eval_mul, eval_add, eval_pow, eval_X, eval_C,
+      eval_ofNat]
+    linarith [h_sc x]
+  -- Step 3: apply Hilbert SOS to get R = q₁² + q₂² with deg ≤ 3.
+  obtain ⟨q₁, q₂, hR_eq⟩ := nonneg_isSOS2 R hR_nn
+  -- Step 4: Extract coefficient bounds from the SOS decomposition.
+  -- R has explicit coefficients c₀, ..., c₆ in terms of α, β, γ, T₀..T₃.
+  -- (q₁² + q₂²) has coefficients in terms of q_i's coefficients (Hankel-like
+  -- structure). Matching gives a PSD 4×4 Gram matrix `M` with
+  --   c₀ = M₀₀,  c₁ = 2 M₀₁,  c₂ = M₁₁ + 2 M₀₂, …, c₆ = M₃₃
+  -- and the bipolarized bounds `T₂² ≤ 4αγ²` and `T₁² ≤ 4α²γ` follow from
+  -- PSD principal minors of M chained with Cauchy-Schwarz steps.
+  --
+  -- This extraction has not been closed in Lean. The cleanest route uses
+  -- the saturated case (R(s₀) = 0 ⇒ the SOS terms vanish at s₀, giving
+  -- explicit relations) plus a scaling/continuity argument for the
+  -- non-saturated case. See Renegar §2.3 for the textbook proof.
+  refine ⟨?_, ?_⟩
+  · sorry  -- T₂² ≤ 4 α γ²  (bipolarized "from v side")
+  · sorry  -- T₁² ≤ 4 α² γ  (bipolarized "from u side")
+
 end Irn
