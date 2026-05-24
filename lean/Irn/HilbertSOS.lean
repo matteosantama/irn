@@ -384,17 +384,16 @@ lemma bipolarized_sc_polynomial
   -- Step 3: apply Hilbert SOS to get R = q₁² + q₂² with deg ≤ 3.
   obtain ⟨q₁, q₂, hR_eq⟩ := nonneg_isSOS2 R hR_nn
   -- Step 4: Extract coefficient bounds from the SOS decomposition.
-  -- R has explicit coefficients c₀, ..., c₆ in terms of α, β, γ, T₀..T₃.
-  -- (q₁² + q₂²) has coefficients in terms of q_i's coefficients (Hankel-like
-  -- structure). Matching gives a PSD 4×4 Gram matrix `M` with
-  --   c₀ = M₀₀,  c₁ = 2 M₀₁,  c₂ = M₁₁ + 2 M₀₂, …, c₆ = M₃₃
-  -- and the bipolarized bounds `T₂² ≤ 4αγ²` and `T₁² ≤ 4α²γ` follow from
-  -- PSD principal minors of M chained with Cauchy-Schwarz steps.
+  -- Multiple `nlinarith` attempts (with hints including polynomial
+  -- evaluations of `h_sc` at s ∈ {0, ±1, ±2} plus square-nonneg of
+  -- various linear combinations of (T_i, α, β, γ)) all timed out / failed.
+  -- The extraction requires PSD Hankel matrix machinery: chain
+  -- Cauchy-Schwarz inequalities through the 4×4 Gram matrix
+  -- `M_{ij} := q₁.coeff i · q₁.coeff j + q₂.coeff i · q₂.coeff j`.
   --
-  -- This extraction has not been closed in Lean. The cleanest route uses
-  -- the saturated case (R(s₀) = 0 ⇒ the SOS terms vanish at s₀, giving
-  -- explicit relations) plus a scaling/continuity argument for the
-  -- non-saturated case. See Renegar §2.3 for the textbook proof.
+  -- The saturated case (R(0) = 0 ⇒ q₁.coeff 0 = q₂.coeff 0 = 0) gives
+  -- explicit relations that close the bound; the non-saturated case
+  -- needs further work (Renegar §2.3, Nesterov–Nemirovski §2.1).
   refine ⟨?_, ?_⟩
   · sorry  -- T₂² ≤ 4 α γ²  (bipolarized "from v side")
   · sorry  -- T₁² ≤ 4 α² γ  (bipolarized "from u side")
