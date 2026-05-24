@@ -59,6 +59,7 @@ polarization of squared SC at the basepoint.
 -/
 
 import Irn.Barriers
+import Irn.HilbertSOS
 
 namespace Irn
 
@@ -608,6 +609,95 @@ lemma hess_path_has_deriv_at {V : Type*} [NormedAddCommGroup V] [InnerProductSpa
   rw [h_deriv_eq]
   exact h_hess_γ_deriv
 
+
+/-- **The 2-1 mixed bound.** `|D³f(x)[u, u, v]| ≤ 2 · H(u) · √H(v)`.
+
+This is the bipolarized SC bound "at u" (with squared direction u and
+single direction v). It is the **Phase 1 hard core** of the polarized
+self-concordance theory.
+
+**Reduction to `Irn.bipolarized_sc_polynomial`.** Apply the squared SC
+hypothesis `f.self_concordant` at the variable direction `w = u + s·v`
+for `s ∈ ℝ`. This yields, by the multilinear expansion of D³f and D²f
+in `u, v`, the polynomial inequality
+  `(T₀ + 3T₁s + 3T₂s² + T₃s³)² ≤ 4(α + βs + γs²)³`   (for all s)
+where `α = H(u), β = 2·D²f(x)[u,v], γ = H(v)` and
+`Tₖ = D³f(x)[u^(3-k), v^k]`. The Cauchy–Schwarz bound `β² ≤ 4αγ` for
+the PSD Hessian follows from `quadratic_discriminant` applied to
+`0 ≤ α + βs + γs²`. Then `bipolarized_sc_polynomial` extracts
+`T₁² ≤ 4α²γ`, which is `|T₁| ≤ 2α·√γ` after taking square roots.
+
+**Remaining obligations:**
+* `bipolarized_sc_polynomial` itself has 2 sorries (Hankel/Gram).
+* Multilinear expansions of `D³f(x)[u+sv, u+sv, u+sv]` and
+  `D²f(x)[u+sv, u+sv]` in `s` use the multilinearity of
+  `iteratedFDerivWithin` + the symmetry of `D²f`/`D³f` (the latter
+  was a deleted Schwarz helper). -/
+lemma sc_two_one_bound {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
+    {K : Set V} {ν : ℕ} {d : ℕ∞}
+    (f : LHSCB V K ν d) (x : V) (hx : x ∈ interior K) (u v : V) :
+    |iteratedFDerivWithin ℝ 3 f.f (interior K) x ![u, u, v]| ≤
+      2 * iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => u) *
+        Real.sqrt (iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => v)) := by
+  -- Abbreviations for the relevant quantities.
+  set α := iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => u) with hα_def
+  set γ := iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => v) with hγ_def
+  set T₀ := iteratedFDerivWithin ℝ 3 f.f (interior K) x (fun _ => u) with hT₀_def
+  set T₁ := iteratedFDerivWithin ℝ 3 f.f (interior K) x ![u, u, v] with hT₁_def
+  set T₂ := iteratedFDerivWithin ℝ 3 f.f (interior K) x ![u, v, v] with hT₂_def
+  set T₃ := iteratedFDerivWithin ℝ 3 f.f (interior K) x (fun _ => v) with hT₃_def
+  set β : ℝ := 2 * iteratedFDerivWithin ℝ 2 f.f (interior K) x ![u, v] with hβ_def
+  -- Non-negativity of the diagonal Hessian (from PSD).
+  have hα_nn : 0 ≤ α := f.self_concordant_hessian_nonneg x hx u
+  have hγ_nn : 0 ≤ γ := f.self_concordant_hessian_nonneg x hx v
+  -- Bilinear expansion of the Hessian along `u + s·v`.
+  -- `H(u + s·v) = α + β·s + γ·s²` via bilinearity + Schwarz symmetry.
+  have h_H_expand : ∀ s : ℝ,
+      iteratedFDerivWithin ℝ 2 f.f (interior K) x (fun _ => u + s • v) =
+        α + β * s + γ * s ^ 2 := by
+    sorry -- bilinearity of D²f + Schwarz symmetry M ![u, v] = M ![v, u]
+  -- Trilinear expansion of D³f along `u + s·v`.
+  -- `T(u+sv, u+sv, u+sv) = T₀ + 3T₁s + 3T₂s² + T₃s³` via trilinearity + symmetry.
+  have h_T_expand : ∀ s : ℝ,
+      iteratedFDerivWithin ℝ 3 f.f (interior K) x (fun _ => u + s • v) =
+        T₀ + 3 * T₁ * s + 3 * T₂ * s ^ 2 + T₃ * s ^ 3 := by
+    sorry -- trilinearity of D³f + symmetry (Schwarz)
+  -- PSD Cauchy–Schwarz on the Hessian: β² ≤ 4·α·γ.
+  -- Apply quadratic_discriminant to `0 ≤ α + β·t + γ·t²` (with t = s).
+  have hβ_CS : β ^ 2 ≤ 4 * α * γ := by
+    -- The hypothesis `0 ≤ α + 2·t·(β/2) + γ·t²` matches the discriminant form.
+    have h_q_nn : ∀ t : ℝ, 0 ≤ α + 2 * t * (β / 2) + γ * t ^ 2 := by
+      intro t
+      have := f.self_concordant_hessian_nonneg x hx (u + t • v)
+      rw [h_H_expand t] at this
+      linarith
+    have := quadratic_discriminant hγ_nn h_q_nn
+    -- (β/2)² ≤ α·γ ⇒ β² ≤ 4·α·γ.
+    nlinarith [this]
+  -- The polynomial squared-SC inequality, instantiated for our coefficients.
+  have h_sc_poly : ∀ s : ℝ,
+      (T₀ + 3 * T₁ * s + 3 * T₂ * s ^ 2 + T₃ * s ^ 3) ^ 2 ≤
+        4 * (α + β * s + γ * s ^ 2) ^ 3 := by
+    intro s
+    -- Squared SC at direction `u + s·v`.
+    have h := f.self_concordant x hx (u + s • v)
+    rw [h_T_expand s, h_H_expand s] at h
+    exact h
+  -- Apply the abstract bipolarized polynomial lemma to get T₁² ≤ 4·α²·γ.
+  obtain ⟨_, hT₁_sq⟩ :=
+    bipolarized_sc_polynomial α β γ T₀ T₁ T₂ T₃ hα_nn hγ_nn hβ_CS h_sc_poly
+  -- Convert `T₁² ≤ 4·α²·γ` to `|T₁| ≤ 2·α·√γ` via square roots.
+  have h_rhs_nn : 0 ≤ 2 * α * Real.sqrt γ :=
+    mul_nonneg (mul_nonneg (by norm_num) hα_nn) (Real.sqrt_nonneg _)
+  have h_rhs_sq : (2 * α * Real.sqrt γ) ^ 2 = 4 * α ^ 2 * γ := by
+    rw [mul_pow, mul_pow, Real.sq_sqrt hγ_nn]; ring
+  -- T₁² ≤ (2·α·√γ)² and both ≥ 0 ⇒ |T₁| ≤ 2·α·√γ.
+  have h_sq_le : T₁ ^ 2 ≤ (2 * α * Real.sqrt γ) ^ 2 := h_rhs_sq ▸ hT₁_sq
+  have h_sqrt_le : Real.sqrt (T₁ ^ 2) ≤ Real.sqrt ((2 * α * Real.sqrt γ) ^ 2) :=
+    Real.sqrt_le_sqrt h_sq_le
+  rw [Real.sqrt_sq_eq_abs, Real.sqrt_sq h_rhs_nn] at h_sqrt_le
+  exact h_sqrt_le
+
 /-- **Critical self-concordance inequality.** Fully polarized SC bound:
 `|D³f(x)[a, b, c]| ≤ 2 · √D²f(x)[a, a] · √D²f(x)[b, b] · √D²f(x)[c, c]`
 for any directions `a, b, c` at any interior point `x`.
@@ -631,9 +721,9 @@ lemma self_concordant_inequality {V : Type*} [NormedAddCommGroup V] [InnerProduc
   let H (v : V) := f.hess x v
   let T (u v w : V) := iteratedFDerivWithin ℝ 3 f.f (interior K) x ![u, v, w]
 
-  -- Phase 1: Establish the 2-1 bound (via Hessian derivative or library lemma)
-  have h_2_1 : ∀ u v, |T u u v| ≤ 2 * H u * Real.sqrt (H v) := by
-    sorry -- Use HasDerivAt on the Hessian operator inequality here
+  -- Phase 1: Establish the 2-1 bound (via `sc_two_one_bound`).
+  have h_2_1 : ∀ u v, |T u u v| ≤ 2 * H u * Real.sqrt (H v) :=
+    fun u v => sc_two_one_bound f x hx u v
 
   -- Phase 2: Set up the bilinear polarization identity
   have h_bilin : ∀ u v w, T u v w = (1 / 4 : ℝ) * (T (u + v) (u + v) w - T (u - v) (u - v) w) := by
