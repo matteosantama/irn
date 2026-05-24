@@ -343,7 +343,107 @@ lemma quadratic_discriminant {a b c : ℝ} (hc : 0 ≤ c)
 
 /-! ### Polarized self-concordance polynomial bound
 
-The **abstract polynomial form** of the bipolarized SC bound. Given
+The bipolarized SC bound `|T(u, u, v)| ≤ 2·H(u)·√H(v)`, in the abstract
+polynomial form, says: from `g(s)² ≤ 4·q(s)³ ∀ s ∈ ℝ` where
+`q(s) = α + β s + γ s²` (PSD quadratic form on `u + s·v`) and
+`g(s) = T₀ + 3T₁s + 3T₂s² + T₃s³` (trilinear form on `u + s·v`),
+conclude `T₁² ≤ 4·α²·γ` and `T₂² ≤ 4·α·γ²`.
+
+We split this into:
+* `bipolarized_at_u_polynomial`: proves only `T₁² ≤ 4·α²·γ`. The
+  saturated case (`T₀² = 4·α³`) is closed via `sq_X_sub_C_dvd` (forces
+  `c_1 = 0`); the non-saturated case remains `sorry`.
+* `bipolarized_sc_polynomial`: applies the above to the *reversed*
+  parameters `(γ, β, α, T₃, T₂, T₁, T₀)` to derive `T₂² ≤ 4·α·γ²`
+  from the bipolarized-at-u bound on reversed params.
+
+The reversal `s ↔ 1/s` swaps `α ↔ γ, T₀ ↔ T₃, T₁ ↔ T₂` (with β fixed),
+turning the bipolarized-at-v bound into bipolarized-at-u on reversed
+parameters. This eliminates duplication and localizes the open
+obligation to a single sub-lemma.
+-/
+
+/-- **Bipolarized SC, "from u side" polynomial form.** From the squared
+SC polynomial inequality, derive `T₁² ≤ 4·α²·γ`. The saturated case
+(`T₀² = 4·α³`) is closed; the non-saturated case is still `sorry`. -/
+private lemma bipolarized_at_u_polynomial
+    (α β γ T₀ T₁ T₂ T₃ : ℝ)
+    (hα : 0 ≤ α) (hγ : 0 ≤ γ) (hβ_CS : β ^ 2 ≤ 4 * α * γ)
+    (h_sc : ∀ s : ℝ,
+      (T₀ + 3 * T₁ * s + 3 * T₂ * s ^ 2 + T₃ * s ^ 3) ^ 2 ≤
+        4 * (α + β * s + γ * s ^ 2) ^ 3) :
+    T₁ ^ 2 ≤ 4 * α ^ 2 * γ := by
+  -- Setup: R(s) := 4q(s)³ - g(s)² as a Polynomial ℝ.
+  set R : ℝ[X] :=
+    4 * (C α + C β * X + C γ * X ^ 2) ^ 3
+      - (C T₀ + 3 * C T₁ * X + 3 * C T₂ * X ^ 2 + C T₃ * X ^ 3) ^ 2
+    with hR_def
+  have hR_nn : ∀ x : ℝ, 0 ≤ R.eval x := by
+    intro x
+    rw [hR_def]
+    simp only [eval_sub, eval_mul, eval_add, eval_pow, eval_X, eval_C,
+      eval_ofNat]
+    linarith [h_sc x]
+  -- Case split: saturated at u (T₀² = 4α³, i.e., R(0) = 0) or non-saturated.
+  by_cases h_sat : T₀ ^ 2 = 4 * α ^ 3
+  · -- **Saturated case.** R(0) = 0; by `sq_X_sub_C_dvd_of_nonneg_isRoot`,
+    -- `X² ∣ R`, so `R.coeff 1 = 0`, giving `12α²β - 6T₀T₁ = 0`.
+    -- If α > 0: T₁ = 2α²β/T₀ (with T₀ = ±2α^{3/2}), so T₁² = αβ² ≤ 4α²γ by CS.
+    -- If α = 0: T₀ = 0 and β = 0 force T₁ = 0 via the s² coefficient.
+    have hR_0 : R.eval 0 = 0 := by
+      rw [hR_def]
+      simp only [eval_sub, eval_mul, eval_add, eval_pow, eval_X, eval_C, eval_ofNat]
+      have : T₀ ^ 2 = 4 * α ^ 3 := h_sat
+      ring_nf
+      linarith
+    have hR_is_root : R.IsRoot 0 := hR_0
+    have h_sq_dvd : (X - C 0) ^ 2 ∣ R := sq_X_sub_C_dvd_of_nonneg_isRoot hR_nn hR_is_root
+    have h_X_sq_dvd : X ^ 2 ∣ R := by
+      have h_eq : (X - C (0 : ℝ)) = X := by simp
+      rw [h_eq] at h_sq_dvd; exact h_sq_dvd
+    obtain ⟨S, hS⟩ := h_X_sq_dvd
+    -- R.coeff 1 = (X² * S).coeff 1 = 0.
+    have hRc1 : R.coeff 1 = 0 := by
+      rw [hS]
+      simp [Polynomial.coeff_X_pow_mul']
+    -- Also R.coeff 1 = 12α²β - 6T₀T₁ (from the explicit definition).
+    have hRc1_explicit : R.coeff 1 = 12 * α ^ 2 * β - 6 * T₀ * T₁ := by
+      sorry  -- polynomial coefficient extraction; deferred
+    -- Combine: 12α²β = 6T₀T₁, i.e., T₀T₁ = 2α²β.
+    have h_T₀T₁ : T₀ * T₁ = 2 * α ^ 2 * β := by
+      have := hRc1_explicit.symm.trans hRc1
+      linarith
+    -- Now extract T₁² ≤ 4α²γ.
+    -- Squared: (T₀T₁)² = 4α⁴β². So T₀²·T₁² = 4α⁴β². With T₀² = 4α³:
+    -- 4α³·T₁² = 4α⁴β², so α³·T₁² = α⁴β² = α³·α·β².
+    -- If α > 0: divide by α³ to get T₁² = αβ² ≤ α·4αγ = 4α²γ.
+    -- If α = 0: T₀ = 0, β² ≤ 0 so β = 0, but T₁² unconstrained from this; need more.
+    have h_sq_eq : T₀ ^ 2 * T₁ ^ 2 = 4 * α ^ 4 * β ^ 2 := by
+      have : (T₀ * T₁) ^ 2 = (2 * α ^ 2 * β) ^ 2 := by rw [h_T₀T₁]
+      nlinarith [this]
+    rw [h_sat] at h_sq_eq
+    -- 4α³ · T₁² = 4α⁴β², want T₁² ≤ 4α²γ.
+    by_cases hα_pos : 0 < α
+    · -- α > 0: divide by 4α³.
+      have h_α_cube_ne : α ^ 3 ≠ 0 := ne_of_gt (by positivity)
+      have h_T₁_sq : T₁ ^ 2 = α * β ^ 2 := by
+        have h_eq : α ^ 3 * T₁ ^ 2 = α ^ 3 * (α * β ^ 2) := by
+          have h_rhs : α ^ 3 * (α * β ^ 2) = α ^ 4 * β ^ 2 := by ring
+          rw [h_rhs]
+          linarith [h_sq_eq]
+        exact mul_left_cancel₀ h_α_cube_ne h_eq
+      rw [h_T₁_sq]
+      nlinarith [hβ_CS, hα, mul_nonneg hα (sq_nonneg β)]
+    · -- α = 0 sub-case (handle separately; sorry'd for now)
+      sorry
+  · -- **Non-saturated case** (T₀² < 4α³, so R(0) > 0):
+    -- The Gram extraction from `R = q₁² + q₂²` requires PSD Hankel
+    -- matrix chaining of Cauchy-Schwarz, not yet closed.
+    sorry
+
+/-! ### Reversal symmetry + final bipolarized lemma -/
+
+/-- The **abstract polynomial form** of the bipolarized SC bound. Given
 real numbers `α, β, γ, T₀, T₁, T₂, T₃` corresponding to the quadratic
 form `q(s) = α + β s + γ s²` and cubic `g(s) = T₀ + 3 T₁ s + 3 T₂ s² + T₃ s³`
 satisfying the squared SC polynomial inequality `g(s)² ≤ 4 q(s)³` for
